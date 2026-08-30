@@ -263,9 +263,9 @@ The specific set of requirements depends on the generated task.
 
 ## 4.1 The player↔simulator contract
 
-**This contract is the actual product, and it is currently undefined.** It determines which languages are usable, how fairness is guaranteed, how the agent-benchmark use case works, and whether performance is being measured deliberately or by accident.
+**This contract is the actual product.** It determines which languages are usable, how fairness is guaranteed, how the agent-benchmark use case works, and whether performance is being measured deliberately or by accident.
 
-No implementation work should begin before it is specified. The open questions are collected in §9; the technical options and a recommended default are analysed in `TECHNICAL-RESEARCH.md`.
+A draft specification exists: **`PLAYER-CONTRACT.md`** (v0.1, draft). It resolves Q1–Q8 and is deliberately blocked on the time model, Q9–Q14, which is now the critical path. The technical options behind those choices are analysed in `TECHNICAL-RESEARCH.md` §2.
 
 The contract must at minimum define:
 

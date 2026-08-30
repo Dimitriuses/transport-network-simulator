@@ -46,6 +46,8 @@ Two lessons:
 
 ## 2. The player↔simulator contract (Q1–Q8)
 
+> **Superseded in part by [`PLAYER-CONTRACT.md`](PLAYER-CONTRACT.md) v0.1.** Drafting the specification showed the two-model framing below to be one channel short: notifications must be **pushed by the player** to the simulator, or the "delay in dissemination of real-time information" metric measures the simulator's own poll interval rather than the player's responsiveness. The contract therefore has three channels, not two. The analysis below stands as the reasoning that led there.
+
 ### The three possible models
 
 | | A. Player as service | B. Player as client | C. Platform executes player code |
@@ -400,15 +402,18 @@ Note that performance was *not* the deciding argument. Python at ~122 k events/s
 
 ## 13. Status of the open questions
 
-**Answerable now with the research above:** Q1–Q4, Q6, Q9–Q12, Q15–Q17, Q21, Q25 (partially), Q26, Q27–Q28, Q31–Q34, Q36, Q38.
+**Answered in draft by [`PLAYER-CONTRACT.md`](PLAYER-CONTRACT.md) v0.1:** Q1–Q8, and materially Q14, Q37–Q38, Q41–Q42.
 
-**Needs a product decision, not more research:** Q5, Q7, Q8, Q13 (leak tolerance), Q14 (acceleration policy), Q18–Q20, Q22–Q24, Q29–Q30, Q35, Q37, Q39–Q44.
+**Answerable now with the research above:** Q9–Q12, Q15–Q17, Q21, Q25 (partially), Q26, Q27–Q28, Q31–Q34, Q36.
 
-**The three that should be settled first**, because everything else depends on them:
+**Needs a product decision, not more research:** Q13 (leak tolerance), Q18–Q20, Q22–Q24, Q29–Q30, Q35, Q39–Q40, Q43–Q44.
 
-1. **Q1 / Q3** — the direction and transport of the player contract. Every other interface follows from it.
-2. **Q9–Q13** — the time model. Retrofitting a virtual clock into a codebase that reads the wall clock is close to a rewrite.
-3. **Q32** — the canonical data model. It determines what the generator can express and what the oracle can consume.
+**Language choice (§11) — decided:** TypeScript runtime, Python offline.
+
+**Critical path.** With the contract drafted, two remain:
+
+1. **Q9–Q13 — the time model.** Now blocking. `PLAYER-CONTRACT.md` deliberately defines `deadline` as a field whose policy lives elsewhere; that policy determines whether deadlines are simulated or wall-clock, whether the clock pauses during a player call, and how acceleration interacts with the player's own polling. Retrofitting a virtual clock into a codebase that reads the wall clock is close to a rewrite.
+2. **Q32 — the canonical data model.** It determines what the generator can express, what the oracle can consume, and what an operator-scoped reference resolves *to*.
 
 ---
 
