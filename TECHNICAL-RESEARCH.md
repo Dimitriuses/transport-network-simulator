@@ -295,15 +295,100 @@ It becomes relevant for a hosted leaderboard or a managed benchmark harness. Cur
 
 ---
 
-## 11. Recommended MVP stack
+## 11. Language choice for the core — measured
+
+The question: can a TypeScript/Node core carry a realistic number of simulated passengers over a simulated day?
+
+### Method
+
+An equivalent discrete-event workload was implemented in Node and in Python and run on the development machine (Windows, Node v22.20.0, Python 3.13.7). The workload is a binary-heap event loop over a transit-shaped event mix — passenger start, arrive-at-stop, board, alight, and vehicle-stop events — with 4 000 stops, 2 000 vehicles, 40 stops per vehicle and 3 legs per passenger.
+
+Two JS variants were measured: idiomatic object-per-event, and struct-of-arrays over `Float64Array`/`Int32Array`. Python uses `heapq`, whose C implementation favours it — this is the strongest reasonable Python baseline, not a straw man. All implementations break scheduling ties by insertion sequence, since a real simulator requires deterministic tie-breaking.
+
+Equivalence is enforced, not assumed. The RNG is a mulberry32 that is bit-identical across the two languages, control flow never branches on RNG output, and every implementation emits a final-state checksum. The harness fails the run if the checksums disagree. All configurations reported below agree.
+
+Code: [`benchmarks/des-core/`](benchmarks/des-core/) — `node run-all.mjs` reproduces the tables.
+
+### Results
+
+**200 000 passengers — 2 080 000 events**
+
+| Implementation | Events/sec | Wall time | RSS |
+|---|---:|---:|---:|
+| Node — typed arrays | **2 504 402** | 0.83 s | 53 MB |
+| Node — objects | 1 188 383 | 1.75 s | 100 MB |
+| Python — heapq | 147 888 | 14.06 s | — |
+
+**1 000 000 passengers — 10 080 000 events** (a full realistic city-day)
+
+| Implementation | Events/sec | Wall time | RSS |
+|---|---:|---:|---:|
+| Node — typed arrays | **2 020 063** | 4.99 s | 66 MB |
+| Node — objects | 673 262 | 14.97 s | 185 MB |
+| Python — heapq | 121 548 | 82.93 s | — |
+
+### Findings
+
+1. **TypeScript is not the constraint.** At the larger scale Node with typed arrays is **~17× Python**; even naive object-based Node is **~5.5×**. A full city-day of ten million events costs about five seconds of core time.
+2. **Representation matters more than language.** Typed arrays are **3× faster than objects in the same runtime** — comparable to many cross-language differences, and available without changing language at all.
+3. **The object-based version degrades worst under load.** Going from 2 M to 10 M events, throughput fell 43 % for objects, 19 % for typed arrays, 18 % for Python. That is GC pressure from short-lived event objects, and it also shows in memory: 185 MB vs 66 MB. Naive JS is the option whose performance is least predictable as worlds grow — which matters most at the Chaos tier, exactly where headroom is wanted.
+4. **Deterministic tie-breaking is not free.** Ordering equal-timestamp events by insertion sequence costs the typed implementation roughly a third of its throughput (≈3.1 M → ≈2.0 M events/sec), because a third parallel array must be sifted. It is nonetheless mandatory — without it, event order at equal timestamps is an implementation detail and reproducibility is lost. Most of the cost is recoverable later by packing timestamp and sequence into a single `f64` key (a day's timestamps and ~10⁷ sequence numbers fit inside 2⁵³ comfortably); not worth doing until the core is otherwise settled.
+5. **This measures only the event loop.** Real per-event work is heavier, and the operator API layer plus player round-trips will dominate total run time. Core throughput is unlikely to be the bottleneck in any runtime — which means **performance is the wrong reason to choose TypeScript, and also the wrong reason to reject it.**
+
+Caveats: one machine, one run per configuration, synthetic per-event work. The ratios are large enough that noise is immaterial, but they are directional, not precise.
+
+### Determinism hazards specific to JavaScript
+
+The determinism requirement in §4 interacts with JS in ways that need explicit handling.
+
+* **`Math.random()` is not seedable.** Ban it outright; supply a seeded PRNG (mulberry32, PCG). Trivially solved, but must be a lint-enforced rule, not a convention.
+* **Transcendental functions are the real hazard.** ECMA-262 only *recommends* fdlibm for `Math.sin`/`cos`/`tan`; it does not require it, and specifies results as implementation-approximated. In practice V8 statically links its own routines (bundled llvm-libc, fdlibm-derived for sin/cos), so results are consistent across operating systems for a given V8 — but **not guaranteed across V8 versions**. A concrete recent example: `Math.tanh` was changed in V8 14.8.57 / Chrome 148 to call `std::tanh`, which reads the host libm, making it OS-dependent where it previously was not.
+  * **Mitigation (recommended):** keep transcendentals out of the simulation core entirely. Geodesic distances are the only real need, and they can be computed once at world-build time and shipped as a `Float64Array`. IEEE-754 `+ - * /` and `sqrt` are exactly specified and reproduce everywhere; only the transcendental library is unstable.
+  * **Fallback:** compile fdlibm to WebAssembly and call that. There is direct precedent — this was done specifically because reproducible math was required for game replays.
+* **Iteration order is an advantage, not a risk.** JS object key order is specified (integer-like keys ascending, then string keys in insertion order), and `Map`/`Set` preserve insertion order. This is stronger than Go's deliberately randomised map iteration.
+* **`async` is the discipline problem.** Promise microtask ordering is deterministic, but real I/O is not, and `async` is idiomatic enough in TS that it will creep into the model if unguarded. **Architectural rule: the simulation core is synchronous; nothing in it may be `async`, and all I/O lives at the boundary.** Enforce with lint.
+* **Do not parallelise the core.** `worker_threads` plus `SharedArrayBuffer` would destroy reproducibility. Parallelise across seeds instead — running many worlds is embarrassingly parallel and is what the benchmark and assessment use cases actually need.
+* **Numbers are f64 only.** Integer identifiers are exact to 2⁵³, but bitwise operators truncate to int32, which silently caps any packed-field scheme. Fine if deliberate.
+* **Erasable syntax is worth adopting as a rule.** Node ≥ 22.18 runs `.ts` files directly by stripping types, with no build step — but only for *erasable* syntax. `enum`, `namespace`, parameter properties and decorators are rejected outright (`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`); the benchmark hit this with `const enum` and uses plain consts plus a union type instead. Keeping the whole codebase erasable (TypeScript's own `--erasableSyntaxOnly` enforces it) buys a zero-toolchain path for scripts, tools and benchmarks, and costs almost nothing stylistically.
+
+### The actual argument for TypeScript
+
+It is not speed. It is that **this project's content is schemas and their mutations**, and TypeScript is unusually good at that:
+
+* one language across simulation core, operator API servers, player SDK, and the monitoring UI in §5;
+* the canonical model, the per-operator projections, the conflict manifest, the runtime validators, the OpenAPI documents and the generated operator documentation can all derive from a single schema source (Zod / TypeBox → JSON Schema → OpenAPI), which for a generator whose entire job is producing divergent schemas is a substantial structural win;
+* the monitoring UI is a web application, so shared types remove a whole class of drift;
+* it is the most natural language for a player SDK aimed at HTTP integration work.
+
+Against it: Python's numeric and geospatial ecosystem is far stronger, and the Stage 1 map pipeline (§8, pyrosm/OSMnx) is Python. Scoring analysis and calibration also want pandas.
+
+### Decision
+
+**Adopted: TypeScript for the runtime, Python for offline work** — a hybrid split along the offline/runtime seam, which is clean because world-building already produces a data artefact:
+
+* **Python, offline** — OSM extraction, world building, world validation, scoring analysis and calibration.
+* **TypeScript, runtime** — simulation core, operator API servers, player-facing contract, monitoring UI.
+
+Three decisions follow, and all three are expensive to retrofit, so they belong in the first commit:
+
+1. **Struct-of-arrays over TypedArrays for the hot path** — the event queue and per-entity state. Not everywhere; only the core.
+2. **No `async` and no wall-clock reads inside the core**, lint-enforced.
+3. **No transcendental functions in the core** — precompute geodesic distances at world-build time (which is Python's side of the seam anyway).
+
+Note that performance was *not* the deciding argument. Python at ~122 k events/sec already handles a million-passenger day in 83 seconds, and the API layer will dominate long before the event loop does. The decision rests on the type and schema-sharing story, which is the right basis for it: this project's content is schemas and their mutations, and that is where TypeScript pays. The throughput headroom is a bonus that removes scale as a future concern.
+
+---
+
+## 12. Recommended MVP stack
 
 | Concern | Recommendation | Rationale |
 |---|---|---|
-| Simulation core | Hand-written single-threaded DES, Python | Determinism demands owning the event loop; iteration speed matters more than throughput at this stage |
+| Simulation core | Hand-written single-threaded DES, **TypeScript**, struct-of-arrays hot path | Determinism demands owning the event loop. §11: ~17× Python, but chosen for the type/schema-sharing story rather than for speed |
+| Offline pipeline | **Python** — OSM extraction, world building, world validation, scoring analysis | Numeric and geospatial ecosystem; clean seam, since world-building emits a data artefact |
 | Clock | Virtual, authoritative, pausable | Prerequisite for open-loop reproducibility |
 | RNG | One seed, explicitly threaded | DST practice; no module-level default RNG anywhere |
 | Canonical data model | GTFS superset, OTP2-style | Realistic, tooled, and the source of authentic schema divergence |
-| Operator APIs | HTTP/JSON, FastAPI or equivalent, one app per operator | Matches what integration engineers actually face |
+| Operator APIs | HTTP/JSON, TypeScript, one app per operator, schemas derived from the canonical model | Matches what integration engineers actually face; one schema source feeds validators, OpenAPI and generated docs |
 | Player contract | Player-hosted HTTP service, OpenAPI-described; player also polls operator APIs | Language-agnostic, no sandbox, Battlesnake-proven |
 | Oracle | Own RAPTOR over ground truth | Normalisation, calibration and solvability in one component |
 | Map | Pre-downloaded OSM extract, pyrosm/OSMnx, committed | Deterministic, offline, no rate limits |
@@ -313,7 +398,7 @@ It becomes relevant for a hosted leaderboard or a managed benchmark harness. Cur
 
 ---
 
-## 12. Status of the open questions
+## 13. Status of the open questions
 
 **Answerable now with the research above:** Q1–Q4, Q6, Q9–Q12, Q15–Q17, Q21, Q25 (partially), Q26, Q27–Q28, Q31–Q34, Q36, Q38.
 
@@ -381,6 +466,16 @@ Entity resolution:
 - [Omni Geometry Representation Learning vs LLMs for Geospatial Entity Resolution](https://arxiv.org/pdf/2508.06584)
 - [Fuzzy Name Matching: Methods, Algorithms & Techniques](https://www.babelstreet.com/blog/fuzzy-name-matching-techniques)
 - [Fuzzy Matching Guide](https://winpure.com/fuzzy-matching-guide/)
+
+JavaScript determinism and numeric behaviour (§11):
+- [MDN — Math](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math)
+- [Your Browser Does Math Differently on Every OS](https://scrapfly.dev/posts/browser-math-os-fingerprint/) — V8 statically links its math routines; the `Math.tanh` / V8 14.8.57 regression to host libm
+- [Mozilla: Intent to Implement — use fdlibm for Math.cos, Math.sin, Math.tan](https://groups.google.com/a/mozilla.org/g/dev-platform/c/0dxAO-JsoXI/m/eEhjM9VsAgAJ)
+- [Math in V8 Is Broken; How Do We Fix It?](https://www.linux.com/training-tutorials/math-v8-broken-how-do-we-fix-it/)
+- [v8/third_party/fdlibm](https://chromium.googlesource.com/v8/v8/+/3.28.71.4/third_party/fdlibm/fdlibm.js?autodive=0%2F)
+- [ECMAScript Language Specification](https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html)
+- [Math.pow: potentially different results on different browsers (mdn/browser-compat-data #19429)](https://github.com/mdn/browser-compat-data/issues/19429)
+- [V8 Deep Dives: Random Thoughts on Math.random()](https://dev.to/puzpuzpuz/v8-deep-dives-random-thoughts-on-math-random-2ci4)
 
 Sandboxing:
 - [How to sandbox AI agents in 2026: MicroVMs, gVisor & isolation strategies](https://northflank.com/blog/how-to-sandbox-ai-agents)
