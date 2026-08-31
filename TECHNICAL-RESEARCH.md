@@ -402,18 +402,21 @@ Note that performance was *not* the deciding argument. Python at ~122 k events/s
 
 ## 13. Status of the open questions
 
-**Answered in draft by [`PLAYER-CONTRACT.md`](PLAYER-CONTRACT.md) v0.1:** Q1–Q8, and materially Q14, Q37–Q38, Q41–Q42.
+**Answered in draft by [`PLAYER-CONTRACT.md`](PLAYER-CONTRACT.md) v0.1:** Q1–Q8, and materially Q37–Q38, Q41–Q42.
 
-**Answerable now with the research above:** Q9–Q12, Q15–Q17, Q21, Q25 (partially), Q26, Q27–Q28, Q31–Q34, Q36.
+**Answered in draft by [`TIME-MODEL.md`](TIME-MODEL.md) v0.1:** Q9–Q14.
 
-**Needs a product decision, not more research:** Q13 (leak tolerance), Q18–Q20, Q22–Q24, Q29–Q30, Q35, Q39–Q40, Q43–Q44.
+**Answerable now with the research above:** Q15–Q17, Q21, Q25 (partially), Q26, Q27–Q28, Q31–Q34, Q36.
+
+**Needs a product decision, not more research:** Q18–Q20, Q22–Q24, Q29–Q30, Q35, Q39–Q40, Q43–Q44.
 
 **Language choice (§11) — decided:** TypeScript runtime, Python offline.
 
-**Critical path.** With the contract drafted, two remain:
+**Critical path.** With the contract and time model drafted:
 
-1. **Q9–Q13 — the time model.** Now blocking. `PLAYER-CONTRACT.md` deliberately defines `deadline` as a field whose policy lives elsewhere; that policy determines whether deadlines are simulated or wall-clock, whether the clock pauses during a player call, and how acceleration interacts with the player's own polling. Retrofitting a virtual clock into a codebase that reads the wall clock is close to a rewrite.
-2. **Q32 — the canonical data model.** It determines what the generator can express, what the oracle can consume, and what an operator-scoped reference resolves *to*.
+1. **Contract v0.2** — the amendment the time model forces: simulator-driven ingestion (`/v1/tick`) and the operator snapshot rule. Small, but it changes the operator API implementation, so it lands before any code.
+2. **Q32 — the canonical data model.** Now the largest undecided piece. It determines what the generator can express, what the oracle can consume, and what an operator-scoped reference resolves *to*.
+3. **Q20/Q22 — the scoring function.** Deferrable during MVP construction, but it defines what the whole thing is for.
 
 ---
 

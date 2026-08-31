@@ -265,7 +265,12 @@ The specific set of requirements depends on the generated task.
 
 **This contract is the actual product.** It determines which languages are usable, how fairness is guaranteed, how the agent-benchmark use case works, and whether performance is being measured deliberately or by accident.
 
-A draft specification exists: **`PLAYER-CONTRACT.md`** (v0.1, draft). It resolves Q1–Q8 and is deliberately blocked on the time model, Q9–Q14, which is now the critical path. The technical options behind those choices are analysed in `TECHNICAL-RESEARCH.md` §2.
+Two draft specifications exist:
+
+* **`PLAYER-CONTRACT.md`** (v0.1) — resolves Q1–Q8: three channels, HTTP/JSON, the obligation set, failure semantics.
+* **`TIME-MODEL.md`** (v0.1) — resolves Q9–Q14: three time modes with `virtual` as the fair default, two independent deadlines, and the operator snapshot rule that makes a paused clock safe.
+
+The time model requires an amendment to the contract (v0.2, adding simulator-driven ingestion); see the note at the top of `PLAYER-CONTRACT.md`. The technical options behind these choices are analysed in `TECHNICAL-RESEARCH.md` §2–§4.
 
 The contract must at minimum define:
 
