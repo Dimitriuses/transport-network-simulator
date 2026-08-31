@@ -91,7 +91,11 @@ P1's information access is configurable. Better baseline, less headroom, harder 
 | **`timetable`** *(default)* | all operators' published timetables, no realtime, obvious interchanges only | a diligent local with paper schedules |
 | **`single_operator_rt`** | the above, plus realtime **for the operator of the current or next leg only** | everyone has each operator's own app, but nothing joins them; narrowest headroom |
 
-`single_operator_rt` is the most realistic of the three for a contemporary city and the most demanding on the player, since it removes the easiest source of advantage. **OPEN:** whether it, rather than `timetable`, should be the eventual default. I lean toward `timetable` for the MVP — it is simpler and gives the first players visible wins — and `single_operator_rt` from Tier 3 upward.
+**Decided: `timetable` is the default; `single_operator_rt` applies from Tier 3 upward.**
+
+`timetable` is simpler, and it gives early players visible wins at the tiers where they are still learning the shape of the problem. `single_operator_rt` is the most realistic of the three for a contemporary city and the most demanding on the player, because it removes the easiest source of advantage — the player can no longer profit merely by *having* realtime, only by joining it across operators. Introducing it at Tier 3 lines up with the tier at which real-time data becomes central to the challenge in the first place (`CORECONCEPT.md` §7).
+
+`habitual` remains available as a generator option for worlds that want the widest possible headroom; it is not on the default ladder.
 
 ---
 
@@ -183,6 +187,6 @@ The validation gate in `DATA-MODEL.md` §7 item 5 requires the oracle-to-baselin
 
 **Constraint exported to Q20/Q22:** the forgone-obligation penalty (§8). Not optional.
 
-**Open:** default competence level (§5); capacity denial for ghost riders (§9).
+**Open:** capacity denial for ghost riders (§9).
 
 **Next:** Q20/Q22, the scoring function — now the last major undecided piece, and it inherits a hard requirement from §8 plus the three-gap calibration structure from §10.
