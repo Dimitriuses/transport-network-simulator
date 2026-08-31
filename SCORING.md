@@ -26,6 +26,8 @@ The run log must therefore carry everything scoring needs. At minimum: every obl
 
 That last item is what makes §10 possible, and it is easy to forget to log.
 
+`OBSERVABILITY.md` extends this log with causal edges — which ingestion calls belong to which obligation handler — turning it into a per-traveller narrative at a cost of roughly 2 MB per run. It also supplies the forensic procedure for §11's `capture > 1`.
+
 ---
 
 ## 2. The core idea: headroom capture

@@ -1,4 +1,4 @@
-# Player↔Simulator Contract — Draft v0.2
+# Player↔Simulator Contract — Draft v0.3
 
 **Status: DRAFT.** A proposal to argue with, not a settled specification. **OPEN** marks what is still undecided.
 
@@ -6,7 +6,16 @@
 **Implements:** `TIME-MODEL.md` v0.1 (deadlines, ticks, pause semantics, the snapshot rule) and `DATA-MODEL.md` v0.1 §4 (projections, the resolution table).
 **Deliberately out of scope:** operator API *design* — those are meant to be non-uniform and badly behaved (`CORECONCEPT.md` §2.1) — and scoring (§9.4).
 
-### Changes from v0.1
+### Changes in v0.3
+
+| | |
+|---|---|
+| **`traceparent`** | the simulator sends W3C Trace Context on every obligation; a cooperating player echoes it on operator API calls, letting the run log attribute ingestion to the handler that caused it (`OBSERVABILITY.md` §3). |
+| **`tracing` capability** | optional. Attribution in `virtual` mode does not depend on it — the simulator observes both sides — so declining costs only diagnostic precision. |
+
+No payload schema changed in v0.3, and a player that does not declare `tracing` is unaffected.
+
+### Changes in v0.2
 
 | | |
 |---|---|
@@ -88,7 +97,9 @@ Channels 1 and 3 make the player an HTTP **client**; channel 2 makes it an HTTP 
 
 **Auth.** Simulator → player and player → control API both use `Authorization: Bearer <run token>`. The player SHOULD reject other tokens; it is the only guard against a stray caller polluting a scored run. Player → operator APIs uses whatever each operator demands — deliberately inconsistent schemes, described (imperfectly) in each operator's own documentation. That is catalogue §2.1 E, not an oversight.
 
-**Version negotiation.** Every request in both directions carries `X-TNS-Contract: 0.2`. The player declares supported versions in `/v1/identity`. On mismatch the simulator aborts before the run starts. Negotiation never happens mid-run.
+**Version negotiation.** Every request in both directions carries `X-TNS-Contract: 0.3`. The player declares supported versions in `/v1/identity`. On mismatch the simulator aborts before the run starts. Negotiation never happens mid-run.
+
+**Trace context.** The simulator sends a W3C `traceparent` header on every obligation. A player declaring the `tracing` capability echoes it on the operator API calls it makes while handling that obligation, which lets the run log attribute ingestion to the handler that caused it (`OBSERVABILITY.md` §3). Optional: in `virtual` mode the simulator can attribute calls temporally without it, since the clock is paused for the handler's duration and the simulator serves both sides. Declining `tracing` costs diagnostic precision, never correctness or score.
 
 ---
 
@@ -132,7 +143,7 @@ Every obligation carries both budgets from `TIME-MODEL.md` §4:
 
 ```json
 {
-  "contract_version": "0.2",
+  "contract_version": "0.3",
   "run_id": "run-7f31",
   "issued_at":    "2031-04-07T08:12:00+03:00",
   "deadline":     "2031-04-07T08:12:20+03:00",
@@ -148,8 +159,8 @@ Every obligation carries both budgets from `TIME-MODEL.md` §4:
 {
   "name": "my-integrator",
   "version": "0.4.1",
-  "contract_versions": ["0.2"],
-  "capabilities": ["plan", "replan", "tick", "notify"],
+  "contract_versions": ["0.3"],
+  "capabilities": ["plan", "replan", "tick", "notify", "tracing"],
   "tick": { "interval_sim_s": 30 }
 }
 ```
@@ -168,7 +179,7 @@ Every obligation carries both budgets from `TIME-MODEL.md` §4:
 
 ```json
 {
-  "contract_version": "0.2",
+  "contract_version": "0.3",
   "run_id": "run-7f31",
   "issued_at": "2031-04-07T08:12:00+03:00",
   "deadline": "2031-04-07T08:12:20+03:00",
@@ -222,7 +233,7 @@ The simulator drives ingestion cadence. Rationale in `TIME-MODEL.md` §6: in `vi
 
 ```json
 {
-  "contract_version": "0.2",
+  "contract_version": "0.3",
   "run_id": "run-7f31",
   "sim_time": "2031-04-07T08:12:00+03:00",
   "guard_wall_s": 30
@@ -259,7 +270,7 @@ The single machine-readable entry point, and the answer to **Q41/Q42**: what a h
 
 ```json
 {
-  "contract_version": "0.2",
+  "contract_version": "0.3",
   "run_id": "run-7f31",
   "world":  { "seed": 481516, "engine_version": "0.3.0", "timezone": "Europe/Kyiv" },
   "run":    { "mode": "open_loop", "cold_start": true, "tier": 2,
@@ -442,7 +453,7 @@ Ticks add negligible load: one call per `interval_sim_s` of simulated time, rega
 
 ## 12. Versioning
 
-* Contract version is semver, currently `0.2`, sent on every request and declared in `/v1/identity`.
+* Contract version is semver, currently `0.3`, sent on every request and declared in `/v1/identity`.
 * Paths carry the major version (`/v1/`).
 * Additive fields are minor; removed or re-meaning fields are major.
 * A run record is `world_seed × engine_version × scorer_version × contract_version × time_mode × latency_mode × hardware_profile`. Scores compare only within an identical tuple; `hardware_profile` is `null` for every machine-independent run, which is the normal case.

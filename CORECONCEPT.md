@@ -272,6 +272,7 @@ Two draft specifications exist:
 * **`DATA-MODEL.md`** (v0.1) — resolves Q32–Q35: three layers (canonical world, simulation state, operator projections), with the catalogue in §2.1 realised as declarative per-operator projection manifests.
 * **`REFERENCE-POLICY.md`** (v0.1) — resolves Q29 and sharpens Q25: how simulated travellers decide without the player, modelled as a city that has no integration layer. The gap between that and the oracle is the headroom a player competes for.
 * **`SCORING.md`** (v0.1) — resolves Q18–Q20 and Q22–Q26: headroom capture as the normalisation, a three-family vector, and score explanation by counterfactual ablation over the declared conflict set.
+* **`OBSERVABILITY.md`** (v0.1) — per-traveller causal tracing: what the player fetched while answering, what it replied, and why a traveller went the way it did. Also the forensic procedure for a `capture > 1`.
 
 The technical options behind these choices are analysed in `TECHNICAL-RESEARCH.md` §2–§4 and §6.
 
