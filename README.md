@@ -49,6 +49,8 @@ Read in this order. Each is a draft; each marks its own open questions with **OP
 | [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) | Per-traveller causal tracing, and forensics on impossible scores |
 | [`docs/PHASES.md`](docs/PHASES.md) | The long arc: Phase 0 (MVP) through Phase 5 |
 | [`ROADMAP.md`](ROADMAP.md) | Milestones for the phase currently being built |
+| [`docs/GLOSSARY.md`](docs/GLOSSARY.md) | Shared vocabulary. Useful early, and useful when a term looks familiar but is being used precisely |
+| [`docs/LICENSING-NOTES.md`](docs/LICENSING-NOTES.md) | Why MIT, and why OpenStreetMap data stays out of the repository |
 
 Two words are easy to confuse, and they mean different things:
 
@@ -99,8 +101,10 @@ Maps one-to-one onto the specifications, so the code for any section is findable
 ├── README.md               this file
 ├── ROADMAP.md              milestones for the current phase
 ├── CLAUDE.md               conventions and hard rules for contributors
+├── LICENSE                 MIT
 ├── docs/                   specifications
 ├── benchmarks/             measurements that back decisions
+├── contract/               generated OpenAPI — committed, CI-checked, stable URLs
 ├── src/                    TypeScript — runtime (npm workspaces)
 │   ├── schema/             source of truth: Zod → types, JSON Schema, OpenAPI
 │   ├── core/               DES engine, L2 state, virtual clock, seeded RNG
@@ -142,6 +146,12 @@ Python keeps the offline pipeline: OSM extraction, world building, validation, a
 Four lint rules are load-bearing rather than stylistic, and are enforced in `src/core` and `src/router`. They exist because determinism is a hard requirement; see [`CLAUDE.md`](CLAUDE.md).
 
 ---
+
+## Licence
+
+**MIT** — see [`LICENSE`](LICENSE).
+
+World bundles under `worlds/` are data rather than software and may carry their own terms. None currently contain third-party data: Phase 0's city is hand-authored, and OpenStreetMap extracts are deliberately kept out of the repository so that nothing here is encumbered by ODbL share-alike. The reasoning is in [`docs/LICENSING-NOTES.md`](docs/LICENSING-NOTES.md).
 
 ## Contributing
 

@@ -497,6 +497,11 @@ Had the player polled at a 300-second cadence instead of 30, it would have found
 
 ### Suggested next artefacts
 
-1. `contract/player-api.yaml` and `contract/control-api.yaml` — OpenAPI 3.1, generated from the schema source in `DATA-MODEL.md` §5.
+1. **`contract/player-api.yaml` and `contract/control-api.yaml`** — OpenAPI 3.1, generated from the schema source in `DATA-MODEL.md` §5 into a committed, stable path.
+
+   These two are **repository artefacts**: one per contract version, identical for every world, and a stable URL to point a player or an agent at. They are generated but committed, with CI asserting that regeneration produces no diff — so they are always browsable and always true.
+
+   **Operator API documents are not repository artefacts.** They vary per world with the projection manifest, so they are emitted into the **world bundle** and served at each operator's `docs_url` (§6.1). Committing them would be meaningless — there is no single correct version — and at higher tiers they are deliberately imperfect, which is a property of a *world*, not of the project.
+
 2. A conformance suite any candidate player can run against itself before a scored run.
 3. A reference player implementing the contract badly but validly — the floor a real solution must beat, and a smoke test for the simulator.

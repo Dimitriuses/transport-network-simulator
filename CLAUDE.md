@@ -58,6 +58,8 @@ The seam is world building, which emits a SQLite bundle. `src/schema` is the sou
 
 ## Vocabulary
 
+Full terminology in [`docs/GLOSSARY.md`](docs/GLOSSARY.md). The essentials:
+
 Two words are easy to confuse:
 
 * **Tier** — how hard a *world* is for the player (0–5, `CORECONCEPT.md` §7). Appears in the run brief.

@@ -126,7 +126,7 @@ Expected order, subject to that evidence:
 * Packaging — a world as a shareable artefact, addressed by `seed × engine_version`.
 * **Agent-benchmark harness** — task specification, machine-readable brief, non-memorisable generated tasks, verifiable scoring. Most of the requirements are already met by design; this is packaging, not invention.
 * **Assessment mode** — equal-difficulty world generation, trace redaction (`OBSERVABILITY.md` §8), pass/fail tier clearance.
-* Licensing (`CORECONCEPT.md` §9.7 Q40), including the ODbL obligations that follow from OSM-derived data.
+* Licensing is settled — MIT, see `LICENSING-NOTES.md`. Revisit only if a distributed world bundle ever contains OSM-derived data.
 * Optionally: hosting, leaderboards, and the sandboxing that only becomes necessary if we ever execute player code (`TECHNICAL-RESEARCH.md` §10).
 
 **Completion:** someone with no contact with the project clones it, reads the brief, builds a solution, and gets a meaningful score.

@@ -15,9 +15,18 @@ Each milestone states an **exit condition** — something that must be demonstra
 
 ### M0 — Scaffolding
 
-Repository layout, npm workspaces, `tsconfig` with `erasableSyntaxOnly`, the four determinism lint rules, Python tooling, `.gitignore`, CI, `CLAUDE.md`.
+Repository layout, npm workspaces, `tsconfig` with `erasableSyntaxOnly`, the four determinism lint rules, Python tooling, CI.
 
-**Exit:** `npm test` and `ruff check` pass on an empty skeleton, **and a deliberate `Math.random()` added to `src/core` fails CI.**
+**Also settled here — where generated API documents live.** `PLAYER-CONTRACT.md` §14 and the repository layout disagreed about this; the resolution splits by lifetime:
+
+| Document | Lives | Committed | Why |
+|---|---|---|---|
+| `contract/player-api.yaml`, `contract/control-api.yaml` | repository root | **yes**, with a CI no-diff check | one per contract version, identical for every world; players and agents need a stable URL |
+| operator API documents | the world bundle, served at `docs_url` | no | vary per world with the projection manifest, and at higher tiers are deliberately imperfect — a property of a *world*, not of the project |
+
+Generated from `src/schema`, so the CI check guarantees the committed copies always match the source.
+
+**Exit:** `npm test` and `ruff check` pass on an empty skeleton; regenerating `contract/*.yaml` produces no diff; **and a deliberate `Math.random()` added to `src/core` fails CI.**
 
 That second clause is the entire point of M0. The four lint rules below are load-bearing — three separate specifications assume they exist — and they are cheap now and painful to retrofit once there is code to fix.
 

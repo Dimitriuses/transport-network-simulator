@@ -1,0 +1,54 @@
+# ---- Node / TypeScript ----
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+.npm/
+npm-debug.log*
+.eslintcache
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# ---- Simulator artefacts ----
+# Run logs and scorecards are per-run outputs. A run is reproducible from its
+# seed plus the run tuple, so the log is regenerable and not worth committing.
+runs/
+*.runlog
+*.runlog.gz
+
+# Locally built world bundles. Committed worlds live in worlds/ and are added
+# explicitly; anything under worlds/scratch/ is working material.
+worlds/scratch/
+*.world.db-journal
+*.world.db-wal
+
+# OpenStreetMap extracts.
+# Deliberately NOT committed: an OSM-derived world bundle would be a Derivative
+# Database under ODbL and would carry share-alike. Keeping extracts local means
+# nothing in this repository is encumbered. See docs/LICENSING-NOTES.md.
+*.osm.pbf
+*.osm.xml
+osm/
+data/osm/
+
+# ---- Editors / OS ----
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Local config ----
+.env
+.env.local
+*.local.json
