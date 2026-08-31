@@ -270,6 +270,7 @@ Two draft specifications exist:
 * **`PLAYER-CONTRACT.md`** (v0.2) — resolves Q1–Q8 and Q14: three channels, HTTP/JSON, the obligation set (including simulator-driven ingestion ticks), failure semantics.
 * **`TIME-MODEL.md`** (v0.1) — resolves Q9–Q14: three time modes with `virtual` as the fair default, two independent deadlines, and the operator snapshot rule that makes a paused clock safe. Modelled operator latency and controlled-hardware performance runs are defined as optional axes, default off.
 * **`DATA-MODEL.md`** (v0.1) — resolves Q32–Q35: three layers (canonical world, simulation state, operator projections), with the catalogue in §2.1 realised as declarative per-operator projection manifests.
+* **`REFERENCE-POLICY.md`** (v0.1) — resolves Q29 and sharpens Q25: how simulated travellers decide without the player, modelled as a city that has no integration layer. The gap between that and the oracle is the headroom a player competes for.
 
 The technical options behind these choices are analysed in `TECHNICAL-RESEARCH.md` §2–§4 and §6.
 

@@ -238,7 +238,7 @@ We should not provide these — implementing one is a legitimate part of the cha
 Run **RAPTOR over the simulator's ground truth with perfect information** to compute the optimal journey for every scored query. This gives:
 
 * a **normalisation baseline** — the player's score becomes a ratio against the achievable optimum, which makes scores comparable across worlds of different sizes and shapes;
-* a **difficulty calibration instrument** — the gap between the oracle and a naive reference solution measures how much a world's conflicts actually cost, which is a concrete answer to Q25 (verifying that two generated worlds are of equal difficulty);
+* a **difficulty calibration instrument** — the gap between the oracle and a lazy integration attempt measures how much a world's conflicts actually cost. [`REFERENCE-POLICY.md`](REFERENCE-POLICY.md) §10 sharpens this into a three-gap test and separates the two baselines this sentence originally conflated (P1, the world's own travellers; P2, a lazy player);
 * a **solvability check** (Q34) — if the oracle cannot serve a query, the world is broken, not hard.
 
 This is cheap: the oracle sees the canonical model directly and skips the entire integration problem, which is exactly what makes it an upper bound.
@@ -410,17 +410,19 @@ Note that performance was *not* the deciding argument. Python at ~122 k events/s
 
 **Answered in draft by [`DATA-MODEL.md`](DATA-MODEL.md) v0.1:** Q32–Q35.
 
-**Answerable now with the research above:** Q15–Q17, Q21, Q25 (partially), Q26, Q27–Q28, Q31, Q36.
+**Answered in draft by [`REFERENCE-POLICY.md`](REFERENCE-POLICY.md) v0.1:** Q29, and Q25 sharpened into a three-gap test.
 
-**Needs a product decision, not more research:** Q18–Q20, Q22–Q24, Q29–Q30, Q39–Q40, Q43–Q44.
+**Answerable now with the research above:** Q15–Q17, Q21, Q26, Q27–Q28, Q31, Q36.
+
+**Needs a product decision, not more research:** Q18–Q20, Q22–Q24, Q30, Q39–Q40, Q43–Q44.
 
 **Language choice (§11) — decided:** TypeScript runtime, Python offline.
 
-**Critical path.** Contract v0.2, the time model and the data model are all drafted. What remains before code:
+**Critical path.** Contract v0.2, the time model, the data model and the reference policy are all drafted. What remains:
 
-1. **Q29 — the open-loop reference policy.** How simulated travellers decide without the player. It defines the fallback behaviour referenced throughout the contract's failure table, and the MVP needs it because the MVP is open-loop. **Now the only true blocker.**
-2. **Q20/Q22 — the scoring function.** Deferrable while the simulator is built, but it defines what the whole thing is for.
-3. **OpenAPI documents and a conformance suite**, generated from the schema source in `DATA-MODEL.md` §5 — the point at which the specifications become executable.
+1. **Q20/Q22 — the scoring function.** The last major undecided piece. It inherits a hard requirement from `REFERENCE-POLICY.md` §8 (the forgone-obligation penalty, without which declining everything becomes optimal) and the three-gap calibration structure from §10.
+2. **OpenAPI documents and a conformance suite**, generated from the schema source in `DATA-MODEL.md` §5 — the point at which the specifications become executable.
+3. **Q30** — target scale, which the benchmark in §11 has already shown is unlikely to bind.
 
 ---
 

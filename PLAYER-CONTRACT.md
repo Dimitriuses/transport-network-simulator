@@ -392,7 +392,9 @@ This is deliberately the *good* practice the operator APIs conspicuously fail to
 | Answer well-formed but unresolvable | answer used, then fails in-world | modelling failure, not transport |
 | `declined` | treated as answered-with-nothing | `declined` — scored, but kindly |
 
-**Unanswered** means the traveller falls back to documented degraded behaviour: continue on the current plan if one exists, otherwise the reference policy. The world does not stall and the run does not abort. In `virtual` mode the fallback fires at `deadline` — the same instant an answer would have landed, which is what makes response speed unable to influence the outcome.
+**Unanswered** means the traveller falls back to documented degraded behaviour: continue on the current plan if it is still physically possible, otherwise replan under the reference policy (`REFERENCE-POLICY.md` §8). The world does not stall and the run does not abort. In `virtual` mode the fallback fires at `deadline` — the same instant an answer would have landed, which is what makes response speed unable to influence the outcome.
+
+**Declining is never free.** An unanswered or declined obligation carries a fixed forgone-obligation penalty *and* the resulting reference-policy outcomes still count in full against the player's passenger metrics. Without both, refusing to answer would become a winning strategy for a weak solution — see `REFERENCE-POLICY.md` §8.
 
 **No automatic retries.** A failure is a deterministic, scored outcome. Retrying would make attempt counts depend on player behaviour, reintroducing exactly the non-determinism open-loop mode exists to eliminate. Robustness is part of what is measured: a player that crashes on one edge case should lose points, not lose the run.
 
@@ -432,7 +434,7 @@ A naive per-passenger call does not survive contact with closed loop: a million-
 
 1. **Batching.** `/plan` and `/replan` take arrays. Batch composition is by simulated-time window, which is deterministic. Batch size never changes the semantics of an individual request.
 2. **Connection reuse.** Keep-alive is required; the simulator will not open a connection per request.
-3. **App-user fraction.** In closed loop, only a configured fraction of travellers consult the player; the rest follow the reference policy. Realistic — not everyone uses a journey planner — it bounds request volume, and it doubles as a difficulty axis. Open-loop scoring uses a fixed query set of O(10³–10⁴) and does not need it.
+3. **App-user fraction.** In closed loop, only a configured fraction of travellers consult the player; the rest follow the reference policy (`REFERENCE-POLICY.md` §3). Realistic — not everyone uses a journey planner — it bounds request volume, and it doubles as a difficulty axis. Open-loop scoring uses a fixed query set of O(10³–10⁴) against ghost riders and does not need it.
 
 Ticks add negligible load: one call per `interval_sim_s` of simulated time, regardless of world size.
 

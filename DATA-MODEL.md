@@ -86,6 +86,8 @@ Local time, UTC offsets, DST transitions and `25:10:00` are **rendering**, and r
 
 Travellers are generated into L1 as a **demand table**: origin, destination, desired departure or arrival, and traveller attributes. Being part of the seeded world rather than of the run is what lets open-loop mode replay identically, and lets the app-user fraction (`PLAYER-CONTRACT.md` §11) be chosen deterministically.
 
+Attributes include everything the reference policy needs drawn ahead of time rather than during the run (`REFERENCE-POLICY.md` §7): patience thresholds, maximum tolerated delay, replan budget, and — at the `habitual` competence level — the traveller's personal repertoire of known lines and quays.
+
 ---
 
 ## 3. L2 — simulation state
@@ -204,7 +206,7 @@ The builder emits nothing that has not passed:
 2. **Reachability** — the canonical network is connected for the intended trip set.
 3. **Oracle solvability** — RAPTOR over L1 with perfect information serves every scored query. A world it cannot serve is broken, not hard.
 4. **Defect audit** — every conflict the manifest declares is *actually present*, detected by inspecting L3 output. This is the one that will catch real bugs: a manifest claiming `staleness_s: 90` against a projection that is in fact fresh produces a world that is easier than it claims, silently, and would corrupt difficulty calibration.
-5. **Difficulty calibration** — the oracle-to-naive-baseline gap falls within the tier's declared band (`TECHNICAL-RESEARCH.md` §7).
+5. **Difficulty calibration** — the three-gap test in `REFERENCE-POLICY.md` §10: P0−P1, P0−P2 and P1−P2 all within the tier's declared bands. Matching conflict lists is not sufficient.
 
 ---
 
