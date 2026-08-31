@@ -311,7 +311,7 @@ Two JS variants were measured: idiomatic object-per-event, and struct-of-arrays 
 
 Equivalence is enforced, not assumed. The RNG is a mulberry32 that is bit-identical across the two languages, control flow never branches on RNG output, and every implementation emits a final-state checksum. The harness fails the run if the checksums disagree. All configurations reported below agree.
 
-Code: [`benchmarks/des-core/`](benchmarks/des-core/) — `node run-all.mjs` reproduces the tables.
+Code: [`benchmarks/des-core/`](../benchmarks/des-core/) — `node run-all.mjs` reproduces the tables.
 
 ### Results
 
@@ -420,11 +420,9 @@ Note that performance was *not* the deciding argument. Python at ~122 k events/s
 
 **Language choice (§11) — decided:** TypeScript runtime, Python offline.
 
-**Critical path.** Every question that gates implementation now has a drafted answer. What remains is to make the specifications executable:
+**Critical path.** Every question that gates implementation now has a drafted answer. **The specification phase is complete and the next work is code** — sequenced in [`ROADMAP.md`](../ROADMAP.md), which also states which spec sections are in the MVP and which are deferred, since the two had drifted apart.
 
-1. **OpenAPI documents and a conformance suite**, generated from the schema source in `DATA-MODEL.md` §5.
-2. **The oracle (P0)** — `TECHNICAL-RESEARCH.md` §7 argued it is the highest-leverage single component; `REFERENCE-POLICY.md` §6 and `SCORING.md` §2 have since made it load-bearing for the reference policy and the entire scoring normalisation as well. It is the first thing to build.
-3. **A reference player** implementing the contract badly but validly — the floor a real solution must beat, and a smoke test for the simulator.
+Briefly: M0 scaffolding and the lint rules the specs demand; M1 a walking skeleton crossing every layer, to retire the risk that eight specs written before any code do not fit together; M2 the oracle and baselines, load-bearing for both the reference policy and the entire scoring normalisation; then conflicts, the live world, judgement, and the reference player plus conformance suite.
 
 ---
 

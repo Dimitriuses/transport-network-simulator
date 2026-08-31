@@ -274,6 +274,8 @@ Two draft specifications exist:
 * **`SCORING.md`** (v0.1) — resolves Q18–Q20 and Q22–Q26: headroom capture as the normalisation, a three-family vector, and score explanation by counterfactual ablation over the declared conflict set.
 * **`OBSERVABILITY.md`** (v0.1) — per-traveller causal tracing: what the player fetched while answering, what it replied, and why a traveller went the way it did. Also the forensic procedure for a `capture > 1`.
 
+Implementation is sequenced in **`ROADMAP.md`**, which states which parts of the specifications are in the MVP and which are deferred — the two had drifted apart as the specs grew. §8 below remains the MVP's purpose; the roadmap adds the falsifiable gate that decides whether it succeeded.
+
 The technical options behind these choices are analysed in `TECHNICAL-RESEARCH.md` §2–§4 and §6.
 
 The contract must at minimum define:
