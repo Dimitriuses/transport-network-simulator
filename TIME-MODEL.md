@@ -116,7 +116,9 @@ Automatic and manual pauses are not the same event, and collapsing them (as the 
 
 Queue semantics: FIFO per connection, preserved across the resume boundary, served against post-resume state. Depth is bounded by `run.pause_queue_depth`; overflow returns `503`, which is a legitimate operator behaviour the player should already handle.
 
-**`GET /v1/clock` gains `state: "paused"`** so that tooling can see it. Whether the *player* should be able to see it is **OPEN** — reporting honestly is friendlier and matches "the contract is the one honest surface", but concealing it keeps a manual pause perfectly invisible. I lean toward reporting it: a manual pause is an administrative act, not part of the world, and hiding it buys nothing once requests already queue.
+**`GET /v1/clock` gains `state: "paused"`, and the player is told.** *Decided.* A manual pause is an administrative act performed on the harness, not an event inside the world, so concealing it would be a lie told by the one surface that is supposed to be honest. It also costs nothing to disclose: requests already queue, so the disclosure grants no advantage — a player that knows it is paused can do nothing with the knowledge except stop wasting effort, which is the behaviour we want.
+
+`GET /v1/clock` is exempt from queuing for exactly this reason: it must answer during a pause, or the player cannot learn why its other calls have stalled.
 
 ### The residual leak
 
@@ -277,7 +279,7 @@ The third line is the whole argument for keeping `virtual` the default.
 
 **Optional, default off:** modelled operator latency (§2.1) and controlled-hardware performance runs (§2.2). Both measure something real; neither is MVP.
 
-**Open items:** modelled response delay `δ` vs landing at the deadline (§4); whether the player is told about a manual pause (§3); free-running ingestion in `realtime` (§6); sub-second resolution (§8).
+**Open items:** modelled response delay `δ` vs landing at the deadline (§4); free-running ingestion in `realtime` (§6); sub-second resolution (§8).
 
 **Required next:** `PLAYER-CONTRACT.md` v0.2 — add `/v1/tick`, the `tick` capability and `interval_sim_s`; state the §3 snapshot rule as a binding property of the operator APIs; add `paused` to `/v1/clock` states and `503`-on-overflow queue semantics; add `run.wall_budget_s` and `run.pause_queue_depth` to the brief; extend the run tuple with `time_mode`, `latency_mode` and `hardware_profile`.
 
