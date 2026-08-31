@@ -217,4 +217,4 @@ The builder emits nothing that has not passed:
 
 **Open:** trajectory in-bundle vs regenerated (§6); whether `latency: sim` should be promoted from optional to required, given §4's finding that a catalogue D defect depends on it.
 
-**Next:** `PLAYER-CONTRACT.md` v0.2 is still pending and now has a second reason to land — L3 is where the snapshot rule is actually enforced, and the operator API implementation is the first code that would violate it.
+**Next:** `PLAYER-CONTRACT.md` v0.2 has landed and publishes the snapshot rule as a player-facing guarantee (contract §6.4). L3 is where that rule is actually *enforced* — via the projection signature in §1 — and the operator API implementation is the first code that could violate it.

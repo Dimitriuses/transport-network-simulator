@@ -416,11 +416,11 @@ Note that performance was *not* the deciding argument. Python at ~122 k events/s
 
 **Language choice (§11) — decided:** TypeScript runtime, Python offline.
 
-**Critical path.** With the contract, time model and data model drafted, the remaining blockers before code are small:
+**Critical path.** Contract v0.2, the time model and the data model are all drafted. What remains before code:
 
-1. **Contract v0.2** — the amendment the time model forces: simulator-driven ingestion (`/v1/tick`), the operator snapshot rule, manual-pause queue semantics. It changes how the operator APIs must be built, and `DATA-MODEL.md` §4 is where that rule is actually enforced, so it lands first.
-2. **Q29 — the open-loop reference policy.** How simulated travellers decide without the player. Needed for the MVP because open loop is the MVP.
-3. **Q20/Q22 — the scoring function.** Deferrable while the simulator is built, but it defines what the whole thing is for.
+1. **Q29 — the open-loop reference policy.** How simulated travellers decide without the player. It defines the fallback behaviour referenced throughout the contract's failure table, and the MVP needs it because the MVP is open-loop. **Now the only true blocker.**
+2. **Q20/Q22 — the scoring function.** Deferrable while the simulator is built, but it defines what the whole thing is for.
+3. **OpenAPI documents and a conformance suite**, generated from the schema source in `DATA-MODEL.md` §5 — the point at which the specifications become executable.
 
 ---
 

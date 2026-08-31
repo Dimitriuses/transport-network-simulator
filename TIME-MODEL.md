@@ -3,7 +3,7 @@
 **Status: ROUGH DRAFT.** Deliberately opinionated so it can be argued with. **OPEN** marks things I did not decide.
 
 **Closes:** `CORECONCEPT.md` §9.2 Q9–Q14.
-**Forces a change to:** `PLAYER-CONTRACT.md` v0.1 — see §8. Working the time model through surfaced a gap that makes the default mode unusable as currently specified.
+**Forced a change to:** `PLAYER-CONTRACT.md` — working the time model through surfaced a gap that made the default mode unusable as v0.1 specified it. **Landed in contract v0.2.**
 
 ---
 
@@ -200,7 +200,7 @@ What this buys:
 
 What it costs: the player can no longer poll on its own initiative between ticks. **OPEN:** whether to allow free-running ingestion *in addition* to ticks in `realtime` mode. I lean yes — it costs nothing there and it is more natural — but it means two code paths for the player, so possibly not worth it.
 
-> **This is a required amendment to `PLAYER-CONTRACT.md` v0.1**, which does not currently contain `/v1/tick` and whose §6 treats `/v1/clock` as sufficient. The contract needs a v0.2 adding: the `tick` obligation, the `tick` capability, `interval_sim_s`, and a statement of the §3 snapshot rule (which is really a property of the operator APIs and belongs there too).
+> **Landed in `PLAYER-CONTRACT.md` v0.2 §5.6.** The contract adds the `tick` obligation and capability, `interval_sim_s` bounded by `brief.limits.min_tick_interval_sim_s`, tick-before-obligation ordering at equal instants, and an optional `next_interval_sim_s` in the response so a player can adapt its cadence mid-run. The §3 snapshot rule is stated there as a published guarantee (contract §6.4), since it is really a property of the operator APIs.
 
 ---
 
@@ -281,6 +281,6 @@ The third line is the whole argument for keeping `virtual` the default.
 
 **Open items:** modelled response delay `δ` vs landing at the deadline (§4); free-running ingestion in `realtime` (§6); sub-second resolution (§8).
 
-**Required next:** `PLAYER-CONTRACT.md` v0.2 — add `/v1/tick`, the `tick` capability and `interval_sim_s`; state the §3 snapshot rule as a binding property of the operator APIs; add `paused` to `/v1/clock` states and `503`-on-overflow queue semantics; add `run.wall_budget_s` and `run.pause_queue_depth` to the brief; extend the run tuple with `time_mode`, `latency_mode` and `hardware_profile`.
+**Landed in `PLAYER-CONTRACT.md` v0.2:** `/v1/tick` with the `tick` capability, `interval_sim_s` and adaptive `next_interval_sim_s`; the §3 snapshot rule published as a player-facing guarantee (contract §6.4); `paused` in `/v1/clock` with FIFO queuing and `503` on overflow, `/v1/clock` exempt; `run.wall_budget_s` and `run.pause_queue_depth` in the brief; `time_mode`, `latency_mode` and `hardware_profile` in the run tuple.
 
-The §3 snapshot rule is settled and accepted. It is the difference between a real-time challenge and a decorative one, and it constrains the operator API implementation from the very first line of code — which is why contract v0.2 should land before any of that code is written.
+The §3 snapshot rule is settled and accepted. It is the difference between a real-time challenge and a decorative one, and it constrains the operator API implementation from the very first line of code — which is why it is now a published guarantee rather than an internal invariant.
