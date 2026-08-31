@@ -189,4 +189,4 @@ The validation gate in `DATA-MODEL.md` §7 item 5 requires the oracle-to-baselin
 
 **Open:** capacity denial for ghost riders (§9).
 
-**Next:** Q20/Q22, the scoring function — now the last major undecided piece, and it inherits a hard requirement from §8 plus the three-gap calibration structure from §10.
+**Next:** drafted in `SCORING.md` v0.1, which adopts the §8 forgone-obligation penalty as a requirement and builds its entire normalisation on the P0/P1 pair — a player's score is the fraction of the P1→P0 headroom it captured.

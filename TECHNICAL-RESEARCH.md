@@ -412,17 +412,19 @@ Note that performance was *not* the deciding argument. Python at ~122 k events/s
 
 **Answered in draft by [`REFERENCE-POLICY.md`](REFERENCE-POLICY.md) v0.1:** Q29, and Q25 sharpened into a three-gap test.
 
-**Answerable now with the research above:** Q15–Q17, Q21, Q26, Q27–Q28, Q31, Q36.
+**Answered in draft by [`SCORING.md`](SCORING.md) v0.1:** Q18–Q20, Q22–Q24, Q26.
 
-**Needs a product decision, not more research:** Q18–Q20, Q22–Q24, Q30, Q39–Q40, Q43–Q44.
+**Answerable now with the research above:** Q15–Q17, Q21, Q27–Q28, Q31, Q36.
+
+**Needs a product decision, not more research:** Q30, Q39–Q40, Q43–Q44 — none of which block building.
 
 **Language choice (§11) — decided:** TypeScript runtime, Python offline.
 
-**Critical path.** Contract v0.2, the time model, the data model and the reference policy are all drafted. What remains:
+**Critical path.** Every question that gates implementation now has a drafted answer. What remains is to make the specifications executable:
 
-1. **Q20/Q22 — the scoring function.** The last major undecided piece. It inherits a hard requirement from `REFERENCE-POLICY.md` §8 (the forgone-obligation penalty, without which declining everything becomes optimal) and the three-gap calibration structure from §10.
-2. **OpenAPI documents and a conformance suite**, generated from the schema source in `DATA-MODEL.md` §5 — the point at which the specifications become executable.
-3. **Q30** — target scale, which the benchmark in §11 has already shown is unlikely to bind.
+1. **OpenAPI documents and a conformance suite**, generated from the schema source in `DATA-MODEL.md` §5.
+2. **The oracle (P0)** — `TECHNICAL-RESEARCH.md` §7 argued it is the highest-leverage single component; `REFERENCE-POLICY.md` §6 and `SCORING.md` §2 have since made it load-bearing for the reference policy and the entire scoring normalisation as well. It is the first thing to build.
+3. **A reference player** implementing the contract badly but validly — the floor a real solution must beat, and a smoke test for the simulator.
 
 ---
 
