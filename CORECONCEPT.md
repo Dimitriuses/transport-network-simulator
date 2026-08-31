@@ -268,7 +268,7 @@ The specific set of requirements depends on the generated task.
 Two draft specifications exist:
 
 * **`PLAYER-CONTRACT.md`** (v0.1) — resolves Q1–Q8: three channels, HTTP/JSON, the obligation set, failure semantics.
-* **`TIME-MODEL.md`** (v0.1) — resolves Q9–Q14: three time modes with `virtual` as the fair default, two independent deadlines, and the operator snapshot rule that makes a paused clock safe.
+* **`TIME-MODEL.md`** (v0.1) — resolves Q9–Q14: three time modes with `virtual` as the fair default, two independent deadlines, and the operator snapshot rule that makes a paused clock safe. Modelled operator latency and controlled-hardware performance runs are defined as optional axes, default off.
 
 The time model requires an amendment to the contract (v0.2, adding simulator-driven ingestion); see the note at the top of `PLAYER-CONTRACT.md`. The technical options behind these choices are analysed in `TECHNICAL-RESEARCH.md` §2–§4.
 

@@ -5,7 +5,15 @@
 **Closes:** `CORECONCEPT.md` §9.1 Q1–Q8 (direction, request set, transport, language policy, identity, failure handling, warm state, distribution).
 **Depends on and does not decide:** §9.2 Q9–Q14 (the time model). This spec defines *where* deadlines and timestamps appear; the policy that sets them belongs to the time specification.
 
-> ⚠ **Amendment pending — v0.2.** [`TIME-MODEL.md`](TIME-MODEL.md) v0.1 found that `GET /v1/clock` is insufficient: under the default `virtual` time mode the simulated clock outruns any player-side polling loop, so ingestion must be simulator-driven. v0.2 must add a `POST /v1/tick` obligation with a player-declared simulated cadence (`interval_sim_s`), the matching `tick` capability, `run.wall_budget_s` in the brief, and `time_mode` in the run tuple. It must also state the **operator snapshot rule** (`TIME-MODEL.md` §3) as binding: *operator responses are pure functions of simulated time, never of wall time or call count.* Without that rule the clock pause is exploitable and catalogue §2.1 D collapses. Sections below are otherwise unchanged.
+> ⚠ **Amendment pending — v0.2.** [`TIME-MODEL.md`](TIME-MODEL.md) v0.1 found that `GET /v1/clock` is insufficient: under the default `virtual` time mode the simulated clock outruns any player-side polling loop, so ingestion must be simulator-driven. v0.2 must add:
+>
+> * a `POST /v1/tick` obligation with a player-declared simulated cadence (`interval_sim_s`) and the matching `tick` capability;
+> * the **operator snapshot rule** (`TIME-MODEL.md` §3) as binding — *operator responses are pure functions of simulated time, never of wall time or call count.* Without it the clock pause is exploitable and catalogue §2.1 D collapses;
+> * **manual-pause queue semantics** — `paused` in `/v1/clock` states, FIFO queuing per connection, `503` on overflow;
+> * `run.wall_budget_s` and `run.pause_queue_depth` in the brief;
+> * `time_mode`, `latency_mode` and `hardware_profile` in the run tuple.
+>
+> Sections below are otherwise unchanged.
 **Deliberately out of scope:** operator API design (§2.1 — those are meant to be non-uniform and badly behaved), scoring (§9.4).
 
 ---

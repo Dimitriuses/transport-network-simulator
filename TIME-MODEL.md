@@ -35,6 +35,44 @@ There are exactly two clocks, and almost every mistake available here comes from
 
 `scaled` exists because someone will eventually want to ask "can your solution keep up with a city running at 60×?" That is a legitimate question, but it is a *different* question, and §7 keeps it quarantined.
 
+Orthogonal to the mode is a **fidelity axis** for operator API latency — §2.1.
+
+---
+
+## 2.1 Operator API latency — an optional fidelity axis
+
+As specified so far, an operator call costs nothing: it is instantaneous in simulated time. Two consequences, both bad:
+
+* catalogue §2.1 E's "slow responses" and "partial availability" cannot really be expressed — an operator can fail, but it cannot be *sluggish*;
+* a player can issue an unbounded sequential chain of calls at a single instant, so concurrency is never a decision it has to make.
+
+Three settings, `none` by default:
+
+**`latency: none`** — current behaviour. Correct for the MVP; keeps the first implementation small.
+
+**`latency: sim`** — *deterministic, and the eventual answer.* Each operator connection carries its own simulated-time cursor. A call issued with that cursor at `τ_p` returns the feed as of `τ_p − s_k` and advances the cursor by `d_k` simulated seconds. Sequential calls on one connection accumulate; concurrent connections advance independently.
+
+What this buys: a chain of 100 sequential calls costs `100·d_k` of extra staleness, so **parallelism becomes a real engineering decision with a real payoff** — and none of it touches the wall clock, so reproducibility and machine-independence survive intact. This is the version worth building.
+
+**`latency: wall`** — the operator API genuinely sleeps, and `guard_wall_s` becomes a *scored* response budget rather than anti-hang. Simple, honest about network behaviour, and it makes the player's own concurrency and compute measurable. It also destroys machine-independence, which is why it is fenced off in §2.2.
+
+---
+
+## 2.2 Controlled-hardware performance runs
+
+`latency: wall` (and `realtime` / `scaled` generally) measure something real that `virtual` cannot: whether a solution actually keeps up. That is worth having — under conditions that make the measurement mean anything.
+
+Conditions, all required:
+
+1. **Identical hardware** for every solution being compared — in practice identical VMs on one host, or one machine reused serially.
+2. **The run tuple gains `hardware_profile`.** Results from different profiles never compare, exactly as with `time_mode`.
+3. **Repeat and aggregate — never single-shot.** Identical hardware still does not give reproducibility: thermal throttling, scheduler jitter, co-tenancy and network variance all move the number. A performance result is `n` runs reported as median plus spread, and a result whose spread exceeds a declared threshold is `invalid`, not "close".
+4. **Reported separately from correctness.** A solution has a `virtual` score and, optionally, a performance profile. There is no combined number.
+
+Under those conditions this is a legitimate second leaderboard. Without them it is a random number generator with extra steps.
+
+**Status: accepted as an option, default off.** Not MVP. The value is real but it is a Tier-4+ concern, and building it early would drag hardware provisioning into a project that currently needs none.
+
 ---
 
 ## 3. Q13 — The clock pauses, and the pause is only safe under one condition
@@ -60,6 +98,25 @@ Three things fall out of this, all good:
 3. **Determinism improves**, because operator responses no longer depend on call timing at all.
 
 This rule is load-bearing. If it is ever violated — say by an operator endpoint that reports "requests served in the last minute" using real time — `virtual` mode quietly becomes exploitable.
+
+### Two kinds of pause, with different correct behaviour
+
+Automatic and manual pauses are not the same event, and collapsing them (as the first draft did) gets one of them wrong.
+
+| | **Automatic pause** | **Manual pause** |
+|---|---|---|
+| Cause | an obligation request is outstanding | an operator, debugger or monitoring UI stopped the world |
+| Is anyone working? | yes — the player is inside a handler | no |
+| Operator calls during it | **served**, from the frozen snapshot | **queued**, served on resume |
+| Observable to the player as | normal operation | the operators going quiet |
+
+**Automatic → serve frozen.** The player is mid-handler and may legitimately need data to answer. Refusing would deadlock it. §3's snapshot rule makes serving safe: repeated calls return identical bytes.
+
+**Manual → queue.** Nobody is working; the whole world is suspended, network included. Queuing is the honest representation, and it has a property serving lacks: the pause leaves no trace. Under serve-frozen semantics a manual pause would let a player rack up thousands of identical responses and infer both that a pause happened and how long it lasted. Queued requests simply block, which is indistinguishable from a slow operator — and is the behaviour a real suspended system would exhibit.
+
+Queue semantics: FIFO per connection, preserved across the resume boundary, served against post-resume state. Depth is bounded by `run.pause_queue_depth`; overflow returns `503`, which is a legitimate operator behaviour the player should already handle.
+
+**`GET /v1/clock` gains `state: "paused"`** so that tooling can see it. Whether the *player* should be able to see it is **OPEN** — reporting honestly is friendlier and matches "the contract is the one honest surface", but concealing it keeps a manual pause perfectly invisible. I lean toward reporting it: a manual pause is an administrative act, not part of the world, and hiding it buys nothing once requests already queue.
 
 ### The residual leak
 
@@ -150,7 +207,7 @@ What it costs: the player can no longer poll on its own initiative between ticks
 Not a policy anyone has to remember; four mechanisms:
 
 1. **`virtual` is the default.** Fairness is opt-out, not opt-in.
-2. **Mode is part of the run tuple.** `world_seed × engine_version × scorer_version × contract_version × time_mode`. Scores compare only within an identical tuple, so a `scaled` result can never silently land beside a `virtual` one.
+2. **Mode is part of the run tuple.** `world_seed × engine_version × scorer_version × contract_version × time_mode × latency_mode × hardware_profile`. Scores compare only within an identical tuple, so a `scaled` or `latency: wall` result can never silently land beside a `virtual` one. `hardware_profile` is `null` for every machine-independent run, which is the normal case.
 3. **The wall guard is generous and unscored**, so it cannot be mistaken for a quality signal or quietly tightened into one.
 4. **Guard-triggered aborts produce an `invalid` run, not a bad score** — see §9.
 
@@ -215,11 +272,13 @@ The third line is the whole argument for keeping `virtual` the default.
 **Q10** — measured in wall time, recorded always, inert in `virtual`, surfaced as a separate performance profile.
 **Q11** — four structural safeguards (§7), not a policy.
 **Q12** — two deadlines, always both: simulated `deadline` is a world fact and decides when answers land; `guard_wall_s` is unscored anti-hang.
-**Q13** — yes it pauses; safe **only** because operator feeds are pure functions of `τ` (§3). The residual wall-time leak is accepted.
+**Q13** — automatic pauses freeze the clock and **serve** frozen snapshots; manual pauses **queue** instead (§3). Safe **only** because operator feeds are pure functions of `τ`. The residual wall-time leak is accepted.
 **Q14** — `/v1/clock` is insufficient; the simulator drives ingestion via a new `/v1/tick` obligation at a player-declared simulated cadence.
 
-**Open items:** modelled response delay `δ` vs landing at the deadline (§4); free-running ingestion in `realtime` (§6); sub-second resolution (§8).
+**Optional, default off:** modelled operator latency (§2.1) and controlled-hardware performance runs (§2.2). Both measure something real; neither is MVP.
 
-**Required next:** `PLAYER-CONTRACT.md` v0.2 — add `/v1/tick`, the `tick` capability and `interval_sim_s`; state the §3 snapshot rule as a binding property of the operator APIs; add `run.wall_budget_s` to the brief; add `time_mode` to the run tuple.
+**Open items:** modelled response delay `δ` vs landing at the deadline (§4); whether the player is told about a manual pause (§3); free-running ingestion in `realtime` (§6); sub-second resolution (§8).
 
-The §3 snapshot rule is the piece most worth a second opinion. It is the difference between a real-time challenge and a decorative one, and it constrains the operator API implementation from the very first line of code.
+**Required next:** `PLAYER-CONTRACT.md` v0.2 — add `/v1/tick`, the `tick` capability and `interval_sim_s`; state the §3 snapshot rule as a binding property of the operator APIs; add `paused` to `/v1/clock` states and `503`-on-overflow queue semantics; add `run.wall_budget_s` and `run.pause_queue_depth` to the brief; extend the run tuple with `time_mode`, `latency_mode` and `hardware_profile`.
+
+The §3 snapshot rule is settled and accepted. It is the difference between a real-time challenge and a decorative one, and it constrains the operator API implementation from the very first line of code — which is why contract v0.2 should land before any of that code is written.
