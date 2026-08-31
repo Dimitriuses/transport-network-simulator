@@ -188,6 +188,8 @@ Recommend **Python for the MVP**. Iteration speed dominates while the design is 
 
 ## 6. Data model and the semantic-conflict catalogue (Q32–Q33)
 
+> **Refined by [`DATA-MODEL.md`](DATA-MODEL.md) v0.1.** The "GTFS superset" recommendation below is half right. GTFS is a *publication* format rather than a state model, and its flat stop model cannot express the granularity mismatches catalogue §2.1 A depends on. The canonical model is therefore NeTEx-informed in its identity layer (`Site`/`Quay`, `Line`/`Pattern`/`Journey`) and simulation-native in shape, with **GTFS as a first-class projection target rather than the internal form**. The reasoning below — that the standards' divergence is a free source of authentic variation — stands and is what the projection layer exploits.
+
 ### Canonical internal model: a GTFS superset
 
 **GTFS** and **GTFS-Realtime** remain the de facto global standard for multimodal trip planning, even though the EU has made **NeTEx** (static) and **SIRI** (real-time) de jure standards for national access points. **TransXChange** serves the UK and aligns closely with GTFS in principle.
@@ -406,17 +408,19 @@ Note that performance was *not* the deciding argument. Python at ~122 k events/s
 
 **Answered in draft by [`TIME-MODEL.md`](TIME-MODEL.md) v0.1:** Q9–Q14.
 
-**Answerable now with the research above:** Q15–Q17, Q21, Q25 (partially), Q26, Q27–Q28, Q31–Q34, Q36.
+**Answered in draft by [`DATA-MODEL.md`](DATA-MODEL.md) v0.1:** Q32–Q35.
 
-**Needs a product decision, not more research:** Q18–Q20, Q22–Q24, Q29–Q30, Q35, Q39–Q40, Q43–Q44.
+**Answerable now with the research above:** Q15–Q17, Q21, Q25 (partially), Q26, Q27–Q28, Q31, Q36.
+
+**Needs a product decision, not more research:** Q18–Q20, Q22–Q24, Q29–Q30, Q39–Q40, Q43–Q44.
 
 **Language choice (§11) — decided:** TypeScript runtime, Python offline.
 
-**Critical path.** With the contract and time model drafted:
+**Critical path.** With the contract, time model and data model drafted, the remaining blockers before code are small:
 
-1. **Contract v0.2** — the amendment the time model forces: simulator-driven ingestion (`/v1/tick`) and the operator snapshot rule. Small, but it changes the operator API implementation, so it lands before any code.
-2. **Q32 — the canonical data model.** Now the largest undecided piece. It determines what the generator can express, what the oracle can consume, and what an operator-scoped reference resolves *to*.
-3. **Q20/Q22 — the scoring function.** Deferrable during MVP construction, but it defines what the whole thing is for.
+1. **Contract v0.2** — the amendment the time model forces: simulator-driven ingestion (`/v1/tick`), the operator snapshot rule, manual-pause queue semantics. It changes how the operator APIs must be built, and `DATA-MODEL.md` §4 is where that rule is actually enforced, so it lands first.
+2. **Q29 — the open-loop reference policy.** How simulated travellers decide without the player. Needed for the MVP because open loop is the MVP.
+3. **Q20/Q22 — the scoring function.** Deferrable while the simulator is built, but it defines what the whole thing is for.
 
 ---
 

@@ -9,7 +9,7 @@
 >
 > * a `POST /v1/tick` obligation with a player-declared simulated cadence (`interval_sim_s`) and the matching `tick` capability;
 > * the **operator snapshot rule** (`TIME-MODEL.md` §3) as binding — *operator responses are pure functions of simulated time, never of wall time or call count.* Without it the clock pause is exploitable and catalogue §2.1 D collapses;
-> * **manual-pause queue semantics** — `paused` in `/v1/clock` states, FIFO queuing per connection, `503` on overflow;
+> * **manual-pause queue semantics** — `paused` reported to the player in `/v1/clock` states, FIFO queuing per connection, `503` on overflow, and `/v1/clock` itself exempt from queuing so the player can learn why its other calls have stalled;
 > * `run.wall_budget_s` and `run.pause_queue_depth` in the brief;
 > * `time_mode`, `latency_mode` and `hardware_profile` in the run tuple.
 >
