@@ -12,9 +12,16 @@ There is no reference solution, and no single right answer. You are scored on wh
 
 ## Status
 
-**Specification complete. Implementation not started.**
+**Specification complete. Phase 0 in progress — M0 done, M1 next.**
 
-Every question that gates implementation has a drafted answer across nine documents. Nothing is built yet. The current work is [`ROADMAP.md`](ROADMAP.md) milestone M0.
+Every question that gates implementation has a drafted answer across eleven documents. The scaffolding is in place: workspaces, toolchain, CI, the determinism lint rules, and the schema → OpenAPI pipeline. No simulator yet.
+
+Next is [`ROADMAP.md`](ROADMAP.md) M1 — a walking skeleton crossing every layer, to find out where eight specifications written before any code fail to fit together.
+
+```
+npm ci && npm run check        # lint, typecheck, contract drift, tests
+cd tools && uv sync && uv run pytest
+```
 
 ---
 

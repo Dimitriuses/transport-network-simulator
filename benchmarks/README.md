@@ -1,12 +1,12 @@
 # Benchmarks
 
-Measurements that back decisions recorded in [`TECHNICAL-RESEARCH.md`](../TECHNICAL-RESEARCH.md). Each benchmark exists to answer one specific question that was otherwise going to be settled by guesswork.
+Measurements that back decisions recorded in [`TECHNICAL-RESEARCH.md`](../docs/TECHNICAL-RESEARCH.md). Each benchmark exists to answer one specific question that was otherwise going to be settled by guesswork.
 
 ## `des-core/` — simulation core throughput
 
 **Question it answered:** can a TypeScript core carry a realistic number of simulated passengers over a simulated day, or does the language choice cap the project's scale?
 
-**Answer:** it is not the constraint. See [`TECHNICAL-RESEARCH.md` §11](../TECHNICAL-RESEARCH.md).
+**Answer:** it is not the constraint. See [`TECHNICAL-RESEARCH.md` §11](../docs/TECHNICAL-RESEARCH.md).
 
 ### Running it
 

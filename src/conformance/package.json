@@ -1,0 +1,14 @@
+{
+  "name": "@tns/conformance",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Conformance suite any candidate player can run against itself before a scored run",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tns/schema": "*"
+  }
+}

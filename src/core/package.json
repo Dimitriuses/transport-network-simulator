@@ -1,0 +1,14 @@
+{
+  "name": "@tns/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Discrete-event simulation engine, L2 state, virtual clock, seeded PRNG",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tns/schema": "*"
+  }
+}

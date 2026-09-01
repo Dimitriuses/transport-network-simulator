@@ -52,3 +52,7 @@ desktop.ini
 .env
 .env.local
 *.local.json
+
+# uv lockfile lives in tools/ and IS committed (reproducible CI installs).
+# Its virtualenv is not.
+tools/.venv/

@@ -13,9 +13,13 @@ Milestones for the phase currently being built. **Phase 0 is the MVP**: one hand
 
 Each milestone states an **exit condition** — something that must be demonstrably true, not a list of files written.
 
-### M0 — Scaffolding
+### M0 — Scaffolding ✅ complete
+
+*Completed 2026-09-01. All exit conditions verified.*
 
 Repository layout, npm workspaces, `tsconfig` with `erasableSyntaxOnly`, the four determinism lint rules, Python tooling, CI.
+
+**Delivered:** eight `src/*` workspace packages with the `core → schema` dependency direction encoded; ESLint 10 flat config carrying the four determinism rules scoped to `src/core` and `src/router`, each message citing the specification that requires it; `node:test` and `uv`/`ruff`/`pytest`; a three-job CI workflow; and the schema pipeline proven end to end — `/identity` and `/health` defined in Zod, generating the committed OpenAPI documents under `contract/`.
 
 **Also settled here — where generated API documents live.** `PLAYER-CONTRACT.md` §14 and the repository layout disagreed about this; the resolution splits by lifetime:
 
@@ -26,7 +30,9 @@ Repository layout, npm workspaces, `tsconfig` with `erasableSyntaxOnly`, the fou
 
 Generated from `src/schema`, so the CI check guarantees the committed copies always match the source.
 
-**Exit:** `npm test` and `ruff check` pass on an empty skeleton; regenerating `contract/*.yaml` produces no diff; **and a deliberate `Math.random()` added to `src/core` fails CI.**
+**Exit:** `npm test` and `ruff check` pass on an empty skeleton; regenerating `contract/*.yaml` produces no diff; **and a deliberate `Math.random()` added to `src/core` fails CI.** — all verified.
+
+The last condition is checked two independent ways: a fixture violating all four rules is linted by `src/core/test/determinism.test.ts`, and a dedicated CI job mutates the real `src/core/src/index.ts` and asserts lint rejects it — so the guarantee survives someone deleting the fixture.
 
 That second clause is the entire point of M0. The four lint rules below are load-bearing — three separate specifications assume they exist — and they are cheap now and painful to retrofit once there is code to fix.
 

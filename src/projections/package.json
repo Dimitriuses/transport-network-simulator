@@ -1,0 +1,15 @@
+{
+  "name": "@tns/projections",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "L3 operator projections and the semantic-conflict defect library",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tns/schema": "*",
+    "@tns/core": "*"
+  }
+}

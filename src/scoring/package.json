@@ -1,0 +1,14 @@
+{
+  "name": "@tns/scoring",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Run log to scorecard: headroom capture, the three metric families, attribution",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tns/schema": "*"
+  }
+}

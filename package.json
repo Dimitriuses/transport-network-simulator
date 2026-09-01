@@ -1,0 +1,29 @@
+{
+  "name": "transport-network-simulator",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A simulation game about integration engineering",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "workspaces": [
+    "src/*"
+  ],
+  "scripts": {
+    "test": "node --test \"src/*/test/**/*.test.ts\"",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "contract:generate": "node src/schema/scripts/generate-openapi.ts",
+    "contract:check": "node src/schema/scripts/generate-openapi.ts --check",
+    "check": "npm run lint && npm run typecheck && npm run contract:check && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "eslint": "^10.9.1",
+    "typescript": "^5.8.0",
+    "typescript-eslint": "^8.69.0",
+    "yaml": "^2.7.0"
+  }
+}

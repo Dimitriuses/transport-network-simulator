@@ -1,0 +1,14 @@
+{
+  "name": "@tns/refplayer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Reference player: implements the contract validly but badly, as a floor and a smoke test",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tns/schema": "*"
+  }
+}

@@ -1,0 +1,152 @@
+# GENERATED FILE — DO NOT EDIT.
+#
+# Source: src/schema (Zod definitions).
+# Regenerate: npm run contract:generate
+# CI asserts this file matches its source; see ROADMAP.md M0.
+
+openapi: 3.1.0
+info:
+  title: Player API
+  version: "0.3"
+  summary: Endpoints the simulator calls on the player's service.
+  description: The player's surface is small, fixed, and — unlike the operator APIs — documented exactly and honestly. That contrast is pedagogical and should be preserved. See PLAYER-CONTRACT.md §5.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: "{player_base_url}/v1"
+    variables:
+      player_base_url:
+        default: http://localhost:8080
+paths:
+  /identity:
+    get:
+      operationId: getIdentity
+      summary: Who the player is and what it implements
+      description: Read once before the run. Unclaimed capabilities are scored as forgone rather than failed, so a partial solution is a valid participant.
+      responses:
+        "200":
+          description: Player identity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Identity"
+        4XX:
+          description: Client error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /health:
+    get:
+      operationId: getHealth
+      summary: Readiness
+      description: Polled only before the run, with a bounded budget from the brief.
+      responses:
+        "200":
+          description: Player readiness
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        5XX:
+          description: Player not ready
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+components:
+  schemas:
+    Identity:
+      $ref: "#/$defs/Identity"
+      $defs:
+        Identity:
+          type: object
+          properties:
+            name:
+              type: string
+              minLength: 1
+              maxLength: 64
+            version:
+              type: string
+              minLength: 1
+              maxLength: 32
+            contract_versions:
+              minItems: 1
+              type: array
+              items:
+                type: string
+            capabilities:
+              type: array
+              items:
+                type: string
+                enum:
+                  - plan
+                  - replan
+                  - tick
+                  - notify
+                  - tracing
+            tick:
+              $ref: "#/$defs/TickDeclaration"
+          required:
+            - name
+            - version
+            - contract_versions
+            - capabilities
+          additionalProperties: false
+          description: Who the player is, which contract versions it speaks, and what it implements. Read once, before the run starts.
+        TickDeclaration:
+          type: object
+          properties:
+            interval_sim_s:
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 9007199254740991
+          required:
+            - interval_sim_s
+          additionalProperties: false
+          description: Requested ingestion cadence, in simulated seconds.
+    Health:
+      $ref: "#/$defs/Health"
+      $defs:
+        Health:
+          type: object
+          properties:
+            status:
+              type: string
+              enum:
+                - ready
+                - starting
+                - unavailable
+            detail:
+              type: string
+              maxLength: 256
+          required:
+            - status
+          additionalProperties: false
+          description: Readiness. Polled only before the run, with a bounded budget from the brief.
+    Problem:
+      $ref: "#/$defs/Problem"
+      $defs:
+        Problem:
+          type: object
+          properties:
+            type:
+              default: about:blank
+              type: string
+            title:
+              type: string
+            status:
+              type: integer
+              minimum: 400
+              maximum: 599
+            detail:
+              type: string
+            instance:
+              type: string
+          required:
+            - type
+            - title
+            - status
+          additionalProperties: false
+          description: RFC 9457 problem details.

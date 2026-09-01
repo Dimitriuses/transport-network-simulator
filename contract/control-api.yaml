@@ -1,0 +1,48 @@
+# GENERATED FILE — DO NOT EDIT.
+#
+# Source: src/schema (Zod definitions).
+# Regenerate: npm run contract:generate
+# CI asserts this file matches its source; see ROADMAP.md M0.
+
+openapi: 3.1.0
+info:
+  title: Control API
+  version: "0.3"
+  summary: Endpoints the player calls on the simulator.
+  description: Carries the brief, the simulated clock, and the scored dissemination channel. See PLAYER-CONTRACT.md §6.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: "{control_url}/v1"
+    variables:
+      control_url:
+        default: http://localhost:9000
+paths: {}
+components:
+  schemas:
+    Problem:
+      $ref: "#/$defs/Problem"
+      $defs:
+        Problem:
+          type: object
+          properties:
+            type:
+              default: about:blank
+              type: string
+            title:
+              type: string
+            status:
+              type: integer
+              minimum: 400
+              maximum: 599
+            detail:
+              type: string
+            instance:
+              type: string
+          required:
+            - type
+            - title
+            - status
+          additionalProperties: false
+          description: RFC 9457 problem details.

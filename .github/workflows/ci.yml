@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runtime:
+    name: TypeScript runtime
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # >= 22.18 runs .ts directly by stripping types. See tsconfig.base.json.
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        # Includes the four determinism rules on src/core and src/router.
+        # See CLAUDE.md and eslint.config.mjs.
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Contract documents match their schema source
+        # contract/*.yaml is generated from src/schema and committed, so it is
+        # always browsable. This asserts it is also always true. ROADMAP.md M0.
+        run: npm run contract:check
+
+      - name: Test
+        run: npm test
+
+  offline:
+    name: Python offline pipeline
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uv sync
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Test
+        run: uv run pytest
+
+  determinism:
+    name: Determinism rules are enforced
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      # The rules in eslint.config.mjs are load-bearing: without them the
+      # project's reproducibility guarantee disappears quietly, and would
+      # surface much later as unexplainable score differences. This asserts a
+      # real violation in src/core is rejected, independently of the fixture
+      # test — so the check survives someone deleting the fixture.
+      - name: A real Math.random() in src/core must fail lint
+        run: |
+          set -e
+          cp src/core/src/index.ts /tmp/index.bak
+          printf '\nexport const oops = () => Math.random();\n' >> src/core/src/index.ts
+          if npx eslint src/core; then
+            cp /tmp/index.bak src/core/src/index.ts
+            echo "::error::A deliberate Math.random() in src/core passed lint. The determinism rules are not being enforced."
+            exit 1
+          fi
+          cp /tmp/index.bak src/core/src/index.ts
+          echo "Determinism rules are enforced."

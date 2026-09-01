@@ -6,7 +6,9 @@ Guidance for Claude Code and for anyone else working in this repository.
 
 A simulation game about integration engineering. A generated city, several independent transport operators whose data disagrees in deliberate and specific ways, and a player who must unify them. See [`README.md`](README.md).
 
-**Current state: specification complete, implementation not started.** The active work is [`ROADMAP.md`](ROADMAP.md) milestone M0.
+**Current state: specification complete; Phase 0 in progress.** M0 (scaffolding, toolchain, determinism lint rules, schema→OpenAPI pipeline) is done. The active work is [`ROADMAP.md`](ROADMAP.md) milestone **M1** — the walking skeleton.
+
+Run `npm run check` before proposing changes: lint, typecheck, contract-drift and tests. The Python side is `cd tools && uv run ruff check . && uv run pytest`.
 
 ## The specifications are the source of truth
 

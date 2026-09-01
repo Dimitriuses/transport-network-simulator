@@ -1,0 +1,14 @@
+{
+  "name": "@tns/schema",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Source of truth: Zod definitions generating TypeScript types, JSON Schema and OpenAPI documents",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
+  }
+}

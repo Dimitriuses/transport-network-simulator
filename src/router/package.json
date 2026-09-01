@@ -1,0 +1,14 @@
+{
+  "name": "@tns/router",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "RAPTOR journey planning; serves the P0 oracle and the P1 reference policy",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tns/schema": "*"
+  }
+}
