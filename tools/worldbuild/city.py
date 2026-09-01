@@ -50,9 +50,68 @@ WORLD_UTC_OFFSET_S = 3 * 3600
 # quays sit near the first's but in separate Sites, so P0 can transfer between
 # them and P1 cannot (REFERENCE-POLICY.md §4.1). Their data does not yet
 # disagree — semantic conflicts arrive at M3.
-OPERATORS: tuple[tuple[str, str], ...] = (
-    ("nordline", "Nordline Transit"),
-    ("ostline", "Ostline Tram"),
+# Each operator publishes the same city through its own manifest. The manifest
+# *is* the difficulty declaration: every non-default setting is a conflict from
+# the catalogue in CORECONCEPT.md §2.1, and the defect audit verifies each one
+# actually reaches the published output (DATA-MODEL.md §4, §7).
+OPERATORS: tuple[dict, ...] = (
+    {
+        # The conventional one. Everything it does is right, which is what
+        # makes it useful as a reference point for the others.
+        "id": "nordline",
+        "name": "Nordline Transit",
+        "dialect": "gtfs_like",
+        "identity": {"granularity": "quay", "id_scheme": "prefixed", "prefix": "NL"},
+        "naming": {"variant": "official"},
+        "geometry": {
+            "precision": 6,
+            "source": "quay",
+            "latlon_order": "lat_lon",
+            "offset_m": 0,
+        },
+        "time": {"encoding": "iso_offset"},
+    },
+    {
+        # A proprietary system that grew organically. Bare integer ids that
+        # collide with Sudbahn's, locally-abbreviated names, coordinates
+        # rounded to three decimals (~110 m — enough to make a coordinate
+        # matcher unreliable without making it obviously broken), and epoch
+        # seconds instead of timestamps.
+        "id": "ostline",
+        "name": "Ostline Tram",
+        "dialect": "proprietary",
+        "identity": {"granularity": "quay", "id_scheme": "bare_int", "prefix": ""},
+        "naming": {"variant": "abbreviated"},
+        # A legacy local grid, converted approximately: every position is
+        # displaced by the same ~130 m. Consistent, plausible, and fatal to a
+        # coordinate-threshold matcher, which stops seeing the tram stops as
+        # neighbours of anything (catalogue C).
+        "geometry": {
+            "precision": 3,
+            "source": "quay",
+            "latlon_order": "lat_lon",
+            "offset_m": 130,
+        },
+        "time": {"encoding": "epoch_s"},
+    },
+    {
+        # A regional railway that thinks in stations, not platforms. Publishes
+        # one stop per Site, positioned at the Site centroid rather than at any
+        # quay a train actually calls at — so its coordinates match nothing
+        # exactly. Times carry no offset at all.
+        "id": "sudbahn",
+        "name": "Sudbahn Regional",
+        "dialect": "legacy",
+        "identity": {"granularity": "site", "id_scheme": "bare_int", "prefix": ""},
+        "naming": {"variant": "colloquial"},
+        "geometry": {
+            "precision": 6,
+            "source": "site",
+            "latlon_order": "lat_lon",
+            "offset_m": 0,
+        },
+        "time": {"encoding": "local_naive"},
+    },
 )
 
 
@@ -152,6 +211,18 @@ QUAYS: tuple[Quay, ...] = (
     Quay("t-market", "site-t-market", "Market Hall tram stop", 50.4461, 30.5151),
     Quay("t-cathedral", "site-t-cathedral", "Cathedral tram stop", 50.4506, 30.5216),
     Quay("t-riverside", "site-t-riverside", "Riverside tram stop", 50.4506, 30.5286),
+    # Sudbahn Regional. Its quays sit inside Sites the other operators already
+    # serve, so the same physical place ends up with three published
+    # identities — which is the point of M3.
+    # Two platforms at Central, one per line. Sudbahn publishes at Site
+    # granularity, so both appear as a single stop — and a player boarding
+    # "Central Square" is not told which platform the train leaves from.
+    Quay("r-central-1", "site-central", "Central Square, platform 1", 50.4498, 30.5136),
+    Quay("r-central-2", "site-central", "Central Square, platform 2", 50.4496, 30.5133),
+    Quay("r-west", "site-w3", "West Terminus, platform 1", 50.4497, 30.4927),
+    Quay("r-east", "site-e3", "East Terminus, platform 1", 50.4497, 30.5353),
+    Quay("r-north", "site-n3", "North Terminus, platform 1", 50.4653, 30.5148),
+    Quay("r-south", "site-s3", "South Terminus, platform 1", 50.4352, 30.5142),
 )
 
 H06, H22 = 6 * 3600, 22 * 3600
@@ -220,6 +291,21 @@ LINES: tuple[Line, ...] = (
         12.0,
         20,
     ),
+    # ---- Sudbahn Regional: fast, infrequent, terminus to terminus ---------
+    Line(
+        "line-r1", "R1", "sudbahn", ("r-west", "r-central-1", "r-east"), H06, H22, 30 * 60, 20.0, 45
+    ),
+    Line(
+        "line-r2",
+        "R2",
+        "sudbahn",
+        ("r-north", "r-central-2", "r-south"),
+        H06,
+        H22,
+        30 * 60,
+        20.0,
+        45,
+    ),
 )
 
 # The scored query set. Chosen so some journeys need no transfer, some need a
@@ -247,6 +333,16 @@ QUERIES: tuple[tuple[str, float, float, float, float, int], ...] = (
     ("q14", 50.4396, 30.4991, 50.4599, 30.5146, 16 * 3600),  # SW3 -> N2
     ("q15", 50.4356, 30.5144, 50.4599, 30.5146, 9 * 3600 + 300),  # S3 -> N2
     ("q16", 50.4604, 30.5291, 50.4599, 30.5146, 11 * 3600 + 600),  # NE3 -> N2
+    # A city whose operators do not talk to each other is one where crossing
+    # between their networks is common, not exceptional. These journeys all
+    # need a hop no publication declares, so the query set reflects the problem
+    # the project is actually about rather than under-sampling it.
+    ("q17", 50.4501, 30.5001, 50.4551, 30.5146, 8 * 3600 + 1500),  # W2 -> N1
+    ("q18", 50.4501, 30.4931, 50.4551, 30.5146, 12 * 3600 + 900),  # W3 -> N1
+    ("q19", 50.4466, 30.5091, 50.4551, 30.5146, 13 * 3600 + 1800),  # SW1 -> N1
+    ("q20", 50.4356, 30.5144, 50.4551, 30.5146, 15 * 3600 + 600),  # S3 -> N1
+    ("q21", 50.4396, 30.4991, 50.4551, 30.5146, 9 * 3600 + 2400),  # SW3 -> N1
+    ("q22", 50.4501, 30.5351, 50.4551, 30.5146, 16 * 3600 + 1200),  # E3 -> N1
 )
 
 # Movement model. No defects yet, so vehicles run exactly to schedule and the

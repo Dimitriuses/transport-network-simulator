@@ -98,11 +98,47 @@ RAPTOR in `src/router`; P0, P1 at `timetable` competence, P2; the three-gap cali
 
 **Open items closed:** ghost-rider capacity denial (`REFERENCE-POLICY.md` §9 — yes, from background load; implemented at M4 when capacity first exists) and preparation cost (`PLAYER-CONTRACT.md` §4 — free and bounded; the interesting version is *recovery*, revisited in Phase 3).
 
-### M3 — Conflicts
+### M3 — Conflicts ✅ complete
+
+*Completed 2026-09-01. All exit conditions verified.*
 
 The projection manifest and defect library; three operators with genuine semantic divergence from `CORECONCEPT.md` §2.1 A–C; the resolution table; the defect audit gate.
 
-**Exit:** the same physical stop appears under three different identities, and P2 — coordinate-threshold matching — measurably underperforms correct manual matching. The defect audit confirms every declared conflict is actually present in the projections.
+**Exit:** the same physical stop appears under three different identities, and P2 — coordinate-threshold matching — measurably underperforms correct manual matching. The defect audit confirms every declared conflict is actually present in the projections. — all verified.
+
+**Central Square, as published:**
+
+| Operator | id | name | position |
+|---|---|---|---|
+| Nordline | `NL-S0001`, `NL-S0002` | "Central Square, stand A" / "stand B" | the quays |
+| Ostline | `7` | "Central Sq" | ~150 m north of the quays |
+| Sudbahn | `1` | "Tsentralna" | Site centroid; **one stop covering two platforms** |
+
+Three identities, colliding integer ids across two operators, three name forms, three positions, and three time encodings — `iso_offset`, `epoch_s`, `local_naive`.
+
+**Delivered:** a manifest-driven projection (`src/projections/src/project.ts`) replacing the faithful one; a defect library implementing identity granularity, id schemes, naming variants, coordinate precision, coordinate source, systematic coordinate offset and time encoding; the resolution table now **operator-keyed and one-to-many**; and the defect audit as a CI gate.
+
+**Calibration — the row that was flat at M2 has moved:**
+
+| Gap | M2 | M3 | Reading |
+|---|---:|---:|---|
+| P0−P1 | 1.70 min | 1.16 min | headroom |
+| **P0−P2** | **0.00 min** | **0.44 min** | what the conflicts cost a lazy integrator |
+| P1−P2 | 1.70 min | 0.72 min | what lazy integration still captures |
+
+**Conflicts now take 38 % of the available headroom from a lazy integrator, and leave it with no workable plan at all on 4 of 22 queries.** The reference player's live capture went from **+0.256 to −0.229**: it is now *actively harmful*, routing travellers into journeys worse than they would have found alone. That is the negative region of the capture scale doing exactly what `SCORING.md` §2 designed it for, and it is the single clearest piece of evidence that the conflicts are not decorative.
+
+Two assertions written at earlier milestones flipped, as promised. `calibration.test.ts` asserted `P0−P2 < 60s` with a note saying M3 should break it; it did. `walking-skeleton.test.ts` asserted the naive player captured *something*; it now asserts the opposite.
+
+**Three things M3 found:**
+
+1. **The defect audit caught a vacuous declaration on its first run** — the exact failure it exists for. Sudbahn declared Site granularity while having only one quay per Site, so publishing at Site level changed nothing. The world was declaring a conflict it did not have, which would have silently made it easier than its manifest claimed and corrupted any difficulty comparison against it. Fixed by giving Sudbahn two platforms at Central. A second vacuous declaration (a coordinate truncation that changed no digits) was removed the same way.
+2. **Truncating coordinate precision is a weak defect; a systematic offset is a strong one.** Truncation is noise, and a generous matching threshold absorbs it. An offset moves every stop the same way, so widening the threshold recovers nothing and only adds wrong pairs. Replacing "3 decimal places" with "a legacy datum, converted approximately, ~130 m out" is what actually moved P0−P2 off zero.
+3. **The calibration was excluding P2's worst outcomes.** Queries where P2 produced no workable plan at all were dropped as "not comparable" — so the baseline's total failures did not count against it. They now fall back to P1, exactly as a player's declined obligation does. Same shape as the M1 and M2 findings: a metric quietly dropping the cases that mattered most.
+
+**A better instrument, added here:** the **conflict share**, `(P0−P2) / (P0−P1)` — the fraction of available headroom the conflicts take from a lazy integrator. An absolute minute gap says nothing without knowing how much headroom existed to lose; the share is scale-free and is the right measure for the question Phase 0 Gate 3 asks.
+
+**Open item closed:** `docs_url` is always present (`PLAYER-CONTRACT.md` §6.1). Withholding it would test endpoint-guessing rather than integration, and would break the agent-benchmark use case. Documentation *quality* still varies — that is catalogue §2.1 F, and it is the interesting version.
 
 This is the first milestone where the project is recognisably itself.
 
@@ -136,7 +172,7 @@ No open item blocks M0 or M1 — work can start now. Each has a milestone by whi
 |---|---|---|
 | ~~Ghost-rider capacity denial~~ | `REFERENCE-POLICY.md` §9 | ✅ closed M2 |
 | ~~Preparation cost scored or free~~ | `PLAYER-CONTRACT.md` §4 | ✅ closed M2 |
-| `docs_url` always present | `PLAYER-CONTRACT.md` §6.1 | **M3** |
+| ~~`docs_url` always present~~ | `PLAYER-CONTRACT.md` §6.1 | ✅ closed M3 |
 | `latency: sim` promotion — a pagination defect depends on it | `DATA-MODEL.md` §4 | **M4** |
 | Modelled response delay δ | `TIME-MODEL.md` §4 | M4 |
 | Wait-time weighting | `SCORING.md` §4 | **M5** |

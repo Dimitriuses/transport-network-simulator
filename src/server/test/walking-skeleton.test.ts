@@ -109,12 +109,24 @@ test("a player that answers nothing scores exactly 0.0", { skip }, async () => {
   assert.equal(forgone, world().queries.length);
 });
 
-test("a real player captures some of the headroom, but not all", { skip }, async () => {
+test("a naive player is now actively harmful", { skip }, async () => {
   const log = await runOnce({ operator: 9270, control: 9279, player: 8270 });
   const card = score(log);
 
+  // At M2 this test asserted `capture > 0` — a naive player still helped,
+  // because a coordinate matcher reconciled a conflict-free world perfectly.
+  // M3 declared real conflicts and the same player went **negative**: it now
+  // routes travellers into journeys worse than they would have found alone.
+  //
+  // That is the negative region of the capture scale doing exactly what
+  // SCORING.md §2 designed it for, and it is the clearest single piece of
+  // evidence that the conflicts are not decorative.
   assert.notEqual(card.capture, null);
-  assert.ok(card.capture! > 0, `naive player captured nothing (${card.capture})`);
+  assert.ok(
+    card.capture! < 0,
+    `naive player captured ${card.capture} — it is still helping, so the ` +
+      `conflicts are not biting the way M3 intends`,
+  );
   assert.ok(card.capture! < 1, `naive player matched the oracle (${card.capture})`);
 });
 

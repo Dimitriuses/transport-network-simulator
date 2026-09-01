@@ -87,6 +87,12 @@ export interface QueryAccess {
 export interface OperatorInfo {
   readonly id: string;
   readonly name: string;
+  /**
+   * The projection manifest: how this operator publishes, and therefore which
+   * catalogue conflicts it exhibits. Typed as unknown here because the shape
+   * belongs to @tns/projections; L1 only carries it (DATA-MODEL.md §4).
+   */
+  readonly manifest: unknown;
 }
 
 export interface WorldManifest {

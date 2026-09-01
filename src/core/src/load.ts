@@ -16,6 +16,7 @@ import type {
   Quay,
   Query,
   QueryAccess,
+  OperatorInfo,
   Site,
   WalkLink,
   World,
@@ -27,7 +28,15 @@ type Row = Record<string, string | number | bigint | Uint8Array | null>;
 const str = (r: Row, k: string): string => String(r[k]);
 const num = (r: Row, k: string): number => Number(r[k]);
 
-function readManifest(db: DatabaseSync): WorldManifest {
+function readOperators(db: DatabaseSync): OperatorInfo[] {
+  return (db.prepare("SELECT * FROM operators ORDER BY id").all() as Row[]).map((r) => ({
+    id: str(r, "id"),
+    name: str(r, "name"),
+    manifest: JSON.parse(str(r, "manifest")) as unknown,
+  }));
+}
+
+function readManifest(db: DatabaseSync, operators: readonly OperatorInfo[]): WorldManifest {
   const rows = db.prepare("SELECT key, value FROM manifest").all() as Row[];
   const m = new Map(rows.map((r) => [String(r["key"]), String(r["value"])]));
 
@@ -47,12 +56,7 @@ function readManifest(db: DatabaseSync): WorldManifest {
     worldEpochIso: need("world_epoch_iso"),
     timezone: need("timezone"),
     utcOffsetS: Number(need("utc_offset_s")),
-    operators: need("operators")
-      .split(",")
-      .map((entry) => {
-        const [id, ...rest] = entry.split(":");
-        return { id: id ?? entry, name: rest.join(":") };
-      }),
+    operators,
     contentHash: need("content_hash"),
     walkSpeedMps: Number(need("walk_speed_mps")),
     maxWalkM: Number(need("max_walk_m")),
@@ -63,7 +67,8 @@ function readManifest(db: DatabaseSync): WorldManifest {
 export function loadWorld(path: string): World {
   const db = new DatabaseSync(path, { readOnly: true });
   try {
-    const manifest = readManifest(db);
+    const operators = readOperators(db);
+    const manifest = readManifest(db, operators);
 
     const sites: Site[] = (db.prepare("SELECT * FROM sites ORDER BY id").all() as Row[]).map(
       (r) => ({ id: str(r, "id"), name: str(r, "name"), lat: num(r, "lat"), lon: num(r, "lon") }),

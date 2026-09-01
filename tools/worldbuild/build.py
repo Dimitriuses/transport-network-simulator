@@ -11,6 +11,7 @@ runtime is forbidden from calling transcendental Math functions at all
 
 from __future__ import annotations
 
+import json
 import math
 import sqlite3
 from pathlib import Path
@@ -37,6 +38,16 @@ CREATE TABLE quays (
     name    TEXT NOT NULL,
     lat     REAL NOT NULL,
     lon     REAL NOT NULL
+);
+
+-- Each operator's projection manifest: how it publishes, and therefore which
+-- conflicts from CORECONCEPT.md §2.1 it exhibits. The manifest *is* the
+-- difficulty declaration, and the defect audit checks every non-default
+-- setting actually reaches the published output (DATA-MODEL.md §4, §7).
+CREATE TABLE operators (
+    id       TEXT PRIMARY KEY,
+    name     TEXT NOT NULL,
+    manifest TEXT NOT NULL
 );
 
 CREATE TABLE lines (
@@ -125,6 +136,43 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * EARTH_RADIUS_M * math.asin(math.sqrt(a))
 
 
+# Default settings. Anything an operator does differently is a declared
+# conflict, named here so the manifest and the audit agree on vocabulary.
+DEFAULTS: dict[str, dict[str, object]] = {
+    "identity": {"granularity": "quay", "id_scheme": "prefixed"},
+    "naming": {"variant": "official"},
+    "geometry": {"precision": 6, "source": "quay", "latlon_order": "lat_lon", "offset_m": 0},
+    "time": {"encoding": "iso_offset"},
+}
+
+CONFLICT_NAMES: dict[tuple[str, str], str] = {
+    ("identity", "granularity"): "A-granularity",
+    ("identity", "id_scheme"): "A-id-scheme",
+    ("naming", "variant"): "A-naming",
+    ("geometry", "precision"): "A-coordinate-precision",
+    ("geometry", "source"): "A-coordinate-source",
+    ("geometry", "latlon_order"): "C-latlon-order",
+    ("geometry", "offset_m"): "C-coordinate-offset",
+    ("time", "encoding"): "B-time-encoding",
+}
+
+
+def _declared_conflicts() -> list[str]:
+    """Every way an operator departs from the default, as catalogue names."""
+    found: set[str] = set()
+    for op in city.OPERATORS:
+        for group, defaults in DEFAULTS.items():
+            for key, default in defaults.items():
+                if op.get(group, {}).get(key, default) != default:
+                    found.add(f"{CONFLICT_NAMES[(group, key)]}:{op['id']}")
+    # Two operators using bare integer ids collide with each other. That is a
+    # distinct conflict from either of them merely being unprefixed.
+    bare = [o["id"] for o in city.OPERATORS if o["identity"]["id_scheme"] == "bare_int"]
+    if len(bare) > 1:
+        found.add("A-id-collision:" + "+".join(sorted(bare)))
+    return sorted(found)
+
+
 def _quay_by_id() -> dict[str, city.Quay]:
     return {q.id: q for q in city.QUAYS}
 
@@ -168,12 +216,20 @@ def build(out_path: Path, seed: int = 481516) -> Path:
                 ("world_epoch_iso", city.WORLD_EPOCH_ISO),
                 ("timezone", city.WORLD_TIMEZONE),
                 ("utc_offset_s", str(city.WORLD_UTC_OFFSET_S)),
-                ("operators", ",".join(f"{oid}:{name}" for oid, name in city.OPERATORS)),
+                # The active conflict list is derived from the operator
+                # manifests rather than written separately, so the two cannot
+                # drift apart.
+                ("active_conflicts", ",".join(_declared_conflicts())),
                 ("walk_speed_mps", str(city.WALK_SPEED_MPS)),
                 ("max_walk_m", str(city.MAX_WALK_M)),
-                # No conflicts declared yet. The defect audit (DATA-MODEL.md §7)
-                # therefore has nothing to find, which is itself worth asserting.
-                ("active_conflicts", ""),
+            ],
+        )
+
+        db.executemany(
+            "INSERT INTO operators (id, name, manifest) VALUES (?, ?, ?)",
+            [
+                (o["id"], o["name"], json.dumps(o, sort_keys=True, separators=(",", ":")))
+                for o in city.OPERATORS
             ],
         )
 

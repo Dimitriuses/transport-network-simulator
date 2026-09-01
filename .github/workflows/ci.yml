@@ -78,6 +78,11 @@ jobs:
           diff /tmp/run1.txt /tmp/run2.txt
           cat /tmp/run1.txt
 
+      - name: Defect audit
+        # DATA-MODEL.md §7 gate 4: every conflict a world declares must
+        # actually be present in what its operators publish.
+        run: npm run audit
+
       - name: Three-gap calibration
         run: npm run calibrate
 

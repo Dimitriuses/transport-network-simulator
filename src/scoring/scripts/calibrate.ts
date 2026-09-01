@@ -42,9 +42,10 @@ console.log("  query      P0      P1      P2   headroom");
 console.log("  ------  ------  ------  ------  --------");
 for (const g of c.perQuery) {
   const head = g.p0 !== null && g.p1 !== null ? `${((g.p1 - g.p0) / 60).toFixed(1)}m` : "—";
+  const p2 = g.p2FellBack ? `${mins(g.p2)}*` : mins(g.p2);
   console.log(
     `  ${g.queryId.padEnd(6)}  ${mins(g.p0).padStart(6)}  ${mins(g.p1).padStart(6)}` +
-      `  ${mins(g.p2).padStart(6)}  ${head.padStart(8)}`,
+      `  ${p2.padStart(7)}  ${head.padStart(8)}`,
   );
 }
 console.log("");
@@ -52,11 +53,23 @@ console.log(
   `  mean    ${mins(c.meanP0).padStart(6)}  ${mins(c.meanP1).padStart(6)}` +
     `  ${mins(c.meanP2).padStart(6)}     over ${c.comparable} queries`,
 );
+const fellBack = c.perQuery.filter((g) => g.p2FellBack).length;
+if (fellBack > 0) {
+  console.log(`  * P2 produced no workable plan and fell back to P1 (${fellBack} queries)`);
+}
 console.log("");
 console.log("  THREE-GAP CALIBRATION");
 console.log(`    P0-P1  ${(c.gapP0P1 / 60).toFixed(2).padStart(7)}m  headroom available to any player`);
 console.log(`    P0-P2  ${(c.gapP0P2 / 60).toFixed(2).padStart(7)}m  what the conflicts cost a lazy integrator`);
 console.log(`    P1-P2  ${(c.gapP1P2 / 60).toFixed(2).padStart(7)}m  whether integrating lazily beats not integrating`);
+console.log("");
+console.log(
+  `    conflicts take ${(c.conflictShare * 100).toFixed(0)}% of the available headroom ` +
+    `from a lazy integrator`,
+);
+console.log(
+  `    and leave it with no workable plan at all on ${c.p2Failures}/${c.perQuery.length} queries`,
+);
 console.log("");
 
 if (c.gapP0P1 < 60) {

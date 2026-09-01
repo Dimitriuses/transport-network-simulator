@@ -46,18 +46,38 @@ test("this world has headroom for a player to compete for", { skip }, () => {
   );
 });
 
-test("the conflicts are not yet doing any work, and the calibration says so", { skip }, () => {
+test("the conflicts are doing real work", { skip }, () => {
   const c = calibrate(loadWorld(worldPath));
 
-  // Expected, and the whole reason M3 exists. This world declares no semantic
-  // conflicts, so a coordinate-threshold matcher reconciles it perfectly and
-  // P2 lands on P0. All of the present difficulty is topology.
+  // This assertion is the inverse of the one it replaced. At M2 the world
+  // declared no conflicts, a coordinate-threshold matcher reconciled it
+  // perfectly, and the test asserted `gapP0P2 < 60` — with a note saying that
+  // when M3 landed it should fail and be replaced by its opposite. It did.
   //
-  // When M3 lands, this assertion should FAIL and be replaced by its opposite.
-  // That failure is the milestone's evidence.
+  // The share, not the absolute gap, is the instrument: an absolute minute
+  // count says nothing without knowing how much headroom existed to lose.
   assert.ok(
-    c.gapP0P2 < 60,
-    `P0-P2 is ${c.gapP0P2.toFixed(0)}s — conflicts are costing a lazy integrator ` +
-      `something, which should not be possible before M3 declares any`,
+    c.conflictShare > 0.2,
+    `conflicts take only ${(c.conflictShare * 100).toFixed(0)}% of the headroom from a ` +
+      `lazy integrator — they are close to decorative (docs/PHASES.md, Gate 3)`,
+  );
+
+  // And they should sometimes defeat it outright, not merely slow it down.
+  assert.ok(
+    c.p2Failures > 0,
+    "a coordinate-threshold matcher produced a workable plan for every query",
+  );
+});
+
+test("a lazy integration can be worse than none at all", { skip }, () => {
+  const c = calibrate(loadWorld(worldPath));
+
+  // P1-P2 stays positive here — lazy integration still nets a gain overall —
+  // but it is no longer the whole headroom, and the reference player's live
+  // capture has gone negative. Both are legitimate: `REFERENCE-POLICY.md` §10
+  // notes a negative P1-P2 is interesting at Tier 4+ and a bug at Tier 1.
+  assert.ok(
+    c.gapP1P2 < c.gapP0P1,
+    "lazy integration still captures the entire headroom, so nothing was lost to conflicts",
   );
 });

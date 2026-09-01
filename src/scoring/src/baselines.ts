@@ -23,6 +23,29 @@ import { projectOperator, type Timetable } from "@tns/projections";
 /** How close two published stops must be for a lazy matcher to fuse them. */
 export const NAIVE_MATCH_THRESHOLD_M = 120;
 
+/**
+ * How a lazy integrator reads a published timestamp.
+ *
+ * It handles the *shapes* competently — a number is epoch seconds, a string
+ * with an offset is RFC 3339 — because failing to parse at all would make P2
+ * collapse rather than degrade, and a collapsed baseline measures nothing.
+ *
+ * What it gets wrong is the thing that looks like it needs no decision:
+ * a timestamp with **no offset**. It assumes UTC, because that is what a
+ * date library does when you do not tell it otherwise. The world runs at
+ * +03:00, so every such operator's times land three hours off — and nothing
+ * in the data says so (catalogue B).
+ */
+function naiveDecodeTime(anchor: ReturnType<typeof parseEpoch>, value: string | number): number {
+  if (typeof value === "number") {
+    // Epoch seconds. τ counts from local midnight, so undo the offset.
+    return value + anchor.offsetS;
+  }
+  if (/[+-]\d{2}:\d{2}$/.test(value)) return parseSimTime(anchor, value);
+  // No offset. Assume UTC — the plausible, unexamined, wrong choice.
+  return parseSimTime(anchor, `${value}+00:00`);
+}
+
 /** Flat-earth metres. Adequate at city scale, and what a lazy player would do. */
 function roughMetres(aLat: number, aLon: number, bLat: number, bLon: number): number {
   const dLat = (aLat - bLat) * 111_320;
@@ -98,13 +121,13 @@ export function naiveMergedWorld(world: World): World {
       const patternId = `${t.operator}:${trip.trip_id}`;
       const first = trip.stop_times[0];
       if (!first) continue;
-      const startS = parseSimTime(anchor, first.depart);
+      const startS = naiveDecodeTime(anchor, first.depart);
 
       const stops: PatternStop[] = trip.stop_times.map((st, seq) => ({
         seq,
         quayId: groupOf.get(`${t.operator}:${st.stop_id}`) ?? st.stop_id,
-        arriveOffsetS: parseSimTime(anchor, st.arrive) - startS,
-        departOffsetS: parseSimTime(anchor, st.depart) - startS,
+        arriveOffsetS: naiveDecodeTime(anchor, st.arrive) - startS,
+        departOffsetS: naiveDecodeTime(anchor, st.depart) - startS,
       }));
 
       patterns.push({
@@ -164,6 +187,8 @@ export interface QueryGaps {
   readonly p0: number | null;
   readonly p1: number | null;
   readonly p2: number | null;
+  /** True when P2 produced no workable plan and fell back to the reference policy. */
+  readonly p2FellBack: boolean;
 }
 
 export interface Calibration {
@@ -177,6 +202,22 @@ export interface Calibration {
   readonly gapP0P2: number;
   /** Whether integrating lazily even beats not integrating. Negative is a warning. */
   readonly gapP1P2: number;
+  /**
+   * The share of the available headroom that the declared conflicts take away
+   * from a lazy integrator: `(P0−P2) / (P0−P1)`.
+   *
+   * Scale-free, and the right instrument for the question Phase 0 Gate 3 asks.
+   * An absolute minute count says nothing without knowing how much headroom
+   * existed in the first place; this says directly how much of the value that
+   * integration could deliver is forfeited by doing it badly.
+   *
+   * 0.0 means the conflicts are decorative — a coordinate matcher reconciles
+   * the world perfectly and all the difficulty is topology. 1.0 would mean a
+   * lazy integrator gains nothing at all over not integrating.
+   */
+  readonly conflictShare: number;
+  /** Queries where P2 produced no workable plan at all. */
+  readonly p2Failures: number;
   readonly comparable: number;
 }
 
@@ -323,11 +364,23 @@ export function calibrate(world: World): Calibration {
         )
       : null;
 
+    const p1 = journeyOf(world, trueIx, q.id, q.departAfterS, "obvious");
+
+    // A lazy integrator that cannot produce a workable plan does not vanish —
+    // the traveller falls back to the reference policy, exactly as they do
+    // when a player declines (REFERENCE-POLICY.md §8).
+    //
+    // Excluding these from the mean instead would quietly drop P2's *worst*
+    // outcomes, flattering the very baseline whose failures are being
+    // measured. The first version of this file did exactly that.
+    const fellBack = p2 === null && p1 !== null;
+
     return {
       queryId: q.id,
       p0: journeyOf(world, trueIx, q.id, q.departAfterS, "all"),
-      p1: journeyOf(world, trueIx, q.id, q.departAfterS, "obvious"),
-      p2,
+      p1,
+      p2: fellBack ? p1 : p2,
+      p2FellBack: fellBack,
     };
   });
 
@@ -347,6 +400,8 @@ export function calibrate(world: World): Calibration {
     gapP0P1: meanP1 - meanP0,
     gapP0P2: meanP2 - meanP0,
     gapP1P2: meanP1 - meanP2,
+    conflictShare: meanP1 - meanP0 === 0 ? 0 : (meanP2 - meanP0) / (meanP1 - meanP0),
+    p2Failures: perQuery.filter((g) => g.p2FellBack).length,
     comparable: usable.length,
   };
 }

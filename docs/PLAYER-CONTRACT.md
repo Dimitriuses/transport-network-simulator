@@ -298,7 +298,11 @@ The single machine-readable entry point, and the answer to **Q41/Q42**: what a h
 
 The brief states *where* the operators are and how to authenticate. It says **nothing** about their schemas, their quality, or how their data relates. Discovering that is the game.
 
-**OPEN:** whether `operators[].docs_url` is always present. Withholding it at the highest tiers would make API discovery itself part of the challenge — appealing, but it may cross from "hard" into "guessing".
+**`docs_url` is always present.** *Decided at M3.*
+
+Withholding it would make finding the endpoint part of the challenge, and that is a different — worse — game. The difficulty of this project lives in the *data*: what an identifier denotes, where a stop really is, what instant a timestamp means. None of that becomes more interesting if the player also has to guess a URL. It would also break the agent-benchmark use case outright, where an agent with no documentation is being tested on endpoint enumeration rather than on integration.
+
+What *does* vary is documentation **quality**, which is already catalogue §2.1 F: docs that are incomplete, that describe fields the API no longer returns, or that disagree with observed behaviour. That is the interesting version of "you cannot trust the documentation", and it keeps the challenge in the data where it belongs.
 
 ### 6.2 `GET /v1/clock`
 

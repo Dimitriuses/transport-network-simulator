@@ -13,7 +13,7 @@ import type { Itinerary, RunRecord, World } from "@tns/schema";
 import { renderSimTime, parseEpoch, CONTRACT_VERSION, SCORER_VERSION } from "@tns/schema";
 import { EventQueue, makeVirtualClock } from "@tns/core";
 import { buildIndex, route, type Access, type RouteResult } from "@tns/router";
-import { projectOperator, type Resolution } from "@tns/projections";
+import { projectOperator } from "@tns/projections";
 import { startControlApi, startOperatorApi, type OperatorCall } from "./apis.ts";
 
 const RUN_ID = "m1-demo";
@@ -250,25 +250,36 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
 /**
  * The resolution table across every operator.
  *
- * Published identifiers are namespaced per operator, so `(operator, stop)` is
- * the key. Kept private: it is the answer to the entity-resolution problem and
- * is never served over any API (DATA-MODEL.md §4).
+ * **Keyed by `operator:published_id`, and that is not a convenience.** Two
+ * operators number their stops from 1, so `7` denotes a different physical
+ * place depending on who published it (catalogue A: ID collisions). A table
+ * keyed on the identifier alone would silently fuse them — which is exactly
+ * the mistake a careless player makes, and the simulator must not make it
+ * while judging them.
+ *
+ * Values are quay *lists*: an operator publishing at Site granularity has one
+ * stop standing for every quay in the Site, so resolving a boarding needs the
+ * trip as well as the stop.
+ *
+ * Kept private. It is the answer to the entity-resolution problem, and is
+ * never served over any API (DATA-MODEL.md §4).
  */
-function mergeResolutions(world: World, tau: number): Resolution {
-  const stopToQuay = new Map<string, string>();
-  const quayToStop = new Map<string, string>();
+interface MergedResolution {
+  stopToQuays: Map<string, readonly string[]>;
+  tripToJourney: Map<string, string>;
+}
+
+function mergeResolutions(world: World, tau: number): MergedResolution {
+  const stopToQuays = new Map<string, readonly string[]>();
   const tripToJourney = new Map<string, string>();
-  const routeToLine = new Map<string, string>();
 
   for (const op of world.manifest.operators) {
     const r = projectOperator(world, op.id, tau).resolution;
-    for (const [k, v] of r.stopToQuay) stopToQuay.set(k, v);
-    for (const [k, v] of r.quayToStop) quayToStop.set(k, v);
-    for (const [k, v] of r.tripToJourney) tripToJourney.set(k, v);
-    for (const [k, v] of r.routeToLine) routeToLine.set(k, v);
+    for (const [stop, quays] of r.stopToQuays) stopToQuays.set(`${op.id}:${stop}`, quays);
+    for (const [trip, journey] of r.tripToJourney) tripToJourney.set(`${op.id}:${trip}`, journey);
   }
 
-  return { stopToQuay, quayToStop, tripToJourney, routeToLine };
+  return { stopToQuays, tripToJourney };
 }
 
 async function waitForHealth(baseUrl: string): Promise<void> {
@@ -387,7 +398,7 @@ function fallbackToReference(p1: RouteResult | null, departAfterS: number): Simu
  */
 function simulateItinerary(
   world: World,
-  resolution: ReturnType<typeof projectOperator>["resolution"],
+  resolution: MergedResolution,
   _anchor: ReturnType<typeof parseEpoch>,
   itinerary: Itinerary | null,
   query: { id: string; departAfterS: number },
@@ -429,15 +440,32 @@ function simulateItinerary(
   for (const leg of itinerary.legs) {
     if (leg.mode === "walk") continue; // charged by connectivity below
 
-    const journeyId = resolution.tripToJourney.get(leg.trip);
+    // Identifiers are only meaningful *within* an operator: two of them number
+    // their stops from 1, so `7` denotes a different place depending on who
+    // published it (catalogue A). The simulator must not make the mistake it
+    // is judging the player for.
+    const journeyId = resolution.tripToJourney.get(`${leg.operator}:${leg.trip}`);
     const journey = journeyId ? journeyById.get(journeyId) : undefined;
-    if (!journey) return fail(`unknown_trip:${leg.trip}`);
+    if (!journey) return fail(`unknown_trip:${leg.operator}/${leg.trip}`);
     const pattern = patternById.get(journey.patternId);
     if (!pattern) return fail(`unknown_pattern:${journey.patternId}`);
 
-    const fromQuay = resolution.stopToQuay.get(leg.from_stop);
-    const toQuay = resolution.stopToQuay.get(leg.to_stop);
-    if (!fromQuay || !toQuay) return fail(`unknown_stop:${leg.from_stop}/${leg.to_stop}`);
+    // A published stop may stand for several quays — an operator publishing at
+    // Site granularity has one stop for a whole interchange — so the *trip*
+    // decides which quay the traveller actually boards at.
+    const fromQuays = resolution.stopToQuays.get(`${leg.operator}:${leg.from_stop}`);
+    const toQuays = resolution.stopToQuays.get(`${leg.operator}:${leg.to_stop}`);
+    if (!fromQuays || !toQuays) {
+      return fail(`unknown_stop:${leg.operator}/${leg.from_stop}|${leg.to_stop}`);
+    }
+
+    const boardIdx = pattern.stops.findIndex((st) => fromQuays.includes(st.quayId));
+    const alightIdx = pattern.stops.findIndex((st) => toQuays.includes(st.quayId));
+    if (boardIdx < 0 || alightIdx < 0) return fail("trip_does_not_serve_stops");
+    if (alightIdx <= boardIdx) return fail("legs_out_of_order");
+
+    const fromQuay = pattern.stops[boardIdx]!.quayId;
+    const toQuay = pattern.stops[alightIdx]!.quayId;
 
     // Getting to this boarding point costs time, whether from the origin or
     // from where the previous leg left the traveller standing.
@@ -450,11 +478,6 @@ function simulateItinerary(
       if (walk === null) return fail(`transfer_unreachable:${atQuay}->${fromQuay}`);
       cursor += walk;
     }
-
-    const boardIdx = pattern.stops.findIndex((s) => s.quayId === fromQuay);
-    const alightIdx = pattern.stops.findIndex((s) => s.quayId === toQuay);
-    if (boardIdx < 0 || alightIdx < 0) return fail("trip_does_not_serve_stops");
-    if (alightIdx <= boardIdx) return fail("legs_out_of_order");
 
     const departS = journey.startS + pattern.stops[boardIdx]!.departOffsetS;
     const arriveS = journey.startS + pattern.stops[alightIdx]!.arriveOffsetS;

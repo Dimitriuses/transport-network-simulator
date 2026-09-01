@@ -12,19 +12,22 @@ There is no reference solution, and no single right answer. You are scored on wh
 
 ## Status
 
-**Specification complete. Phase 0 in progress — M0–M2 done, M3 next.**
+**Specification complete. Phase 0 in progress — M0–M3 done, M4 next.**
 
-The loop runs end to end: a hand-built 28-quay city, two operators, live operator APIs, a reference player in its own process, and a capture-scored scorecard — reproducibly, byte for byte.
+The loop runs end to end: a hand-built 34-quay city, **three operators whose data genuinely disagrees**, live operator APIs, a reference player in its own process, and a capture-scored scorecard — reproducibly, byte for byte.
+
+Central Square is published by all three: as two stands (`NL-S0001`/`NL-S0002`), as `7` "Central Sq" 150 m north of where it is, and as `1` "Tsentralna" — one stop covering two platforms. Their timestamps are ISO-with-offset, epoch seconds, and local time with no offset at all. A coordinate-threshold matcher now forfeits **38 % of the available headroom** and scores *negative*: worse than not integrating at all.
 
 ```
 npm ci
 npm run world:build            # Python: city -> SQLite world bundle
 npm run demo                   # build -> simulate -> call a player -> score
 npm run calibrate              # the three-gap difficulty calibration
+npm run audit                  # every declared conflict must actually be present
 npm run check                  # lint, typecheck, contract drift, tests
 ```
 
-Next is [`ROADMAP.md`](ROADMAP.md) M3 — semantic conflicts. Right now a coordinate-threshold matcher reconciles this world perfectly (P0−P2 = 0), so all the difficulty is topology. M3's job is to change that.
+Next is [`ROADMAP.md`](ROADMAP.md) M4 — the live world: events, realtime feeds with per-operator staleness, ingestion ticks, notifications, and the Information metric.
 
 ---
 

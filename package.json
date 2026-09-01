@@ -20,7 +20,8 @@
     "check": "npm run lint && npm run typecheck && npm run contract:check && npm test",
     "world:build": "cd tools && uv run python -m worldbuild",
     "demo": "node src/server/src/demo.ts",
-    "calibrate": "node src/scoring/scripts/calibrate.ts"
+    "calibrate": "node src/scoring/scripts/calibrate.ts",
+    "audit": "node src/projections/scripts/audit.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

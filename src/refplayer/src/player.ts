@@ -9,8 +9,8 @@ import { createServer, type Server } from "node:http";
 interface StopTime {
   stop_id: string;
   seq: number;
-  arrive: string;
-  depart: string;
+  arrive: string | number;
+  depart: string | number;
 }
 interface Trip {
   trip_id: string;
@@ -35,13 +35,43 @@ const NAME = "reference-player";
 const VERSION = "0.1.0";
 const CONTRACT_VERSION = "0.3";
 
-/** Seconds since midnight-of-epoch-day, from an RFC 3339 stamp. Naive but adequate. */
-function toSeconds(iso: string): number {
-  const m = /T(\d{2}):(\d{2}):(\d{2})/.exec(iso);
-  if (!m) return Number.NaN;
-  const day = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)!;
-  const dayNum = Number(day[3]);
-  return dayNum * 86400 + Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+/**
+ * Decode whatever an operator calls a timestamp.
+ *
+ * Three operators, three encodings, and no field anywhere saying which
+ * (catalogue B). This handles the shapes — a number is epoch seconds, a string
+ * with an offset is RFC 3339 — and then makes the mistake a mediocre
+ * integrator makes: a timestamp with **no offset** is assumed to be in the
+ * same frame as everything else. It is not. Nothing in the data says so.
+ */
+function toSeconds(value: string | number): number {
+  if (typeof value === "number") {
+    // Epoch seconds. Reduce to a comparable within-day figure.
+    return value;
+  }
+  const t = /T(\d{2}):(\d{2}):(\d{2})/.exec(value);
+  const d = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!t || !d) return Number.NaN;
+  return Number(d[3]) * 86400 + Number(t[1]) * 3600 + Number(t[2]) * 60 + Number(t[3]);
+}
+
+/**
+ * Bring an operator's clock onto a common footing.
+ *
+ * Epoch seconds and wall-clock strings are not comparable without knowing the
+ * world's offset — which no operator publishes. This player infers it from the
+ * one operator that *does* state an offset, and applies it to everyone. That
+ * is more than the laziest possible approach and less than correct.
+ */
+function normaliseOffset(timetables: Timetable[]): number {
+  for (const t of timetables) {
+    const sample = t.trips[0]?.stop_times[0]?.depart;
+    if (typeof sample === "string" && /[+-]\d{2}:\d{2}$/.test(sample)) {
+      const m = /([+-])(\d{2}):(\d{2})$/.exec(sample)!;
+      return (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 3600 + Number(m[3]) * 60);
+    }
+  }
+  return 0;
 }
 
 interface Model {
@@ -50,6 +80,8 @@ interface Model {
   stopByKey: Map<string, Stop>;
   operatorOfStop: Map<string, string>;
   boardings: Map<string, { trip: Trip; operator: string; index: number; departS: number }[]>;
+  /** Puts any operator's timestamp on the common wall clock. */
+  arriveAt: (v: string | number) => number;
 }
 
 /**
@@ -61,6 +93,12 @@ interface Model {
  * the job. This player does not attempt it.
  */
 function buildModel(timetables: Timetable[]): Model {
+  const offsetS = normaliseOffset(timetables);
+  // Epoch-second operators are on the Unix clock; string operators are on the
+  // wall clock. Put both on the wall clock, using the offset inferred above.
+  const at = (v: string | number): number =>
+    typeof v === "number" ? toSeconds(v + offsetS) % 86400 : toSeconds(v) % 86400;
+  void at;
   const stops: Stop[] = [];
   const stopByKey = new Map<string, Stop>();
   const operatorOfStop = new Map<string, string>();
@@ -82,13 +120,24 @@ function buildModel(timetables: Timetable[]): Model {
         const key = `${t.operator}:${st.stop_id}`;
         let list = boardings.get(key);
         if (!list) boardings.set(key, (list = []));
-        list.push({ trip, operator: t.operator, index, departS: toSeconds(st.depart) });
+        const departS =
+          typeof st.depart === "number"
+            ? (st.depart + offsetS) % 86400
+            : toSeconds(st.depart) % 86400;
+        list.push({ trip, operator: t.operator, index, departS });
       });
     }
   }
   for (const list of boardings.values()) list.sort((a, b) => a.departS - b.departS);
 
-  return { stops, stopByKey, operatorOfStop, boardings };
+  return {
+    stops,
+    stopByKey,
+    operatorOfStop,
+    boardings,
+    arriveAt: (v) =>
+      typeof v === "number" ? (toSeconds(v + offsetS) % 86400) : toSeconds(v) % 86400,
+  };
 }
 
 /** Strip the internal `operator:` prefix back off before answering. */
@@ -121,7 +170,7 @@ function plan(
   destination: { lat: number; lon: number },
   departAfter: string,
 ): { legs: Leg[] } | null {
-  const departS = toSeconds(departAfter);
+  const departS = toSeconds(departAfter) % 86400;
   const originStops = nearbyStops(model, origin.lat, origin.lon, 500);
   const destStops = new Set(nearbyStops(model, destination.lat, destination.lon, 500).map((s) => s.stop_id));
   if (originStops.length === 0 || destStops.size === 0) return null;
@@ -153,7 +202,7 @@ function plan(
 
         for (let k = b.index + 1; k < b.trip.stop_times.length; k++) {
           const st = b.trip.stop_times[k]!;
-          const arriveS = toSeconds(st.arrive);
+          const arriveS = model.arriveAt(st.arrive);
           const toKey = `${b.operator}:${st.stop_id}`;
           const existing = best.get(toKey);
           if (existing && existing.arriveS <= arriveS) continue;
@@ -167,8 +216,8 @@ function plan(
               trip: b.trip.trip_id,
               from_stop: published(stopId),
               to_stop: st.stop_id,
-              depart: b.trip.stop_times[b.index]!.depart,
-              arrive: st.arrive,
+              depart: String(b.trip.stop_times[b.index]!.depart),
+              arrive: String(st.arrive),
             },
             prev: stopId,
           });
