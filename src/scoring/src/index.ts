@@ -11,6 +11,8 @@ import type { RunRecord, TravellerOutcome, RunHeader, ObligationRecord } from "@
 
 export const PACKAGE_NAME = "@tns/scoring";
 
+export * from "./baselines.ts";
+
 export interface Scorecard {
   readonly header: RunHeader | null;
   readonly travellers: number;

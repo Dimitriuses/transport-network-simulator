@@ -37,8 +37,9 @@ async function main(): Promise<number> {
   const world = loadWorld(worldPath);
   console.log(
     `world: ${world.quays.length} quays · ${world.sites.length} sites · ` +
-      `${world.lines.length} lines · ${world.journeys.length} journeys · ` +
-      `${world.queries.length} scored queries · seed ${world.manifest.seed}`,
+      `${world.manifest.operators.length} operators · ${world.lines.length} lines · ` +
+      `${world.journeys.length} journeys · ${world.queries.length} scored queries · ` +
+      `seed ${world.manifest.seed}`,
   );
   if (world.manifest.activeConflicts.length === 0) {
     console.log("       no declared conflicts (Tier 0 — see docs/PHASES.md)");
@@ -53,7 +54,8 @@ async function main(): Promise<number> {
       env: {
         ...process.env,
         TNS_PLAYER_PORT: String(PLAYER_PORT),
-        TNS_OPERATOR_URL: `http://127.0.0.1:${OPERATOR_PORT}`,
+        TNS_CONTROL_URL: `http://127.0.0.1:${CONTROL_PORT}`,
+        ...(process.env["TNS_PLAYER_MODE"] ? { TNS_PLAYER_MODE: process.env["TNS_PLAYER_MODE"] } : {}),
       },
     },
   );

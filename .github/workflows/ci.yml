@@ -80,6 +80,9 @@ jobs:
           diff /tmp/run1.txt /tmp/run2.txt
           cat /tmp/run1.txt
 
+      - name: Three-gap calibration
+        run: npm run calibrate
+
   offline:
     name: Python offline pipeline
     runs-on: ubuntu-latest

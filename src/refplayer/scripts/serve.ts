@@ -6,20 +6,21 @@
 import { startPlayer } from "../src/player.ts";
 
 const port = Number(process.env["TNS_PLAYER_PORT"] ?? 8080);
-const operatorBaseUrl = process.env["TNS_OPERATOR_URL"] ?? "http://127.0.0.1:9101";
+const controlUrl = process.env["TNS_CONTROL_URL"] ?? "http://127.0.0.1:9000";
+const mode = process.env["TNS_PLAYER_MODE"] === "null" ? "null" : "naive";
 
-// The operator API may not be listening the instant we start. Retry rather
-// than racing it; the simulator polls /v1/health and will wait.
+// The control API may not be listening the instant we start. Retry rather than
+// racing it; the simulator polls /v1/health and will wait.
 async function boot(): Promise<void> {
   for (let attempt = 0; attempt < 100; attempt++) {
     try {
-      await startPlayer({ port, operatorBaseUrl });
+      await startPlayer({ port, controlUrl, mode });
       return;
     } catch {
       await new Promise((r) => setTimeout(r, 50));
     }
   }
-  throw new Error(`could not reach the operator API at ${operatorBaseUrl}`);
+  throw new Error(`could not reach the control API at ${controlUrl}`);
 }
 
 boot().catch((err) => {

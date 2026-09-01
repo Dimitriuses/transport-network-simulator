@@ -12,18 +12,19 @@ There is no reference solution, and no single right answer. You are scored on wh
 
 ## Status
 
-**Specification complete. Phase 0 in progress — M0 and M1 done, M2 next.**
+**Specification complete. Phase 0 in progress — M0–M2 done, M3 next.**
 
-The walking skeleton runs end to end: a hand-built 20-quay city, one operator, a live operator API, a reference player in its own process, and a scorecard — reproducibly, byte for byte.
+The loop runs end to end: a hand-built 28-quay city, two operators, live operator APIs, a reference player in its own process, and a capture-scored scorecard — reproducibly, byte for byte.
 
 ```
 npm ci
 npm run world:build            # Python: city -> SQLite world bundle
 npm run demo                   # build -> simulate -> call a player -> score
+npm run calibrate              # the three-gap difficulty calibration
 npm run check                  # lint, typecheck, contract drift, tests
 ```
 
-Next is [`ROADMAP.md`](ROADMAP.md) M2 — the oracle and baselines, on which both the reference policy and the entire scoring normalisation depend.
+Next is [`ROADMAP.md`](ROADMAP.md) M3 — semantic conflicts. Right now a coordinate-threshold matcher reconciles this world perfectly (P0−P2 = 0), so all the difficulty is topology. M3's job is to change that.
 
 ---
 

@@ -127,7 +127,11 @@ Channels 1 and 3 make the player an HTTP **client**; channel 2 makes it an HTTP 
 
 **The preparation phase is not optional.** Without it every solution is penalised for cold ingestion latency, which is a property of the world's size rather than of the solution's quality. The brief declares `preparation.wall_budget_s`; the simulated clock does not advance during it.
 
-**OPEN:** whether preparation cost should be scored separately rather than made free. There is a real argument that "how fast can you build your model" is worth measuring at higher tiers.
+**Preparation is free, and bounded rather than scored.** *Decided at M2.*
+
+Preparation cost is dominated by the size of the world, which the player does not choose. Scoring it would penalise a solution for facing a bigger city — measuring the world rather than the work. The `preparation.wall_budget_s` cap already prevents abuse: a player cannot buy an advantage with unlimited preparation, it simply must finish.
+
+The genuinely interesting version of this question is not preparation at all. It is **recovery**: when an operator's schema drifts mid-run at Tier 5, how fast can a solution rebuild its model *while the world keeps moving*? That is worth measuring, it is a real operational property, and it is a Phase 3 concern. Revisit there — but as recovery, not as preparation.
 
 **Warm starts (Q7).** Persisting state between runs is **permitted and treated as legitimate engineering**, not an exploit. The brief states `run.cold_start`; the run log records it; scoring reports warm and cold separately and never mixes them into one leaderboard.
 
@@ -495,7 +499,7 @@ Had the player polled at a 300-second cadence instead of 30, it would have found
 
 **Materially advanced:** Q37–Q38 (local, no sandbox), Q41–Q42 (the brief).
 
-**OPEN items:** scoring of preparation cost (§4); whether `docs_url` is always present (§6.1); free-running ingestion between ticks in `realtime` (§5.6).
+**OPEN items:** whether `docs_url` is always present (§6.1); free-running ingestion between ticks in `realtime` (§5.6). Preparation cost (§4) was closed at M2: free, bounded, revisited as *recovery* in Phase 3.
 
 **Untouched — and next:** Q29, the open-loop reference policy. How simulated travellers decide without the player determines the fallback behaviour referenced throughout §8, and the MVP needs it because the MVP is open-loop.
 

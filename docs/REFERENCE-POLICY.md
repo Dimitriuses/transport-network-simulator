@@ -162,7 +162,17 @@ In open loop the world's trajectory must be independent of the player. But the p
 
 This is a small, deliberate fiction, and it is the exact price of reproducibility. It is also why closed loop exists: there, riders are real and the feedback effects are the point.
 
-**OPEN:** whether denied boarding due to capacity should still apply to ghost riders. It should — a full bus is a fact of the fixed trajectory, and "your plan put someone on a bus that had no room" is a legitimate failure the player should own. But it means ghost riders are affected by the world while not affecting it, which is worth stating plainly rather than discovering later.
+### Capacity denial applies to ghost riders
+
+*Decided at M2.*
+
+**Yes — a ghost rider can be denied boarding on a full vehicle.** The load they face is created entirely by the background population running P1, so it is a property of the fixed trajectory: deterministic, player-independent, and identical on every run. "Your plan put someone on a bus that had no room" is a legitimate failure for the player to own.
+
+The alternative — exempting scored travellers from capacity — is worse in a specific way: it would let a solution route every traveller onto the single most attractive vehicle at no cost, which is exactly the behaviour a real aggregator must avoid and exactly the behaviour this project should be able to punish.
+
+The asymmetry is real and worth stating plainly rather than discovering later: **ghost riders are affected by the world without affecting it.** They experience crowding they did not contribute to. That is the price of reproducibility, and it is bounded — the scored query set is O(10³–10⁴) against a background population orders of magnitude larger, so the crowding they *would* have caused is small. It stops being negligible only at a large app-user fraction, and by then closed loop is in play (Phase 2), where riders are real and the question does not arise.
+
+**Not yet implemented:** capacity is not modelled at all until M4, which is when vehicle loads first exist. The decision is recorded now so the M4 implementation has an answer waiting rather than inventing one.
 
 ---
 
@@ -187,6 +197,6 @@ The validation gate in `DATA-MODEL.md` §7 item 5 requires the oracle-to-baselin
 
 **Constraint exported to Q20/Q22:** the forgone-obligation penalty (§8). Not optional.
 
-**Open:** capacity denial for ghost riders (§9).
+**Open:** none. Both items closed at M2 — competence level (§5) and ghost-rider capacity (§9).
 
 **Next:** drafted in `SCORING.md` v0.1, which adopts the §8 forgone-obligation penalty as a requirement and builds its entire normalisation on the P0/P1 pair — a player's score is the fraction of the P1→P0 headroom it captured.

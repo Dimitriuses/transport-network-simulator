@@ -12,8 +12,8 @@ import type { Server } from "node:http";
 import type { Itinerary, RunRecord, World } from "@tns/schema";
 import { renderSimTime, parseEpoch, CONTRACT_VERSION, SCORER_VERSION } from "@tns/schema";
 import { EventQueue, makeVirtualClock } from "@tns/core";
-import { buildIndex, route, type Access } from "@tns/router";
-import { projectOperator } from "@tns/projections";
+import { buildIndex, route, type Access, type RouteResult } from "@tns/router";
+import { projectOperator, type Resolution } from "@tns/projections";
 import { startControlApi, startOperatorApi, type OperatorCall } from "./apis.ts";
 
 const RUN_ID = "m1-demo";
@@ -25,6 +25,7 @@ const GUARD_WALL_S = 30;
 export interface HarnessOptions {
   readonly world: World;
   readonly playerBaseUrl: string;
+  /** First operator port; each operator gets the next one. */
   readonly operatorPort: number;
   readonly controlPort: number;
 }
@@ -51,7 +52,10 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       .map((a) => ({ quayId: a.quayId, seconds: Math.ceil(a.metres / world.manifest.walkSpeedMps) }))
       .sort((a, b) => (a.quayId < b.quayId ? -1 : 1));
 
-  const baselines = new Map<string, { p0: number | null; p1: number | null }>();
+  const baselines = new Map<
+    string,
+    { p0: number | null; p1: number | null; p1Result: RouteResult | null }
+  >();
   for (const q of world.queries) {
     const o = accessFor(q.id, "origin");
     const d = accessFor(q.id, "destination");
@@ -60,6 +64,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
     baselines.set(q.id, {
       p0: p0 ? p0.arriveS - q.departAfterS : null,
       p1: p1 ? p1.arriveS - q.departAfterS : null,
+      p1Result: p1,
     });
   }
 
@@ -80,23 +85,30 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
   }
 
   let state: "preparation" | "running" | "paused" | "ended" = "preparation";
-  const ingestion: OperatorCall[] = [];
+  const ingestion: (OperatorCall & { operator: string })[] = [];
 
-  const operator = await startOperatorApi(
-    world,
-    () => clock.now(),
-    (call) => ingestion.push(call),
-    opts.operatorPort,
-  );
-  const control = await startControlApi(
-    world,
-    () => clock.now(),
-    () => state,
-    `http://127.0.0.1:${opts.operatorPort}`,
-    opts.controlPort,
-  );
+  // One API per operator, on its own host and port. They know nothing about
+  // each other.
+  const operatorUrls = new Map<string, string>();
+  const servers: Server[] = [];
 
-  const servers: Server[] = [operator, control];
+  for (const [i, op] of world.manifest.operators.entries()) {
+    const port = opts.operatorPort + i;
+    operatorUrls.set(op.id, `http://127.0.0.1:${port}`);
+    servers.push(
+      await startOperatorApi(
+        world,
+        op.id,
+        () => clock.now(),
+        (call) => ingestion.push({ ...call, operator: op.id }),
+        port,
+      ),
+    );
+  }
+
+  servers.push(
+    await startControlApi(world, () => clock.now(), () => state, operatorUrls, opts.controlPort),
+  );
 
   try {
     log.push({
@@ -118,7 +130,10 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
     state = "running";
 
     // ---- the run ---------------------------------------------------------
-    const { resolution } = projectOperator(world, clock.now());
+    // The resolution table, merged across operators. Private: it is how the
+    // simulator reads a player's operator-scoped references back into
+    // canonical entities, and it is never served (DATA-MODEL.md §4).
+    const resolution = mergeResolutions(world, clock.now());
     const outcomes: RunRecord[] = [];
 
     for (;;) {
@@ -157,7 +172,21 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       clock.resume();
 
       const base = baselines.get(query.id)!;
-      const simulated = simulateItinerary(world, resolution, anchor, answer.itinerary, query);
+
+      // What the traveller actually did.
+      //
+      // An answer that arrives and works is used. An answer that arrives and
+      // is wrong about the world is a modelling failure and the traveller does
+      // not arrive. And an obligation the player did not answer at all falls
+      // back to the reference policy — the traveller does what they would have
+      // done in a city with no integration layer (REFERENCE-POLICY.md §8).
+      //
+      // That fallback is why declining can never be a winning strategy: the
+      // player is charged P1's outcomes *and* a forgone obligation.
+      const forgone = answer.itinerary === null;
+      const simulated = forgone
+        ? fallbackToReference(base.p1Result, query.departAfterS)
+        : simulateItinerary(world, resolution, anchor, answer.itinerary, query);
 
       log.push({
         kind: "obligation",
@@ -183,6 +212,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         waitS: simulated.waitS,
         transfers: simulated.transfers,
         failureReason: simulated.failureReason,
+        forgone,
         oracleJourneyS: base.p0,
         referenceJourneyS: base.p1,
       });
@@ -193,7 +223,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       log.push({
         kind: "ingestion",
         tau: call.tau,
-        operator: world.manifest.operatorId,
+        operator: call.operator,
         endpoint: call.endpoint,
         status: call.status,
         bytes: call.bytes,
@@ -215,6 +245,30 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
 }
 
 // ---------------------------------------------------------------------------
+
+/**
+ * The resolution table across every operator.
+ *
+ * Published identifiers are namespaced per operator, so `(operator, stop)` is
+ * the key. Kept private: it is the answer to the entity-resolution problem and
+ * is never served over any API (DATA-MODEL.md §4).
+ */
+function mergeResolutions(world: World, tau: number): Resolution {
+  const stopToQuay = new Map<string, string>();
+  const quayToStop = new Map<string, string>();
+  const tripToJourney = new Map<string, string>();
+  const routeToLine = new Map<string, string>();
+
+  for (const op of world.manifest.operators) {
+    const r = projectOperator(world, op.id, tau).resolution;
+    for (const [k, v] of r.stopToQuay) stopToQuay.set(k, v);
+    for (const [k, v] of r.quayToStop) quayToStop.set(k, v);
+    for (const [k, v] of r.tripToJourney) tripToJourney.set(k, v);
+    for (const [k, v] of r.routeToLine) routeToLine.set(k, v);
+  }
+
+  return { stopToQuay, quayToStop, tripToJourney, routeToLine };
+}
 
 async function waitForHealth(baseUrl: string): Promise<void> {
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -288,6 +342,33 @@ interface Simulated {
   waitS: number;
   transfers: number;
   failureReason: string | null;
+}
+
+/**
+ * The documented degraded behaviour for an unanswered obligation.
+ *
+ * The traveller falls back to the reference policy: they travel as anyone in
+ * this city would without an integration layer. They are not stranded, and the
+ * run does not abort — robustness is measured, not punished by forfeit
+ * (PLAYER-CONTRACT.md §8).
+ */
+function fallbackToReference(p1: RouteResult | null, departAfterS: number): Simulated {
+  if (!p1) {
+    return {
+      arrived: false,
+      journeyS: null,
+      waitS: 0,
+      transfers: 0,
+      failureReason: "forgone_and_no_reference_route",
+    };
+  }
+  return {
+    arrived: true,
+    journeyS: p1.arriveS - departAfterS,
+    waitS: p1.waitS,
+    transfers: p1.transfers,
+    failureReason: "forgone_used_reference_policy",
+  };
 }
 
 /**

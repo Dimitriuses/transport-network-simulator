@@ -77,6 +77,11 @@ export interface QueryAccess {
   readonly metres: number;
 }
 
+export interface OperatorInfo {
+  readonly id: string;
+  readonly name: string;
+}
+
 export interface WorldManifest {
   readonly schemaVersion: number;
   readonly engineVersion: string;
@@ -85,8 +90,7 @@ export interface WorldManifest {
   readonly worldEpochIso: string;
   readonly timezone: string;
   readonly utcOffsetS: number;
-  readonly operatorId: string;
-  readonly operatorName: string;
+  readonly operators: readonly OperatorInfo[];
   readonly walkSpeedMps: number;
   readonly maxWalkM: number;
   /** Declared semantic conflicts. Empty at M1 — see CORECONCEPT.md §2.1. */

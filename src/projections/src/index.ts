@@ -85,9 +85,22 @@ const pad4 = (n: number): string => String(n).padStart(4, "0");
  * byte-identical output — which is what makes response bodies regenerable and
  * keeps run logs at megabytes rather than gigabytes (OBSERVABILITY.md §4).
  */
-export function projectOperator(world: World, tau: number): Projection {
+export function projectOperator(world: World, operatorId: string, tau: number): Projection {
   const anchor = parseEpoch(world.manifest.worldEpochIso);
   const at = (s: number): string => renderSimTime(anchor, s);
+
+  const info = world.manifest.operators.find((o) => o.id === operatorId);
+  if (!info) throw new Error(`no such operator in this world: ${operatorId}`);
+
+  // An operator publishes only its own network. It has no idea the others
+  // exist, which is the whole problem the player is there to solve.
+  const ownLines = world.lines.filter((l) => l.operator === operatorId);
+  const ownLineIds = new Set(ownLines.map((l) => l.id));
+  const ownPatterns = world.patterns.filter((p) => ownLineIds.has(p.lineId));
+  const ownPatternIds = new Set(ownPatterns.map((p) => p.id));
+  const ownQuayIds = new Set(ownPatterns.flatMap((p) => p.stops.map((s) => s.quayId)));
+
+  const prefix = operatorId.slice(0, 2).toUpperCase();
 
   // Deterministic published identifiers in the operator's own namespace.
   // Canonical ids never leave the simulator.
@@ -95,9 +108,11 @@ export function projectOperator(world: World, tau: number): Projection {
   const quayToStop = new Map<string, string>();
   const stops: PublishedStop[] = [];
 
-  const orderedQuays = [...world.quays].sort((a, b) => (a.id < b.id ? -1 : 1));
+  const orderedQuays = world.quays
+    .filter((q) => ownQuayIds.has(q.id))
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
   orderedQuays.forEach((q, i) => {
-    const stopId = `NL-S${pad4(i + 1)}`;
+    const stopId = `${prefix}-S${pad4(i + 1)}`;
     stopToQuay.set(stopId, q.id);
     quayToStop.set(q.id, stopId);
     stops.push({ stop_id: stopId, stop_name: q.name, lat: q.lat, lon: q.lon });
@@ -106,26 +121,26 @@ export function projectOperator(world: World, tau: number): Projection {
   const routeToLine = new Map<string, string>();
   const lineToRoute = new Map<string, string>();
   const routes: PublishedRoute[] = [];
-  for (const line of [...world.lines].sort((a, b) => (a.id < b.id ? -1 : 1))) {
-    const routeId = `NL-R${line.name}`;
+  for (const line of [...ownLines].sort((a, b) => (a.id < b.id ? -1 : 1))) {
+    const routeId = `${prefix}-R${line.name}`;
     routeToLine.set(routeId, line.id);
     lineToRoute.set(line.id, routeId);
     routes.push({ route_id: routeId, route_name: `Route ${line.name}` });
   }
 
-  const patternById = new Map(world.patterns.map((p) => [p.id, p]));
+  const patternById = new Map(ownPatterns.map((p) => [p.id, p]));
 
   const tripToJourney = new Map<string, string>();
   const trips: PublishedTrip[] = [];
-  const orderedJourneys = [...world.journeys].sort(
-    (a, b) => a.startS - b.startS || (a.id < b.id ? -1 : 1),
-  );
+  const orderedJourneys = world.journeys
+    .filter((j) => ownPatternIds.has(j.patternId))
+    .sort((a, b) => a.startS - b.startS || (a.id < b.id ? -1 : 1));
 
   orderedJourneys.forEach((j, i) => {
     const pattern = patternById.get(j.patternId);
     if (!pattern) return;
 
-    const tripId = `NL-T${pad4(i + 1)}`;
+    const tripId = `${prefix}-T${pad4(i + 1)}`;
     tripToJourney.set(tripId, j.id);
 
     trips.push({
@@ -143,8 +158,8 @@ export function projectOperator(world: World, tau: number): Projection {
 
   return {
     timetable: {
-      operator: world.manifest.operatorId,
-      operator_name: world.manifest.operatorName,
+      operator: info.id,
+      operator_name: info.name,
       published_at: at(tau),
       stops,
       routes,

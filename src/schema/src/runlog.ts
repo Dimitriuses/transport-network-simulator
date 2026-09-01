@@ -72,6 +72,12 @@ export interface TravellerOutcome {
   readonly waitS: number;
   readonly transfers: number;
   readonly failureReason: string | null;
+  /**
+   * True when the player did not answer and the traveller fell back to the
+   * reference policy. Carries a fixed penalty *and* the resulting P1 outcomes
+   * still count in full, so declining is never free (REFERENCE-POLICY.md §8).
+   */
+  readonly forgone: boolean;
   /** P0 and P1 for this query — the endpoints of the capture scale. */
   readonly oracleJourneyS: number | null;
   readonly referenceJourneyS: number | null;

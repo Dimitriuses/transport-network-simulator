@@ -19,10 +19,16 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..", "..");
 const worldPath = join(repoRoot, "worlds", "m1.world.db");
 
+// Each run starts one API per operator from `operator` upward, plus a control
+// API and a player. Blocks are spaced by ten so adding operators cannot make
+// two concurrent runs collide.
 const hasWorld = existsSync(worldPath);
 const skip = hasWorld ? false : "no world bundle; run: npm run world:build";
 
-async function runOnce(ports: { operator: number; control: number; player: number }) {
+async function runOnce(
+  ports: { operator: number; control: number; player: number },
+  mode: "naive" | "null" = "naive",
+) {
   const world = loadWorld(worldPath);
   const player = spawn(
     process.execPath,
@@ -33,7 +39,8 @@ async function runOnce(ports: { operator: number; control: number; player: numbe
       env: {
         ...process.env,
         TNS_PLAYER_PORT: String(ports.player),
-        TNS_OPERATOR_URL: `http://127.0.0.1:${ports.operator}`,
+        TNS_CONTROL_URL: `http://127.0.0.1:${ports.control}`,
+        TNS_PLAYER_MODE: mode,
       },
     },
   );
@@ -50,7 +57,7 @@ async function runOnce(ports: { operator: number; control: number; player: numbe
 }
 
 test("the walking skeleton crosses every layer", { skip }, async () => {
-  const log = await runOnce({ operator: 9201, control: 9202, player: 8201 });
+  const log = await runOnce({ operator: 9220, control: 9229, player: 8220 });
 
   const kinds = new Set(log.map((r) => r.kind));
   // schema -> world bundle -> core -> projection -> operator API -> contract
@@ -62,8 +69,8 @@ test("the walking skeleton crosses every layer", { skip }, async () => {
 });
 
 test("the run is byte-identical when repeated", { skip }, async () => {
-  const first = await runOnce({ operator: 9203, control: 9204, player: 8203 });
-  const second = await runOnce({ operator: 9205, control: 9206, player: 8205 });
+  const first = await runOnce({ operator: 9230, control: 9239, player: 8230 });
+  const second = await runOnce({ operator: 9240, control: 9249, player: 8240 });
 
   // hashLog deliberately excludes wall-clock diagnostics: latencyMs differs on
   // every run by design, and hashing it would make this test fail for the one
@@ -72,7 +79,7 @@ test("the run is byte-identical when repeated", { skip }, async () => {
 });
 
 test("no traveller beats perfect information", { skip }, async () => {
-  const log = await runOnce({ operator: 9207, control: 9208, player: 8207 });
+  const log = await runOnce({ operator: 9250, control: 9259, player: 8250 });
   const card = score(log);
 
   // Strictly stronger than `capture > 1`, which cannot be formed at all when
@@ -85,15 +92,32 @@ test("no traveller beats perfect information", { skip }, async () => {
   );
 });
 
-test("M1 has no headroom, and the scorer says so rather than dividing by zero", { skip }, async () => {
-  const log: RunRecord[] = await runOnce({ operator: 9209, control: 9210, player: 8209 });
+test("a player that answers nothing scores exactly 0.0", { skip }, async () => {
+  const log: RunRecord[] = await runOnce({ operator: 9260, control: 9269, player: 8260 }, "null");
   const card = score(log);
 
-  // One operator and no declared conflicts means the reference policy can do
-  // everything the oracle can. There is nothing for an integration layer to
-  // capture, and saying so is a true statement about the world rather than a
-  // bug (docs/PHASES.md Phase 0, Gate 2).
-  assert.equal(card.capture, null);
-  assert.match(card.captureNote ?? "", /no headroom/);
-  assert.equal(card.meanJourneyS, card.meanOracleS);
+  // The zero point of the capture scale, demonstrated end to end rather than
+  // asserted. Every obligation is declined, every traveller falls back to the
+  // reference policy, and the player is charged for exactly that — so it lands
+  // on 0.0 by construction, not by coincidence (REFERENCE-POLICY.md §8).
+  assert.equal(card.obligations["declined"], world().queries.length);
+  assert.equal(card.capture, 0);
+  assert.equal(card.meanJourneyS, card.meanReferenceS);
+
+  // And it is not rewarded for the tidiness: every one is recorded as forgone.
+  const forgone = log.filter((r) => r.kind === "traveller" && r.forgone).length;
+  assert.equal(forgone, world().queries.length);
 });
+
+test("a real player captures some of the headroom, but not all", { skip }, async () => {
+  const log = await runOnce({ operator: 9270, control: 9279, player: 8270 });
+  const card = score(log);
+
+  assert.notEqual(card.capture, null);
+  assert.ok(card.capture! > 0, `naive player captured nothing (${card.capture})`);
+  assert.ok(card.capture! < 1, `naive player matched the oracle (${card.capture})`);
+});
+
+function world() {
+  return loadWorld(worldPath);
+}

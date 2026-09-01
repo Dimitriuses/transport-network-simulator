@@ -47,8 +47,12 @@ function readManifest(db: DatabaseSync): WorldManifest {
     worldEpochIso: need("world_epoch_iso"),
     timezone: need("timezone"),
     utcOffsetS: Number(need("utc_offset_s")),
-    operatorId: need("operator_id"),
-    operatorName: need("operator_name"),
+    operators: need("operators")
+      .split(",")
+      .map((entry) => {
+        const [id, ...rest] = entry.split(":");
+        return { id: id ?? entry, name: rest.join(":") };
+      }),
     walkSpeedMps: Number(need("walk_speed_mps")),
     maxWalkM: Number(need("max_walk_m")),
     activeConflicts: conflicts === "" ? [] : conflicts.split(","),

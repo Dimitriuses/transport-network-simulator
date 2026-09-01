@@ -64,13 +64,34 @@ Deliberately crosses every layer — schema → world bundle → core → projec
 
 **Also confirmed, and expected:** M1's capture is undefined, and the scorer says so rather than dividing by zero. A single-operator world with no declared conflicts has no headroom, because there is nothing to integrate. That is a true statement about the world, not a defect — and it is the first concrete illustration of Phase 0 Gate 2 (`docs/PHASES.md`).
 
-### M2 — Oracle and baselines
+### M2 — Oracle and baselines ✅ complete
+
+*Completed 2026-09-01. All exit conditions verified.*
 
 RAPTOR in `src/router`; P0, P1 at `timetable` competence, P2; the three-gap calibration from `REFERENCE-POLICY.md` §10; capture scoring on the Service family.
 
-**Exit:** all three gaps computed and reported for the M1 world. A player that does nothing scores capture 0.0; the oracle scores 1.0.
+**Exit:** all three gaps computed and reported. A player that does nothing scores capture 0.0; the oracle scores 1.0. — verified: `npm run calibrate` reports the gaps, a declining player scores exactly `0.000` end to end, and the oracle endpoint is asserted in `src/scoring/test/capture.test.ts`.
 
 **Why this early:** `TECHNICAL-RESEARCH.md` §7 argued the oracle was the highest-leverage single component. Since then the reference policy (`REFERENCE-POLICY.md` §6) and the entire scoring normalisation (`SCORING.md` §2) have both been built on it. Nothing downstream means anything without it.
+
+**Scope note — a second operator arrived here, not at M3.** M2's exit condition is unreachable in a one-operator world: with nothing to integrate, P0 and P1 coincide, capture has no denominator, and "scores 0.0" cannot be demonstrated. The world therefore gained **Ostline**, a tram operator whose quays sit ~80 m from Nordline's but in *separate Sites* — physically trivial transfers that no publication declares. P0 may use them; P1 may not. That difference is the headroom, and it is topology, not semantics: Ostline's data is entirely faithful. Semantic conflict is still M3's job.
+
+**Calibration on the M2 world:**
+
+| Gap | Value | Reading |
+|---|---:|---|
+| P0−P1 | **1.70 min** | headroom exists; a solution can distinguish itself |
+| P0−P2 | **0.00 min** | a coordinate-threshold matcher reconciles this world *perfectly* |
+| P1−P2 | **1.70 min** | integrating lazily captures all of the available benefit |
+
+**That middle row is the finding, and it is a preview of Gate 3.** All of the current difficulty is topology; none of it is semantic conflict, because none is declared. A lazy integrator scores as well as the oracle. `src/scoring/test/calibration.test.ts` asserts `P0−P2 < 60s` and says so in its own message: **when M3 lands, that assertion should fail and be replaced by its opposite.** The failure is the milestone's evidence.
+
+**Two things M2 found:**
+
+1. **P2 must be evaluated against the world, not against its own model.** The first implementation planned P2 on its merged view and scored it there — so a lazy matcher that fused two quays 80 m apart got a free, instantaneous transfer and *beat the oracle by 1.8 minutes*. A lazy integrator's advantage is imaginary; reality charges for the difference, and measuring that difference is the entire point of P2. It now plans on its merged model and is then charged for what actually happens — including two queries where the walk it never accounted for loses it the connection entirely.
+2. **The same class of bug as M1's teleport, in a new place.** Both were "a model believed something the world does not owe it". The per-traveller `journey ≥ oracle` invariant added at M1 caught this one immediately, in a world where `capture > 1` still could not fire.
+
+**Open items closed:** ghost-rider capacity denial (`REFERENCE-POLICY.md` §9 — yes, from background load; implemented at M4 when capacity first exists) and preparation cost (`PLAYER-CONTRACT.md` §4 — free and bounded; the interesting version is *recovery*, revisited in Phase 3).
 
 ### M3 — Conflicts
 
@@ -108,8 +129,8 @@ No open item blocks M0 or M1 — work can start now. Each has a milestone by whi
 
 | Open item | Source | Due |
 |---|---|---|
-| Ghost-rider capacity denial | `REFERENCE-POLICY.md` §9 | **M2** |
-| Preparation cost scored or free | `PLAYER-CONTRACT.md` §4 | M2 |
+| ~~Ghost-rider capacity denial~~ | `REFERENCE-POLICY.md` §9 | ✅ closed M2 |
+| ~~Preparation cost scored or free~~ | `PLAYER-CONTRACT.md` §4 | ✅ closed M2 |
 | `docs_url` always present | `PLAYER-CONTRACT.md` §6.1 | **M3** |
 | `latency: sim` promotion — a pagination defect depends on it | `DATA-MODEL.md` §4 | **M4** |
 | Modelled response delay δ | `TIME-MODEL.md` §4 | M4 |

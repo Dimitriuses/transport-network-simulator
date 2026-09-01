@@ -42,6 +42,7 @@ function send(res: ServerResponse, status: number, body: unknown): number {
  */
 export function startOperatorApi(
   world: World,
+  operatorId: string,
   readTau: () => number,
   onCall: (call: OperatorCall) => void,
   port: number,
@@ -51,7 +52,7 @@ export function startOperatorApi(
   const projectionAt = (tau: number) => {
     let entry = cache.get(tau);
     if (!entry) {
-      const projection = projectOperator(world, tau);
+      const projection = projectOperator(world, operatorId, tau);
       const body = JSON.stringify(projection.timetable);
       const hash = createHash("sha256").update(body).digest("hex").slice(0, 16);
       cache.set(tau, (entry = { projection, body, hash }));
@@ -95,7 +96,7 @@ export function startControlApi(
   world: World,
   readTau: () => number,
   readState: () => "preparation" | "running" | "paused" | "ended",
-  operatorBaseUrl: string,
+  operatorBaseUrls: ReadonlyMap<string, string>,
   port: number,
 ): Promise<Server> {
   const anchor = parseEpoch(world.manifest.worldEpochIso);
@@ -119,15 +120,16 @@ export function startControlApi(
           time_mode: "virtual",
           latency_mode: "none",
         },
-        operators: [
-          {
-            id: world.manifest.operatorId,
-            name: world.manifest.operatorName,
-            base_url: operatorBaseUrl,
-            docs_url: `${operatorBaseUrl}/docs`,
-            auth: { scheme: "none" },
-          },
-        ],
+        // Where the operators are and how to reach them. Nothing about their
+        // schemas, their quality, or how their data relates — discovering that
+        // is the game (PLAYER-CONTRACT.md §6.1).
+        operators: world.manifest.operators.map((op) => ({
+          id: op.id,
+          name: op.name,
+          base_url: operatorBaseUrls.get(op.id) ?? "",
+          docs_url: `${operatorBaseUrls.get(op.id) ?? ""}/docs`,
+          auth: { scheme: "none" },
+        })),
         obligations: ["plan"],
       });
     }

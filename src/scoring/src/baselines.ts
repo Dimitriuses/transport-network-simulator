@@ -1,0 +1,352 @@
+// P2 — the naive baseline, and the three-gap calibration.
+//
+// Specification: REFERENCE-POLICY.md §2 and §10.
+//
+// P2 is a deliberately lazy *player*, not a policy of the world. It sees only
+// what the operators publish, merges stops across them by coordinate proximity
+// alone, and plans on the result. It never touches the world, and exists purely
+// to measure how much a world's declared conflicts cost someone who does the
+// obvious thing badly.
+//
+// The three gaps together are what makes two worlds comparable — matching
+// conflict lists is not sufficient (REFERENCE-POLICY.md §10):
+//
+//   P0 − P1   total headroom available to any player
+//   P0 − P2   what the conflicts cost a lazy integrator
+//   P1 − P2   whether integrating lazily even beats not integrating
+
+import type { Journey, Line, Pattern, PatternStop, Quay, Site, World } from "@tns/schema";
+import { parseSimTime, parseEpoch } from "@tns/schema";
+import { buildIndex, route, type Access, type RouterIndex } from "@tns/router";
+import { projectOperator, type Timetable } from "@tns/projections";
+
+/** How close two published stops must be for a lazy matcher to fuse them. */
+export const NAIVE_MATCH_THRESHOLD_M = 120;
+
+/** Flat-earth metres. Adequate at city scale, and what a lazy player would do. */
+function roughMetres(aLat: number, aLon: number, bLat: number, bLon: number): number {
+  const dLat = (aLat - bLat) * 111_320;
+  const dLon = (aLon - bLon) * 71_000;
+  return Math.sqrt(dLat * dLat + dLon * dLon);
+}
+
+/**
+ * Build a world-shaped view from published data alone, merging stops by
+ * proximity.
+ *
+ * The result is fed to the same router as P0 and P1, so any difference in
+ * outcome comes from the *model* the lazy player built, not from a different
+ * search. That is the whole point: it isolates the cost of bad reconciliation.
+ */
+export function naiveMergedWorld(world: World): World {
+  const anchor = parseEpoch(world.manifest.worldEpochIso);
+  const timetables: Timetable[] = world.manifest.operators.map(
+    (op) => projectOperator(world, op.id, 0).timetable,
+  );
+
+  // Union-find over published stops, fusing anything within the threshold.
+  const keys: string[] = [];
+  const coords: { lat: number; lon: number; name: string }[] = [];
+  for (const t of timetables) {
+    for (const s of t.stops) {
+      keys.push(`${t.operator}:${s.stop_id}`);
+      coords.push({ lat: s.lat, lon: s.lon, name: s.stop_name });
+    }
+  }
+
+  const parent = keys.map((_, i) => i);
+  const find = (i: number): number => {
+    while (parent[i] !== i) i = parent[i] = parent[parent[i]!]!;
+    return i;
+  };
+  for (let i = 0; i < keys.length; i++) {
+    for (let j = i + 1; j < keys.length; j++) {
+      const a = coords[i]!;
+      const b = coords[j]!;
+      if (roughMetres(a.lat, a.lon, b.lat, b.lon) <= NAIVE_MATCH_THRESHOLD_M) {
+        parent[find(i)] = find(j);
+      }
+    }
+  }
+
+  const groupOf = new Map<string, string>();
+  keys.forEach((k, i) => groupOf.set(k, `merged-${String(find(i)).padStart(4, "0")}`));
+
+  // Merged stops become quays; each merged group is its own Site, because a
+  // coordinate matcher has no notion of a station complex.
+  const sites: Site[] = [];
+  const quays: Quay[] = [];
+  const seen = new Set<string>();
+  keys.forEach((k, i) => {
+    const g = groupOf.get(k)!;
+    if (seen.has(g)) return;
+    seen.add(g);
+    const c = coords[i]!;
+    sites.push({ id: g, name: c.name, lat: c.lat, lon: c.lon });
+    quays.push({ id: g, siteId: g, name: c.name, lat: c.lat, lon: c.lon });
+  });
+
+  const lines: Line[] = [];
+  const patterns: Pattern[] = [];
+  const journeys: Journey[] = [];
+
+  for (const t of timetables) {
+    for (const r of t.routes) {
+      lines.push({ id: `${t.operator}:${r.route_id}`, name: r.route_name, operator: t.operator });
+    }
+    for (const trip of t.trips) {
+      const patternId = `${t.operator}:${trip.trip_id}`;
+      const first = trip.stop_times[0];
+      if (!first) continue;
+      const startS = parseSimTime(anchor, first.depart);
+
+      const stops: PatternStop[] = trip.stop_times.map((st, seq) => ({
+        seq,
+        quayId: groupOf.get(`${t.operator}:${st.stop_id}`) ?? st.stop_id,
+        arriveOffsetS: parseSimTime(anchor, st.arrive) - startS,
+        departOffsetS: parseSimTime(anchor, st.depart) - startS,
+      }));
+
+      patterns.push({
+        id: patternId,
+        lineId: `${t.operator}:${trip.route_id}`,
+        heading: trip.heading,
+        stops,
+      });
+      journeys.push({ id: patternId, patternId, startS });
+    }
+  }
+
+  // Walking links between merged stops, on the same threshold the matcher used.
+  const walkLinks = [];
+  for (const a of quays) {
+    for (const b of quays) {
+      if (a.id === b.id) continue;
+      const m = roughMetres(a.lat, a.lon, b.lat, b.lon);
+      if (m <= world.manifest.maxWalkM) {
+        walkLinks.push({ fromQuay: a.id, toQuay: b.id, metres: m });
+      }
+    }
+  }
+
+  // Query access recomputed against merged stops — the lazy player does its own
+  // nearest-stop search, and gets it slightly wrong for the same reason.
+  const queryAccess = [];
+  for (const q of world.queries) {
+    for (const [endpoint, lat, lon] of [
+      ["origin", q.originLat, q.originLon],
+      ["destination", q.destLat, q.destLon],
+    ] as const) {
+      for (const quay of quays) {
+        const m = roughMetres(lat, lon, quay.lat, quay.lon);
+        if (m <= world.manifest.maxWalkM) {
+          queryAccess.push({ queryId: q.id, endpoint, quayId: quay.id, metres: m });
+        }
+      }
+    }
+  }
+
+  return {
+    manifest: world.manifest,
+    sites,
+    quays,
+    lines,
+    patterns,
+    journeys,
+    walkLinks,
+    queries: world.queries,
+    queryAccess,
+  };
+}
+
+export interface QueryGaps {
+  readonly queryId: string;
+  readonly p0: number | null;
+  readonly p1: number | null;
+  readonly p2: number | null;
+}
+
+export interface Calibration {
+  readonly perQuery: readonly QueryGaps[];
+  readonly meanP0: number;
+  readonly meanP1: number;
+  readonly meanP2: number;
+  /** Total headroom available to any player. */
+  readonly gapP0P1: number;
+  /** What the declared conflicts cost a lazy integrator. */
+  readonly gapP0P2: number;
+  /** Whether integrating lazily even beats not integrating. Negative is a warning. */
+  readonly gapP1P2: number;
+  readonly comparable: number;
+}
+
+const accessFor = (w: World, queryId: string, endpoint: "origin" | "destination"): Access[] =>
+  w.queryAccess
+    .filter((a) => a.queryId === queryId && a.endpoint === endpoint)
+    .map((a) => ({ quayId: a.quayId, seconds: Math.ceil(a.metres / w.manifest.walkSpeedMps) }))
+    .sort((a, b) => (a.quayId < b.quayId ? -1 : 1));
+
+function journeyOf(
+  w: World,
+  ix: RouterIndex,
+  queryId: string,
+  departAfterS: number,
+  policy: "all" | "obvious",
+): number | null {
+  const r = route(
+    ix,
+    accessFor(w, queryId, "origin"),
+    accessFor(w, queryId, "destination"),
+    departAfterS,
+    policy,
+  );
+  return r ? r.arriveS - departAfterS : null;
+}
+
+/**
+ * Score a plan the naive player made *against the real world*.
+ *
+ * This is the whole point of P2, and getting it wrong is easy. P2 plans on a
+ * model it built by fusing stops within a distance threshold. Two quays 80 m
+ * apart become one, so in P2's model a transfer between them is instantaneous
+ * and free. In the world it is an 80 m walk, and the connection it was counting
+ * on may no longer be catchable.
+ *
+ * Evaluating P2 on its own model therefore measures its *beliefs*, and it will
+ * cheerfully beat the oracle — which is impossible, and was exactly what the
+ * first version of this file reported. A lazy integrator's advantage is
+ * imaginary; reality charges for the difference. Measuring that difference is
+ * what makes P2 informative once conflicts exist.
+ */
+function evaluateAgainstTruth(
+  world: World,
+  naive: World,
+  legs: readonly { mode: string; fromQuay: string | null; toQuay: string | null; journeyId?: string }[],
+  queryId: string,
+  departAfterS: number,
+): number | null {
+  const naivePatterns = new Map(naive.patterns.map((p) => [p.id, p]));
+  const realJourneys = new Map(world.journeys.map((j) => [j.id, j]));
+  const realPatterns = new Map(world.patterns.map((p) => [p.id, p]));
+  const walkSpeed = world.manifest.walkSpeedMps;
+
+  // naive journey/pattern ids are `${operator}:${published trip id}`.
+  const tripToJourney = new Map<string, string>();
+  for (const op of world.manifest.operators) {
+    for (const [trip, journey] of projectOperator(world, op.id, 0).resolution.tripToJourney) {
+      tripToJourney.set(`${op.id}:${trip}`, journey);
+    }
+  }
+
+  const access = (endpoint: "origin" | "destination", quayId: string): number | null => {
+    const row = world.queryAccess.find(
+      (a) => a.queryId === queryId && a.endpoint === endpoint && a.quayId === quayId,
+    );
+    return row ? Math.ceil(row.metres / walkSpeed) : null;
+  };
+  const walkBetween = (from: string, to: string): number | null => {
+    if (from === to) return 0;
+    const link = world.walkLinks.find((l) => l.fromQuay === from && l.toQuay === to);
+    return link ? Math.ceil(link.metres / walkSpeed) : null;
+  };
+
+  let cursor = departAfterS;
+  let atQuay: string | null = null;
+
+  for (const leg of legs) {
+    if (leg.mode !== "transit" || !leg.journeyId) continue;
+
+    const realJourneyId = tripToJourney.get(leg.journeyId);
+    const journey = realJourneyId ? realJourneys.get(realJourneyId) : undefined;
+    const naivePattern = naivePatterns.get(leg.journeyId);
+    if (!journey || !naivePattern) return null;
+    const realPattern = realPatterns.get(journey.patternId);
+    if (!realPattern) return null;
+
+    // Same trip, same stop order — so a position in the naive pattern is the
+    // same position in the real one.
+    const boardIdx = naivePattern.stops.findIndex((s) => s.quayId === leg.fromQuay);
+    const alightIdx = naivePattern.stops.findIndex((s) => s.quayId === leg.toQuay);
+    if (boardIdx < 0 || alightIdx <= boardIdx) return null;
+
+    const realBoard = realPattern.stops[boardIdx];
+    const realAlight = realPattern.stops[alightIdx];
+    if (!realBoard || !realAlight) return null;
+
+    const cost =
+      atQuay === null
+        ? access("origin", realBoard.quayId)
+        : walkBetween(atQuay, realBoard.quayId);
+    if (cost === null) return null; // a transfer P2 imagined but cannot make
+    cursor += cost;
+
+    const departS = journey.startS + realBoard.departOffsetS;
+    if (departS < cursor) return null; // the walk it never accounted for lost it the connection
+    cursor = journey.startS + realAlight.arriveOffsetS;
+    atQuay = realAlight.quayId;
+  }
+
+  if (atQuay === null) return null;
+  const finalWalk = access("destination", atQuay);
+  if (finalWalk === null) return null;
+
+  return cursor + finalWalk - departAfterS;
+}
+
+export function calibrate(world: World): Calibration {
+  const trueIx = buildIndex(world);
+  const naive = naiveMergedWorld(world);
+  const naiveIx = buildIndex(naive);
+
+  const perQuery: QueryGaps[] = world.queries.map((q) => {
+    // P2 plans on its own merged model...
+    const plan = route(
+      naiveIx,
+      accessFor(naive, q.id, "origin"),
+      accessFor(naive, q.id, "destination"),
+      q.departAfterS,
+      "all",
+    );
+    // ...and is then charged for what actually happens.
+    const p2 = plan
+      ? evaluateAgainstTruth(
+          world,
+          naive,
+          plan.legs.map((l) => ({
+            mode: l.mode,
+            fromQuay: l.fromQuay,
+            toQuay: l.toQuay,
+            ...(l.mode === "transit" ? { journeyId: l.journeyId } : {}),
+          })),
+          q.id,
+          q.departAfterS,
+        )
+      : null;
+
+    return {
+      queryId: q.id,
+      p0: journeyOf(world, trueIx, q.id, q.departAfterS, "all"),
+      p1: journeyOf(world, trueIx, q.id, q.departAfterS, "obvious"),
+      p2,
+    };
+  });
+
+  const usable = perQuery.filter((g) => g.p0 !== null && g.p1 !== null && g.p2 !== null);
+  const mean = (pick: (g: QueryGaps) => number | null): number =>
+    usable.length === 0 ? 0 : usable.reduce((a, g) => a + pick(g)!, 0) / usable.length;
+
+  const meanP0 = mean((g) => g.p0);
+  const meanP1 = mean((g) => g.p1);
+  const meanP2 = mean((g) => g.p2);
+
+  return {
+    perQuery,
+    meanP0,
+    meanP1,
+    meanP2,
+    gapP0P1: meanP1 - meanP0,
+    gapP0P2: meanP2 - meanP0,
+    gapP1P2: meanP1 - meanP2,
+    comparable: usable.length,
+  };
+}

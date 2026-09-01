@@ -19,7 +19,8 @@
     "contract:check": "node src/schema/scripts/generate-openapi.ts --check",
     "check": "npm run lint && npm run typecheck && npm run contract:check && npm test",
     "world:build": "cd tools && uv run python -m worldbuild",
-    "demo": "node src/server/src/demo.ts"
+    "demo": "node src/server/src/demo.ts",
+    "calibrate": "node src/scoring/scripts/calibrate.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

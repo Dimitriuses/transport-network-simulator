@@ -121,7 +121,9 @@ def _quay_by_id() -> dict[str, city.Quay]:
     return {q.id: q for q in city.QUAYS}
 
 
-def _pattern_stops(quay_ids: tuple[str, ...]) -> list[tuple[int, str, int, int]]:
+def _pattern_stops(
+    quay_ids: tuple[str, ...], speed_mps: float, dwell_s: int
+) -> list[tuple[int, str, int, int]]:
     """Build (seq, quay_id, arrive_offset, depart_offset) for one direction."""
     quays = _quay_by_id()
     rows: list[tuple[int, str, int, int]] = []
@@ -131,9 +133,9 @@ def _pattern_stops(quay_ids: tuple[str, ...]) -> list[tuple[int, str, int, int]]
             prev = quays[quay_ids[seq - 1]]
             cur = quays[qid]
             metres = haversine_m(prev.lat, prev.lon, cur.lat, cur.lon)
-            t += round(metres / city.VEHICLE_SPEED_MPS)
+            t += round(metres / speed_mps)
         arrive = t
-        depart = t if seq == 0 else t + city.DWELL_S
+        depart = t if seq == 0 else t + dwell_s
         rows.append((seq, qid, arrive, depart))
         t = depart
     return rows
@@ -158,8 +160,7 @@ def build(out_path: Path, seed: int = 481516) -> Path:
                 ("world_epoch_iso", city.WORLD_EPOCH_ISO),
                 ("timezone", city.WORLD_TIMEZONE),
                 ("utc_offset_s", str(city.WORLD_UTC_OFFSET_S)),
-                ("operator_id", city.OPERATOR_ID),
-                ("operator_name", city.OPERATOR_NAME),
+                ("operators", ",".join(f"{oid}:{name}" for oid, name in city.OPERATORS)),
                 ("walk_speed_mps", str(city.WALK_SPEED_MPS)),
                 ("max_walk_m", str(city.MAX_WALK_M)),
                 # M1 declares no conflicts. The defect audit (DATA-MODEL.md §7)
@@ -178,7 +179,7 @@ def build(out_path: Path, seed: int = 481516) -> Path:
         )
         db.executemany(
             "INSERT INTO lines (id, name, operator) VALUES (?, ?, ?)",
-            [(ln.id, ln.name, city.OPERATOR_ID) for ln in city.LINES],
+            [(ln.id, ln.name, ln.operator) for ln in city.LINES],
         )
 
         for ln in city.LINES:
@@ -191,7 +192,7 @@ def build(out_path: Path, seed: int = 481516) -> Path:
                     "INSERT INTO patterns (id, line_id, heading) VALUES (?, ?, ?)",
                     (pattern_id, ln.id, heading),
                 )
-                stops = _pattern_stops(quay_ids)
+                stops = _pattern_stops(quay_ids, ln.speed_mps, ln.dwell_s)
                 db.executemany(
                     "INSERT INTO pattern_stops "
                     "(pattern_id, seq, quay_id, arrive_offset_s, depart_offset_s) "

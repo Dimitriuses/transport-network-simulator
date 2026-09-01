@@ -45,28 +45,54 @@ function toSeconds(iso: string): number {
 }
 
 interface Model {
-  timetable: Timetable;
-  stopById: Map<string, Stop>;
-  /** stop_id -> [{ trip, index }] ordered by departure. */
-  boardings: Map<string, { trip: Trip; index: number; departS: number }[]>;
+  stops: Stop[];
+  /** key -> stop, where key is `operator:stop_id`. Ids collide across operators. */
+  stopByKey: Map<string, Stop>;
+  operatorOfStop: Map<string, string>;
+  boardings: Map<string, { trip: Trip; operator: string; index: number; departS: number }[]>;
 }
 
-function buildModel(timetable: Timetable): Model {
-  const stopById = new Map(timetable.stops.map((s) => [s.stop_id, s]));
-  const boardings = new Map<string, { trip: Trip; index: number; departS: number }[]>();
+/**
+ * Build one model from several operators' timetables.
+ *
+ * Note what this does *not* do: reconcile anything. Stops keep their own
+ * operator's identity, and two quays 80 m apart stay two stops. Working out
+ * which of them are really the same place — and which merely look like it — is
+ * the job. This player does not attempt it.
+ */
+function buildModel(timetables: Timetable[]): Model {
+  const stops: Stop[] = [];
+  const stopByKey = new Map<string, Stop>();
+  const operatorOfStop = new Map<string, string>();
+  const boardings = new Map<
+    string,
+    { trip: Trip; operator: string; index: number; departS: number }[]
+  >();
 
-  for (const trip of timetable.trips) {
-    trip.stop_times.forEach((st, index) => {
-      if (index === trip.stop_times.length - 1) return; // cannot board the last stop
-      let list = boardings.get(st.stop_id);
-      if (!list) boardings.set(st.stop_id, (list = []));
-      list.push({ trip, index, departS: toSeconds(st.depart) });
-    });
+  for (const t of timetables) {
+    for (const s of t.stops) {
+      const key = `${t.operator}:${s.stop_id}`;
+      stops.push({ ...s, stop_id: key });
+      stopByKey.set(key, { ...s, stop_id: key });
+      operatorOfStop.set(key, t.operator);
+    }
+    for (const trip of t.trips) {
+      trip.stop_times.forEach((st, index) => {
+        if (index === trip.stop_times.length - 1) return; // cannot board the last stop
+        const key = `${t.operator}:${st.stop_id}`;
+        let list = boardings.get(key);
+        if (!list) boardings.set(key, (list = []));
+        list.push({ trip, operator: t.operator, index, departS: toSeconds(st.depart) });
+      });
+    }
   }
   for (const list of boardings.values()) list.sort((a, b) => a.departS - b.departS);
 
-  return { timetable, stopById, boardings };
+  return { stops, stopByKey, operatorOfStop, boardings };
 }
+
+/** Strip the internal `operator:` prefix back off before answering. */
+const published = (key: string): string => key.slice(key.indexOf(":") + 1);
 
 /** Crude great-circle-ish distance. Good enough to pick a nearby stop. */
 function roughMetres(aLat: number, aLon: number, bLat: number, bLon: number): number {
@@ -76,7 +102,7 @@ function roughMetres(aLat: number, aLon: number, bLat: number, bLon: number): nu
 }
 
 function nearbyStops(model: Model, lat: number, lon: number, maxM: number): Stop[] {
-  return model.timetable.stops
+  return model.stops
     .map((s) => ({ s, d: roughMetres(lat, lon, s.lat, s.lon) }))
     .filter((x) => x.d <= maxM)
     .sort((a, b) => a.d - b.d || (a.s.stop_id < b.s.stop_id ? -1 : 1))
@@ -128,24 +154,25 @@ function plan(
         for (let k = b.index + 1; k < b.trip.stop_times.length; k++) {
           const st = b.trip.stop_times[k]!;
           const arriveS = toSeconds(st.arrive);
-          const existing = best.get(st.stop_id);
+          const toKey = `${b.operator}:${st.stop_id}`;
+          const existing = best.get(toKey);
           if (existing && existing.arriveS <= arriveS) continue;
 
-          best.set(st.stop_id, {
+          best.set(toKey, {
             arriveS,
             leg: {
               mode: "transit",
-              operator: model.timetable.operator,
+              operator: b.operator,
               route: b.trip.route_id,
               trip: b.trip.trip_id,
-              from_stop: stopId,
+              from_stop: published(stopId),
               to_stop: st.stop_id,
               depart: b.trip.stop_times[b.index]!.depart,
               arrive: st.arrive,
             },
             prev: stopId,
           });
-          improved.add(st.stop_id);
+          improved.add(toKey);
         }
         break; // naive: only the first boardable departure is considered
       }
@@ -154,7 +181,7 @@ function plan(
     // Transfers: any stop within 200 m. The player has no idea which of these
     // are "real" interchanges — working that out is the job.
     for (const stopId of [...improved].sort()) {
-      const here = model.stopById.get(stopId);
+      const here = model.stopByKey.get(stopId);
       const from = best.get(stopId)!;
       if (!here) continue;
       for (const other of nearbyStops(model, here.lat, here.lon, 200)) {
@@ -166,8 +193,14 @@ function plan(
           arriveS,
           leg: {
             mode: "walk",
-            from: { operator: model.timetable.operator, stop: stopId },
-            to: { operator: model.timetable.operator, stop: other.stop_id },
+            from: {
+              operator: model.operatorOfStop.get(stopId) ?? "",
+              stop: published(stopId),
+            },
+            to: {
+              operator: model.operatorOfStop.get(other.stop_id) ?? "",
+              stop: published(other.stop_id),
+            },
             depart: from.leg ? (from.leg["arrive"] as string) : departAfter,
             arrive: from.leg ? (from.leg["arrive"] as string) : departAfter,
           },
@@ -186,7 +219,7 @@ function plan(
   let bestArrival = Number.POSITIVE_INFINITY;
   for (const id of [...destStops].sort()) {
     const label = best.get(id);
-    const stop = model.stopById.get(id);
+    const stop = model.stopByKey.get(id);
     if (!label || !label.leg || !stop) continue;
     const walkS = Math.ceil(
       roughMetres(destination.lat, destination.lon, stop.lat, stop.lon) / 1.3,
@@ -232,18 +265,39 @@ function readBody(req: import("node:http").IncomingMessage): Promise<string> {
 
 export interface PlayerOptions {
   readonly port: number;
-  readonly operatorBaseUrl: string;
+  /** The one bootstrap value the contract gives a player (§3). */
+  readonly controlUrl: string;
+  /**
+   * "naive" plans from a coordinate-merged model. "null" declines everything —
+   * used to demonstrate that forgoing obligations scores exactly 0.0, because
+   * the traveller falls back to the reference policy and the player is charged
+   * for it (REFERENCE-POLICY.md §8).
+   */
+  readonly mode?: "naive" | "null";
 }
 
 export function startPlayer(opts: PlayerOptions): Promise<Server> {
   let model: Model | null = null;
   let ready = false;
+  const mode = opts.mode ?? "naive";
 
-  // Ingestion. In M1 the timetable is static, so one fetch is enough — which is
-  // exactly why M1 has no ticks: there is nothing to re-poll.
+  // Ingestion. The brief says where the operators are and nothing else — not
+  // their schemas, not their quality, and certainly not how their stops relate
+  // (PLAYER-CONTRACT.md §6.1). Everything past this point is inference.
+  //
+  // The timetables are static here, so one pass is enough; that is why this
+  // milestone has no ticks to re-poll on.
   const ingest = async (): Promise<void> => {
-    const res = await fetch(`${opts.operatorBaseUrl}/timetable`);
-    model = buildModel((await res.json()) as Timetable);
+    const brief = (await (await fetch(`${opts.controlUrl}/v1/brief`)).json()) as {
+      operators: { id: string; base_url: string }[];
+    };
+
+    const timetables: Timetable[] = [];
+    for (const op of brief.operators) {
+      timetables.push((await (await fetch(`${op.base_url}/timetable`)).json()) as Timetable);
+    }
+
+    model = buildModel(timetables);
     ready = true;
   };
 
@@ -257,7 +311,7 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
 
       if (req.method === "GET" && url.pathname === "/v1/identity") {
         return json(res, 200, {
-          name: NAME,
+          name: mode === "null" ? "null-player" : NAME,
           version: VERSION,
           contract_versions: [CONTRACT_VERSION],
           // No `tick`: M1's timetable is static. No `notify`: no disruptions.
@@ -277,6 +331,13 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
         };
 
         const results = body.requests.map((r) => {
+          if (mode === "null") {
+            // Honest refusal. Scored more kindly than a wrong answer, but never
+            // free: the traveller falls back to the reference policy and the
+            // player is charged both for that outcome and for the forgone
+            // obligation (REFERENCE-POLICY.md §8).
+            return { request_id: r.request_id, status: "declined", itinerary: null };
+          }
           const itinerary = plan(model!, r.origin, r.destination, r.depart_after);
           return itinerary === null
             ? { request_id: r.request_id, status: "no_route", itinerary: null }
