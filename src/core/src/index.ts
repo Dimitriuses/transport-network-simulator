@@ -13,3 +13,4 @@ export * from "./rng.ts";
 export * from "./clock.ts";
 export * from "./queue.ts";
 export * from "./load.ts";
+export * from "./disruptions.ts";

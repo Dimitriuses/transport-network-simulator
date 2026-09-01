@@ -142,11 +142,39 @@ Two assertions written at earlier milestones flipped, as promised. `calibration.
 
 This is the first milestone where the project is recognisably itself.
 
-### M4 — Live world
+### M4 — Live world ✅ complete
+
+*Completed 2026-09-01. All exit conditions verified.*
 
 DES event generation (delays, cancellations, breakdowns); L2 dynamics; realtime projections with per-operator staleness `sₖ`; ticks; notifications; catalogue §2.1 D defects; the Information metric family.
 
-**Exit:** the golden-trajectory hash test passes in CI. A player that never polls scores near 0 on Information; one that polls sensibly scores meaningfully higher.
+**Exit:** the golden-trajectory hash test passes in CI. A player that never polls scores near 0 on Information; one that polls sensibly scores meaningfully higher. — both verified:
+
+| Player | Information family |
+|---|---|
+| `blind` — never declares `tick`, so never sees a feed | **0.000** — 3 material events, 3 never warned |
+| `naive` — polls every 120 simulated seconds | **0.658** — recall 1.000, precision 1.000, timeliness 0.316 |
+
+**Delivered:** seeded disruption generation with an `announcedAtS` per event, so a fact becomes *knowable* at a moment rather than being true from the start; realtime projections serving `L2@(τ − sₖ)` through each operator's own honesty policy; the `/realtime` endpoint, cached per τ so the snapshot rule is structural; `POST /v1/tick` driving ingestion at a player-declared cadence; `POST /v1/notify` with simulator-stamped arrival; disruption-aware routing (P0 with perfect information, P1 executed reactively against the real day); the four-part Information family; and the golden-trajectory fingerprint.
+
+**Catalogue D, live.** Nordline is honest and current. Ostline is 90 seconds behind and reports delays in whole minutes. Sudbahn is five minutes behind and **cancelled trains simply stop appearing** rather than being marked — the ghost-trip failure, indistinguishable from a feed that has not caught up. Fifteen conflicts now declared and audited, up from eleven.
+
+**Calibration, with the day actually happening:**
+
+| Gap | M3 | M4 | Reading |
+|---|---:|---:|---|
+| P0−P1 | 1.16 min | **3.14 min** | headroom nearly trebles — P1 gets stranded and replans |
+| P0−P2 | 0.44 min | **0.84 min** | conflicts cost more when there is more to get wrong |
+| conflict share | 38 % | 27 % | a smaller *share* of a much larger pie |
+
+**Two things M4 found:**
+
+1. **The last decision point was set to the wrong instant.** For a traveller whose *first* leg is disrupted there is no previous leg, and the deadline had defaulted to the moment the plan was issued — demanding a warning before the player had even answered. Every such event scored as untimely. It is now that service's own scheduled departure, up to which the traveller is still standing there able to do something else. Timeliness went from 0.000 to 0.316.
+2. **"Evaluate against reality" needed extending from geometry to the day.** P2 was charged for the walks it never accounted for but still allowed to ride cancelled trains, so it beat the oracle again — **the third appearance of the same bug shape.** M1: a free access walk. M2: an imagined zero-cost transfer. M4: a service that never ran. Each time, a model was credited with something the world does not owe it, and each time the per-traveller `journey ≥ oracle` invariant caught it.
+
+**Open items settled:** modelled response delay δ — closed, answers land at the deadline, because a modelled delay is still a delay and would blur the one property `virtual` mode exists to guarantee. `latency: sim` promotion — reviewed and deferred: the pagination defect that depends on it is not implemented either, and the two must arrive together or neither is worth having.
+
+**Scope correction:** the M2 decision on ghost-rider capacity assumed vehicle loads would first exist at M4. They do not. Loads require simulating a background population *as individuals*, and open loop has no crowd — its population is the reference policy applied to a demand table. Capacity moves to Phase 2 with closed loop, where riders are real. The decision itself stands; only its milestone moves.
 
 ### M5 — Judgement
 
@@ -173,8 +201,8 @@ No open item blocks M0 or M1 — work can start now. Each has a milestone by whi
 | ~~Ghost-rider capacity denial~~ | `REFERENCE-POLICY.md` §9 | ✅ closed M2 |
 | ~~Preparation cost scored or free~~ | `PLAYER-CONTRACT.md` §4 | ✅ closed M2 |
 | ~~`docs_url` always present~~ | `PLAYER-CONTRACT.md` §6.1 | ✅ closed M3 |
-| `latency: sim` promotion — a pagination defect depends on it | `DATA-MODEL.md` §4 | **M4** |
-| Modelled response delay δ | `TIME-MODEL.md` §4 | M4 |
+| `latency: sim` promotion | `DATA-MODEL.md` §4 | reviewed M4 → deferred to whichever milestone adds pagination |
+| ~~Modelled response delay δ~~ | `TIME-MODEL.md` §4 | ✅ closed M4 |
 | Wait-time weighting | `SCORING.md` §4 | **M5** |
 | Information combination form | `SCORING.md` §5 | **M5** |
 | `capture > 1`: invalidate or quarantine | `SCORING.md` §11 | M5 |

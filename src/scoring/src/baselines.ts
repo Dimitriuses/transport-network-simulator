@@ -17,8 +17,10 @@
 
 import type { Journey, Line, Pattern, PatternStop, Quay, Site, World } from "@tns/schema";
 import { parseSimTime, parseEpoch } from "@tns/schema";
-import { buildIndex, route, type Access, type RouterIndex } from "@tns/router";
+import { buildIndex, route, executeReactively, type Access, type RouterIndex } from "@tns/router";
+import { generateDisruptions } from "@tns/core";
 import { projectOperator, type Timetable } from "@tns/projections";
+import type { Disruption } from "@tns/core";
 
 /** How close two published stops must be for a lazy matcher to fuse them. */
 export const NAIVE_MATCH_THRESHOLD_M = 120;
@@ -265,7 +267,19 @@ function evaluateAgainstTruth(
   legs: readonly { mode: string; fromQuay: string | null; toQuay: string | null; journeyId?: string }[],
   queryId: string,
   departAfterS: number,
+  disruptions: readonly Disruption[],
 ): number | null {
+  // Reality is not only geometry. A plan built on the published schedule also
+  // does not know which of those services will not run, and charging it for the
+  // walk while letting it ride a cancelled train would make it beat a
+  // perfectly-informed planner — which is impossible, and is what happened the
+  // first time disruptions were switched on.
+  const cancelled = new Set(
+    disruptions.filter((d) => d.kind === "cancellation").map((d) => d.journeyId),
+  );
+  const delayOf = new Map(
+    disruptions.filter((d) => d.kind === "delay").map((d) => [d.journeyId, d.delayS]),
+  );
   const naivePatterns = new Map(naive.patterns.map((p) => [p.id, p]));
   const realJourneys = new Map(world.journeys.map((j) => [j.id, j]));
   const realPatterns = new Map(world.patterns.map((p) => [p.id, p]));
@@ -321,9 +335,12 @@ function evaluateAgainstTruth(
     if (cost === null) return null; // a transfer P2 imagined but cannot make
     cursor += cost;
 
-    const departS = journey.startS + realBoard.departOffsetS;
+    if (cancelled.has(journey.id)) return null; // it planned onto a service that never ran
+
+    const delay = delayOf.get(journey.id) ?? 0;
+    const departS = journey.startS + delay + realBoard.departOffsetS;
     if (departS < cursor) return null; // the walk it never accounted for lost it the connection
-    cursor = journey.startS + realAlight.arriveOffsetS;
+    cursor = journey.startS + delay + realAlight.arriveOffsetS;
     atQuay = realAlight.quayId;
   }
 
@@ -335,7 +352,15 @@ function evaluateAgainstTruth(
 }
 
 export function calibrate(world: World): Calibration {
-  const trueIx = buildIndex(world);
+  // The day that actually happens, from the world seed.
+  const disruptions = generateDisruptions(world.journeys, world.manifest.seed);
+
+  // P0 knows everything: cancelled journeys are gone from its index and
+  // delayed ones carry their delay. Nobody else gets that.
+  const oracleIx = buildIndex(world, disruptions);
+  // What P1 and P2 plan on: the published schedule, which does not know.
+  const scheduleIx = buildIndex(world);
+
   const naive = naiveMergedWorld(world);
   const naiveIx = buildIndex(naive);
 
@@ -361,10 +386,23 @@ export function calibrate(world: World): Calibration {
           })),
           q.id,
           q.departAfterS,
+          disruptions,
         )
       : null;
 
-    const p1 = journeyOf(world, trueIx, q.id, q.departAfterS, "obvious");
+    // P1 plans on the schedule and is then *executed* against the real day,
+    // discovering each failure by standing on a platform and replanning from
+    // there. Judging it on its plan would measure what it believed.
+    const p1Exec = executeReactively(
+      world,
+      scheduleIx,
+      disruptions,
+      accessFor(world, q.id, "origin"),
+      accessFor(world, q.id, "destination"),
+      q.departAfterS,
+      "obvious",
+    );
+    const p1 = p1Exec.journeyS;
 
     // A lazy integrator that cannot produce a workable plan does not vanish —
     // the traveller falls back to the reference policy, exactly as they do
@@ -377,7 +415,7 @@ export function calibrate(world: World): Calibration {
 
     return {
       queryId: q.id,
-      p0: journeyOf(world, trueIx, q.id, q.departAfterS, "all"),
+      p0: journeyOf(world, oracleIx, q.id, q.departAfterS, "all"),
       p1,
       p2: fellBack ? p1 : p2,
       p2FellBack: fellBack,

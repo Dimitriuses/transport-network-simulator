@@ -7,4 +7,5 @@ export const PACKAGE_NAME = "@tns/projections";
 
 export * from "./defects.ts";
 export * from "./project.ts";
+export * from "./realtime.ts";
 export * from "./audit.ts";

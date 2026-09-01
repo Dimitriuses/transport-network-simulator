@@ -70,6 +70,13 @@ OPERATORS: tuple[dict, ...] = (
             "offset_m": 0,
         },
         "time": {"encoding": "iso_offset"},
+        # Honest and current. The reference point the others are judged against.
+        "realtime": {
+            "staleness_s": 0,
+            "cancellations": "explicit",
+            "delay_unit": "seconds",
+            "publishes_delays": True,
+        },
     },
     {
         # A proprietary system that grew organically. Bare integer ids that
@@ -93,6 +100,15 @@ OPERATORS: tuple[dict, ...] = (
             "offset_m": 130,
         },
         "time": {"encoding": "epoch_s"},
+        # Ninety seconds behind, and delays truncated to whole minutes — so a
+        # player that trusts the figure is wrong by up to a minute even when
+        # the feed has caught up (catalogue C and D).
+        "realtime": {
+            "staleness_s": 90,
+            "cancellations": "explicit",
+            "delay_unit": "minutes",
+            "publishes_delays": True,
+        },
     },
     {
         # A regional railway that thinks in stations, not platforms. Publishes
@@ -111,6 +127,15 @@ OPERATORS: tuple[dict, ...] = (
             "offset_m": 0,
         },
         "time": {"encoding": "local_naive"},
+        # Five minutes behind, and cancelled trains simply stop appearing
+        # rather than being marked — the "ghost trip" failure, which is
+        # indistinguishable from a feed that has not caught up (catalogue D).
+        "realtime": {
+            "staleness_s": 300,
+            "cancellations": "silent_drop",
+            "delay_unit": "seconds",
+            "publishes_delays": True,
+        },
     },
 )
 

@@ -38,6 +38,12 @@ export interface OperatorManifest {
     readonly offset_m: number;
   };
   readonly time: { readonly encoding: TimeEncoding };
+  readonly realtime: {
+    readonly staleness_s: number;
+    readonly cancellations: "explicit" | "silent_drop";
+    readonly delay_unit: "seconds" | "minutes";
+    readonly publishes_delays: boolean;
+  };
 }
 
 // ---------------------------------------------------------------- identity

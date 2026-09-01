@@ -10,6 +10,7 @@
 // for a measurement (CLAUDE.md).
 
 import type { World } from "@tns/schema";
+import type { Disruption } from "@tns/core";
 
 /** How much of the network a policy is allowed to transfer across. */
 export type TransferPolicy =
@@ -73,7 +74,23 @@ export interface RouterIndex {
   readonly walkFrom: ReadonlyMap<string, readonly { toQuay: string; seconds: number }[]>;
 }
 
-export function buildIndex(world: World): RouterIndex {
+/**
+ * Build the search index.
+ *
+ * `disruptions` is what separates the oracle from everyone else. Given them,
+ * the index reflects what will *actually* happen — cancelled journeys are gone
+ * and delayed ones carry their delay — which is perfect information and
+ * therefore P0. Without them the index is the published schedule, which is
+ * what P1 and P2 plan on and what reality then contradicts.
+ */
+export function buildIndex(world: World, disruptions?: readonly Disruption[]): RouterIndex {
+  const cancelled = new Set(
+    (disruptions ?? []).filter((d) => d.kind === "cancellation").map((d) => d.journeyId),
+  );
+  const delayOf = new Map(
+    (disruptions ?? []).filter((d) => d.kind === "delay").map((d) => [d.journeyId, d.delayS]),
+  );
+
   const patternsByQuay = new Map<string, StopEntry[]>();
   const patternById = new Map<string, World["patterns"][number]>();
 
@@ -88,9 +105,10 @@ export function buildIndex(world: World): RouterIndex {
 
   const journeysByPattern = new Map<string, { id: string; startS: number }[]>();
   for (const j of world.journeys) {
+    if (cancelled.has(j.id)) continue;
     let list = journeysByPattern.get(j.patternId);
     if (!list) journeysByPattern.set(j.patternId, (list = []));
-    list.push({ id: j.id, startS: j.startS });
+    list.push({ id: j.id, startS: j.startS + (delayOf.get(j.id) ?? 0) });
   }
   // Loaded ordered by start_s already; sort defensively so board-selection is
   // a simple scan and the result never depends on insertion order.

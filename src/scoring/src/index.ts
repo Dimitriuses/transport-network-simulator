@@ -7,11 +7,19 @@
 // can be recomputed and audited long after the run, and the scorer can be
 // fixed independently of the engine (SCORING.md §1).
 
-import type { RunRecord, TravellerOutcome, RunHeader, ObligationRecord } from "@tns/schema";
+import type {
+  MaterialEventRecord,
+  RunRecord,
+  TravellerOutcome,
+  RunHeader,
+  ObligationRecord,
+} from "@tns/schema";
+import { scoreInformation, type InformationScore } from "./information.ts";
 
 export const PACKAGE_NAME = "@tns/scoring";
 
 export * from "./baselines.ts";
+export * from "./information.ts";
 
 export interface Scorecard {
   readonly header: RunHeader | null;
@@ -37,6 +45,7 @@ export interface Scorecard {
    * cannot be formed at all. M1 found a real simulator bug this way.
    */
   readonly impossibleTravellers: readonly string[];
+  readonly information: InformationScore;
 }
 
 const mean = (xs: readonly number[]): number | null =>
@@ -104,8 +113,21 @@ export function score(log: readonly RunRecord[]): Scorecard {
     .filter((t) => t.journeyS! < t.oracleJourneyS! - 1)
     .map((t) => `${t.queryId} (${t.journeyS}s < oracle ${t.oracleJourneyS}s)`);
 
+  const information = scoreInformation(
+    log,
+    log
+      .filter((r): r is MaterialEventRecord => r.kind === "material_event")
+      .map((e) => ({
+        travellerRef: e.travellerRef,
+        announcedAtS: e.announcedAtS,
+        knowableAtS: e.knowableAtS,
+        lastDecisionPointS: e.lastDecisionPointS,
+      })),
+  );
+
   return {
     header,
+    information,
     travellers: travellers.length,
     arrived: arrived.length,
     nonArrivals: travellers.length - arrived.length,
@@ -144,6 +166,23 @@ export function renderScorecard(card: Scorecard): string {
   lines.push("  OBLIGATIONS");
   for (const [outcome, n] of Object.entries(card.obligations).sort()) {
     lines.push(`    ${outcome.padEnd(20)}  ${n}`);
+  }
+  lines.push("");
+  lines.push("  INFORMATION");
+  const inf = card.information;
+  if (inf.materialEvents === 0 && inf.notificationsSent === 0) {
+    lines.push("    nothing to tell anyone about");
+  } else {
+    lines.push(`    material events       ${inf.materialEvents}`);
+    lines.push(`      warned in time      ${inf.inTime}`);
+    lines.push(`      warned too late     ${inf.late}`);
+    lines.push(`      never warned        ${inf.silent}   <- silence is a failure, not a default`);
+    lines.push(`    notifications sent    ${inf.notificationsSent}`);
+    lines.push(`      to nobody affected  ${inf.noisy}   <- crying wolf`);
+    lines.push(`    recall                ${inf.recall.toFixed(3)}`);
+    lines.push(`    precision             ${inf.precision.toFixed(3)}`);
+    lines.push(`    timeliness            ${inf.timeliness.toFixed(3)}`);
+    lines.push(`    family score          ${inf.score.toFixed(3)}`);
   }
   lines.push("");
   lines.push("  COST");

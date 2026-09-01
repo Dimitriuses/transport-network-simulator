@@ -86,6 +86,17 @@ jobs:
       - name: Three-gap calibration
         run: npm run calibrate
 
+      # M4 exit condition: a player that never polls scores 0 on Information;
+      # one that polls sensibly scores meaningfully higher.
+      - name: A player that never looks learns nothing
+        run: |
+          set -e
+          TNS_PLAYER_MODE=blind npm run demo > /tmp/blind.txt
+          npm run demo > /tmp/seeing.txt
+          grep -q "family score          0.000" /tmp/blind.txt
+          grep -q "never warned        3" /tmp/blind.txt
+          ! grep -q "family score          0.000" /tmp/seeing.txt
+
   offline:
     name: Python offline pipeline
     runs-on: ubuntu-latest

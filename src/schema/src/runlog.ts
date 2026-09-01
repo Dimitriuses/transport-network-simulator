@@ -85,8 +85,42 @@ export interface TravellerOutcome {
   readonly referenceJourneyS: number | null;
 }
 
+/**
+ * A notification the player pushed, stamped with the simulator's own arrival
+ * time. The gap between the world event and this instant is the information
+ * latency metric (SCORING.md §5).
+ */
+export interface NotificationRecord {
+  readonly kind: "notification";
+  readonly tau: number;
+  readonly travellerRef: string;
+  readonly notificationKind: string;
+  readonly message: string;
+}
+
+/**
+ * A disruption that actually hit a scored traveller's itinerary.
+ *
+ * Written by the harness so that scoring stays a pure function of the run log
+ * (SCORING.md §1) — the scorer must not need the world to work out who was
+ * affected.
+ */
+export interface MaterialEventRecord {
+  readonly kind: "material_event";
+  readonly travellerRef: string;
+  readonly journeyId: string;
+  readonly disruption: "delay" | "cancellation";
+  readonly announcedAtS: number;
+  /** `announced + sₖ` for the operator that runs the journey. */
+  readonly knowableAtS: number;
+  /** After this a warning cannot change what the traveller does. */
+  readonly lastDecisionPointS: number;
+}
+
 export type RunRecord =
   | RunHeader
   | IngestionRecord
   | ObligationRecord
+  | NotificationRecord
+  | MaterialEventRecord
   | TravellerOutcome;

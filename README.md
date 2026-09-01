@@ -12,7 +12,7 @@ There is no reference solution, and no single right answer. You are scored on wh
 
 ## Status
 
-**Specification complete. Phase 0 in progress — M0–M3 done, M4 next.**
+**Specification complete. Phase 0 in progress — M0–M4 done, M5 next.**
 
 The loop runs end to end: a hand-built 34-quay city, **three operators whose data genuinely disagrees**, live operator APIs, a reference player in its own process, and a capture-scored scorecard — reproducibly, byte for byte.
 
@@ -27,7 +27,9 @@ npm run audit                  # every declared conflict must actually be presen
 npm run check                  # lint, typecheck, contract drift, tests
 ```
 
-Next is [`ROADMAP.md`](ROADMAP.md) M4 — the live world: events, realtime feeds with per-operator staleness, ingestion ticks, notifications, and the Information metric.
+The world is now **live**: services run late and get cancelled, each operator's feed lags and lies in its own way, and a player that never looks at a realtime feed scores exactly 0 on Information while one that polls sensibly scores 0.658.
+
+Next is [`ROADMAP.md`](ROADMAP.md) M5 — judgement: the full scoring vector, profiles, tier clearance, `trace`-level logging and the information-set audit.
 
 ---
 

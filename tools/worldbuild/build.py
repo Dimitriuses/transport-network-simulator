@@ -143,6 +143,12 @@ DEFAULTS: dict[str, dict[str, object]] = {
     "naming": {"variant": "official"},
     "geometry": {"precision": 6, "source": "quay", "latlon_order": "lat_lon", "offset_m": 0},
     "time": {"encoding": "iso_offset"},
+    "realtime": {
+        "staleness_s": 0,
+        "cancellations": "explicit",
+        "delay_unit": "seconds",
+        "publishes_delays": True,
+    },
 }
 
 CONFLICT_NAMES: dict[tuple[str, str], str] = {
@@ -154,6 +160,10 @@ CONFLICT_NAMES: dict[tuple[str, str], str] = {
     ("geometry", "latlon_order"): "C-latlon-order",
     ("geometry", "offset_m"): "C-coordinate-offset",
     ("time", "encoding"): "B-time-encoding",
+    ("realtime", "staleness_s"): "D-staleness",
+    ("realtime", "cancellations"): "D-silent-cancellation",
+    ("realtime", "delay_unit"): "C-delay-unit",
+    ("realtime", "publishes_delays"): "D-no-delays",
 }
 
 

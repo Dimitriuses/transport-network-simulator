@@ -17,7 +17,9 @@
 
 import type { World } from "@tns/schema";
 import { projectOperator } from "./project.ts";
+import { projectRealtime } from "./realtime.ts";
 import type { OperatorManifest } from "./defects.ts";
+import { generateDisruptions, type Disruption } from "@tns/core";
 
 export interface AuditFinding {
   readonly conflict: string;
@@ -49,6 +51,7 @@ function checkOperator(
   world: World,
   operatorId: string,
   tau: number,
+  disruptions: readonly Disruption[],
 ): { findings: AuditFinding[] } {
   const info = world.manifest.operators.find((o) => o.id === operatorId)!;
   const m = info.manifest as OperatorManifest;
@@ -154,6 +157,69 @@ function checkOperator(
     );
   }
 
+  // ---- realtime (catalogue D) --------------------------------------------
+  //
+  // These are checked by *comparing the feed against the truth*, which is the
+  // only way to tell a lagging feed from an honest one. Reading the policy
+  // back would prove nothing.
+  if (
+    m.realtime.staleness_s > 0 ||
+    m.realtime.cancellations !== "explicit" ||
+    m.realtime.delay_unit !== "seconds" ||
+    !m.realtime.publishes_delays
+  ) {
+    // A moment by which plenty has been announced.
+    const probe = 12 * 3600;
+    const feed = projectRealtime(world, operatorId, disruptions, m.realtime, probe);
+    const mine = new Set(resolution.tripToJourney.values());
+    const knownNow = disruptions.filter((d) => d.announcedAtS <= probe && mine.has(d.journeyId));
+    const knownStale = disruptions.filter(
+      (d) => d.announcedAtS <= probe - m.realtime.staleness_s && mine.has(d.journeyId),
+    );
+
+    if (m.realtime.staleness_s > 0) {
+      add(
+        "D-staleness",
+        knownNow.length > knownStale.length || feed.as_of !== probe,
+        `feed is stamped τ−${m.realtime.staleness_s}s, and hides ` +
+          `${knownNow.length - knownStale.length} disruption(s) that are already true`,
+      );
+    }
+
+    if (m.realtime.cancellations === "silent_drop") {
+      const cancelled = knownStale.filter((d) => d.kind === "cancellation");
+      const reported = feed.updates.filter((u) => u.status === "cancelled").length;
+      add(
+        "D-silent-cancellation",
+        reported === 0 && cancelled.length > 0,
+        `${cancelled.length} cancellations known, ${reported} reported — the trips ` +
+          `simply vanish from the feed`,
+      );
+    }
+
+    if (m.realtime.delay_unit === "minutes") {
+      const delayed = feed.updates.filter((u) => u.status === "delayed" && u.delay !== undefined);
+      const truth = new Map(knownStale.map((d) => [d.journeyId, d.delayS]));
+      const anyTruncated = delayed.some((u) => {
+        const journeyId = resolution.tripToJourney.get(u.trip_id);
+        const real = journeyId ? truth.get(journeyId) : undefined;
+        return real !== undefined && u.delay !== real;
+      });
+      add(
+        "C-delay-unit",
+        anyTruncated,
+        anyTruncated
+          ? `delays published in minutes, so the figure differs from the truth in seconds`
+          : "published delays match the underlying seconds",
+      );
+    }
+
+    if (!m.realtime.publishes_delays) {
+      const anyDelay = feed.updates.some((u) => u.status === "delayed");
+      add("D-no-delays", !anyDelay, anyDelay ? "delays are published" : "no delay is ever reported");
+    }
+  }
+
   return { findings };
 }
 
@@ -161,8 +227,11 @@ export function auditWorld(world: World, tau = 0): AuditReport {
   const declared = [...world.manifest.activeConflicts].sort();
   const findings: AuditFinding[] = [];
 
+  // The same day the run would see: disruptions come from the world seed.
+  const disruptions = generateDisruptions(world.journeys, world.manifest.seed);
+
   for (const op of world.manifest.operators) {
-    findings.push(...checkOperator(world, op.id, tau).findings);
+    findings.push(...checkOperator(world, op.id, tau, disruptions).findings);
   }
 
   // Cross-operator: bare integer ids from two operators must actually collide.

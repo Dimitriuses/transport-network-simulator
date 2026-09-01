@@ -322,13 +322,24 @@ export interface PlayerOptions {
    * the traveller falls back to the reference policy and the player is charged
    * for it (REFERENCE-POLICY.md §8).
    */
-  readonly mode?: "naive" | "null";
+  readonly mode?: "naive" | "null" | "blind";
+}
+
+interface Held {
+  travellerRef: string;
+  /** `${operator}:${trip}` for every transit leg this traveller depends on. */
+  trips: string[];
+  warned: boolean;
 }
 
 export function startPlayer(opts: PlayerOptions): Promise<Server> {
   let model: Model | null = null;
   let ready = false;
+  let operators: { id: string; base_url: string }[] = [];
   const mode = opts.mode ?? "naive";
+
+  // Itineraries this player has handed out, so it knows who to warn.
+  const held = new Map<string, Held>();
 
   // Ingestion. The brief says where the operators are and nothing else — not
   // their schemas, not their quality, and certainly not how their stops relate
@@ -340,6 +351,7 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
     const brief = (await (await fetch(`${opts.controlUrl}/v1/brief`)).json()) as {
       operators: { id: string; base_url: string }[];
     };
+    operators = brief.operators;
 
     const timetables: Timetable[] = [];
     for (const op of brief.operators) {
@@ -348,6 +360,56 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
 
     model = buildModel(timetables);
     ready = true;
+  };
+
+  /**
+   * Look at every operator's realtime feed and warn anyone whose plan is in
+   * trouble.
+   *
+   * Deliberately shallow, in the way a mediocre integrator is shallow: it
+   * believes what each feed says. It does not notice that one operator is five
+   * minutes behind, that another quietly drops cancelled trips rather than
+   * marking them, or that a third reports delays in whole minutes. Those are
+   * the things a real solution has to work out.
+   */
+  const pollRealtime = async (): Promise<void> => {
+    if (mode !== "naive") return;
+
+    const trouble = new Set<string>();
+    for (const op of operators) {
+      try {
+        const feed = (await (await fetch(`${op.base_url}/realtime`)).json()) as {
+          updates?: { trip_id: string; status: string; delay?: number }[];
+        };
+        for (const u of feed.updates ?? []) {
+          if (u.status === "cancelled" || (u.status === "delayed" && (u.delay ?? 0) > 0)) {
+            trouble.add(`${op.id}:${u.trip_id}`);
+          }
+        }
+      } catch {
+        // A feed that will not answer is one this player simply goes without.
+      }
+    }
+
+    for (const h of held.values()) {
+      if (h.warned) continue;
+      if (!h.trips.some((t) => trouble.has(t))) continue;
+      h.warned = true;
+      try {
+        await fetch(`${opts.controlUrl}/v1/notify`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            traveller_ref: h.travellerRef,
+            kind: "disruption",
+            message: "A service on your route is disrupted.",
+          }),
+        });
+      } catch {
+        // Dissemination is best-effort; a dropped warning is a silent failure
+        // and is scored as one.
+      }
+    }
   };
 
   const server = createServer((req, res) => {
@@ -364,7 +426,13 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
           version: VERSION,
           contract_versions: [CONTRACT_VERSION],
           // No `tick`: M1's timetable is static. No `notify`: no disruptions.
-          capabilities: ["plan"],
+          // A `blind` player never asks for ticks, so it never sees a
+          // realtime feed and can never warn anybody. It exists to show what
+          // the Information family measures: the floor is not "warns badly",
+          // it is "never looks".
+          capabilities:
+            mode === "naive" ? ["plan", "tick", "notify"] : ["plan"],
+          ...(mode === "naive" ? { tick: { interval_sim_s: 120 } } : {}),
         });
       }
 
@@ -373,6 +441,7 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
         const body = JSON.parse(await readBody(req)) as {
           requests: {
             request_id: string;
+            traveller_ref: string;
             origin: { lat: number; lon: number };
             destination: { lat: number; lon: number };
             depart_after: string;
@@ -388,15 +457,34 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
             return { request_id: r.request_id, status: "declined", itinerary: null };
           }
           const itinerary = plan(model!, r.origin, r.destination, r.depart_after);
-          return itinerary === null
-            ? { request_id: r.request_id, status: "no_route", itinerary: null }
-            : { request_id: r.request_id, status: "ok", itinerary };
+          if (itinerary === null) {
+            return { request_id: r.request_id, status: "no_route", itinerary: null };
+          }
+          // Remember what this traveller is relying on, so a later feed update
+          // can be matched back to somebody who needs telling.
+          held.set(r.traveller_ref, {
+            travellerRef: r.traveller_ref,
+            trips: itinerary.legs
+              .filter((l) => l["mode"] === "transit")
+              .map((l) => `${String(l["operator"])}:${String(l["trip"])}`),
+            warned: false,
+          });
+          return { request_id: r.request_id, status: "ok", itinerary };
         });
 
         return json(res, 200, { results });
       }
 
+      // Ingestion happens here, driven by the simulator's cadence. Polling
+      // faster would return identical bytes and cost quota: an operator's feed
+      // is a pure function of simulated time (PLAYER-CONTRACT.md §6.4).
+      if (req.method === "POST" && url.pathname === "/v1/tick") {
+        await pollRealtime();
+        return json(res, 200, { status: "ok" });
+      }
+
       if (req.method === "POST" && (url.pathname === "/v1/run-start" || url.pathname === "/v1/run-end")) {
+        if (url.pathname === "/v1/run-end") held.clear();
         return json(res, 200, { ok: true });
       }
 

@@ -22,3 +22,4 @@
 export const PACKAGE_NAME = "@tns/router";
 
 export * from "./raptor.ts";
+export * from "./execute.ts";

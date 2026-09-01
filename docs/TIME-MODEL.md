@@ -149,7 +149,11 @@ This is the fairness property, stated as a mechanism. The traveller acts at the 
 
 The symmetry is deliberate: an answered request and an unanswered one both resolve at `deadline`, one with an itinerary and one with the fallback.
 
-**OPEN.** An alternative is to land the answer at `issued_at + δ`, where `δ` is a *modelled* app-response delay drawn from the seeded RNG. Equally deterministic, slightly more lifelike, and it would let "the app is snappy" be part of the world rather than absent from it. I lean against — it adds a knob without adding a decision the player can influence — but it is a real option.
+**Decided at M4: answers land at the deadline. No modelled `δ`.**
+
+The alternative — landing at `issued_at + δ` for a seeded app-response delay — is equally deterministic and slightly more lifelike, but it adds a knob the player cannot influence. Worse, it would blur the one property this section exists to guarantee: that response speed cannot affect the world. A modelled delay is still a delay, and the first time somebody tried to reason about why a fast player scored differently they would have to rule it out.
+
+The lifelike version of this question is *operator* latency, not app latency, and that is §2.1's optional axis where it belongs.
 
 ### Does the deadline scale with acceleration?
 
@@ -281,7 +285,7 @@ The third line is the whole argument for keeping `virtual` the default.
 
 **Optional, default off:** modelled operator latency (§2.1) and controlled-hardware performance runs (§2.2). Both measure something real; neither is MVP.
 
-**Open items:** modelled response delay `δ` vs landing at the deadline (§4); free-running ingestion in `realtime` (§6); sub-second resolution (§8).
+**Open items:** free-running ingestion in `realtime` (§6); sub-second resolution (§8). The modelled response delay (§4) was closed at M4: answers land at the deadline.
 
 **Landed in `PLAYER-CONTRACT.md` v0.2:** `/v1/tick` with the `tick` capability, `interval_sim_s` and adaptive `next_interval_sim_s`; the §3 snapshot rule published as a player-facing guarantee (contract §6.4); `paused` in `/v1/clock` with FIFO queuing and `503` on overflow, `/v1/clock` exempt; `run.wall_budget_s` and `run.pause_queue_depth` in the brief; `time_mode`, `latency_mode` and `hardware_profile` in the run tuple.
 

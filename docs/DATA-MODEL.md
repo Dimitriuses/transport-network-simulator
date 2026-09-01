@@ -230,6 +230,10 @@ The builder emits nothing that has not passed:
 **Q34** — five validation gates, of which the defect audit is the one that protects difficulty calibration.
 **Q35** — operator documentation generated from the same schema source as behaviour, so divergence between them is deliberate.
 
-**Open:** trajectory in-bundle vs regenerated (§6); whether `latency: sim` should be promoted from optional to required, given §4's finding that a catalogue D defect depends on it.
+**Open:** trajectory in-bundle vs regenerated (§6).
+
+**Reviewed at M4 — `latency: sim` stays optional, for now.** §4 argued it should perhaps be promoted because non-atomic pagination depends on it. Revisiting with catalogue D actually implemented: the dependency is real but not yet *live*, because pagination is not implemented either. The operator APIs return whole feeds in one response, so there is no page boundary for inconsistency to appear across.
+
+The two must arrive together or neither is worth having. Deferred to whichever milestone implements pagination — at which point `latency: sim` is not optional for that world, because without it the defect it enables is silently absent and the defect audit would say so.
 
 **Next:** `PLAYER-CONTRACT.md` v0.2 has landed and publishes the snapshot rule as a player-facing guarantee (contract §6.4). L3 is where that rule is actually *enforced* — via the projection signature in §1 — and the operator API implementation is the first code that could violate it.

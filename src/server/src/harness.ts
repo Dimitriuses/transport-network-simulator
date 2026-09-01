@@ -11,10 +11,15 @@ import { createHash } from "node:crypto";
 import type { Server } from "node:http";
 import type { Itinerary, RunRecord, World } from "@tns/schema";
 import { renderSimTime, parseEpoch, CONTRACT_VERSION, SCORER_VERSION } from "@tns/schema";
-import { EventQueue, makeVirtualClock } from "@tns/core";
-import { buildIndex, route, type Access, type RouteResult } from "@tns/router";
+import { EventQueue, makeVirtualClock, generateDisruptions, DisruptionTable } from "@tns/core";
+import { buildIndex, route, executeReactively, type Access } from "@tns/router";
 import { projectOperator } from "@tns/projections";
-import { startControlApi, startOperatorApi, type OperatorCall } from "./apis.ts";
+import {
+  startControlApi,
+  startOperatorApi,
+  type NotificationRecord,
+  type OperatorCall,
+} from "./apis.ts";
 
 const RUN_ID = "m1-demo";
 /** Simulated seconds a traveller will wait for a plan before acting alone. */
@@ -30,18 +35,23 @@ export interface HarnessOptions {
   readonly controlPort: number;
 }
 
-interface PlanObligation {
-  readonly kind: "plan";
-  readonly queryId: string;
-  readonly travellerRef: string;
-  readonly requestId: string;
-}
+type Obligation =
+  | { kind: "plan"; queryId: string; travellerRef: string; requestId: string }
+  | { kind: "tick"; requestId: string };
 
 export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
   const { world } = opts;
   const anchor = parseEpoch(world.manifest.worldEpochIso);
-  const ix = buildIndex(world);
   const log: RunRecord[] = [];
+
+  // The day that actually happens. Drawn from the world seed, so it is the
+  // same day on every machine and for every player.
+  const disruptions = generateDisruptions(world.journeys, world.manifest.seed);
+  const table = new DisruptionTable(disruptions);
+
+  // P0 sees the day as it will be. Everyone else plans on the schedule.
+  const oracleIx = buildIndex(world, disruptions);
+  const scheduleIx = buildIndex(world);
 
   // ---- baselines ---------------------------------------------------------
   // P0 and P1 define the two ends of the capture scale (SCORING.md §2). They
@@ -54,17 +64,19 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
 
   const baselines = new Map<
     string,
-    { p0: number | null; p1: number | null; p1Result: RouteResult | null }
+    { p0: number | null; p1: number | null; p1Exec: ReturnType<typeof executeReactively> }
   >();
   for (const q of world.queries) {
     const o = accessFor(q.id, "origin");
     const d = accessFor(q.id, "destination");
-    const p0 = route(ix, o, d, q.departAfterS, "all");
-    const p1 = route(ix, o, d, q.departAfterS, "obvious");
+    const p0 = route(oracleIx, o, d, q.departAfterS, "all");
+    // P1 is *executed*, not merely planned: it discovers each failure by
+    // standing on a platform and replanning (REFERENCE-POLICY.md §4.3).
+    const p1 = executeReactively(world, scheduleIx, disruptions, o, d, q.departAfterS, "obvious");
     baselines.set(q.id, {
       p0: p0 ? p0.arriveS - q.departAfterS : null,
-      p1: p1 ? p1.arriveS - q.departAfterS : null,
-      p1Result: p1,
+      p1: p1.journeyS,
+      p1Exec: p1,
     });
   }
 
@@ -73,7 +85,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
   // so the run starts earlier than the earliest departure.
   const firstTau = Math.min(...world.queries.map((q) => q.departAfterS - PLAN_DEADLINE_S));
   const clock = makeVirtualClock(firstTau);
-  const queue = new EventQueue<PlanObligation>();
+  const queue = new EventQueue<Obligation>();
 
   for (const q of world.queries) {
     queue.push(q.departAfterS - PLAN_DEADLINE_S, {
@@ -86,6 +98,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
 
   let state: "preparation" | "running" | "paused" | "ended" = "preparation";
   const ingestion: (OperatorCall & { operator: string })[] = [];
+  const notifications: NotificationRecord[] = [];
 
   // One API per operator, on its own host and port. They know nothing about
   // each other.
@@ -99,15 +112,23 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       await startOperatorApi(
         world,
         op.id,
+        disruptions,
         () => clock.now(),
-        (call) => ingestion.push({ ...call, operator: op.id }),
+        (call: OperatorCall) => ingestion.push({ ...call, operator: op.id }),
         port,
       ),
     );
   }
 
   servers.push(
-    await startControlApi(world, () => clock.now(), () => state, operatorUrls, opts.controlPort),
+    await startControlApi(
+      world,
+      () => clock.now(),
+      () => state,
+      operatorUrls,
+      (n) => notifications.push(n),
+      opts.controlPort,
+    ),
   );
 
   try {
@@ -127,8 +148,23 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
 
     // ---- lifecycle -------------------------------------------------------
     await waitForHealth(opts.playerBaseUrl);
+    const identity = await readIdentity(opts.playerBaseUrl);
     await post(opts.playerBaseUrl, "/v1/run-start", { run_id: RUN_ID });
     state = "running";
+
+    // Ingestion cadence is simulator-driven. In `virtual` mode the clock
+    // outruns any player-side polling loop, so a player that slept between
+    // fetches would poll once for the whole day (TIME-MODEL.md §6).
+    const tickInterval = identity.capabilities.includes("tick")
+      ? Math.max(5, identity.tickIntervalS ?? 60)
+      : 0;
+    if (tickInterval > 0) {
+      const lastTau = Math.max(...world.queries.map((q) => q.departAfterS)) + 3600;
+      let n = 0;
+      for (let t = firstTau; t <= lastTau; t += tickInterval) {
+        queue.push(t, { kind: "tick", requestId: `tick-${String(n++).padStart(4, "0")}` });
+      }
+    }
 
     // ---- the run ---------------------------------------------------------
     // The resolution table, merged across operators. Private: it is how the
@@ -143,8 +179,37 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
 
       clock.advanceTo(next.tau);
       const issuedAt = clock.now();
+      // Bind once so the discriminant narrows across the early return below.
+      const ob = next.payload;
+
+      // Ticks come first at an equal instant, so the player is asked questions
+      // with the freshest data it could have had (PLAYER-CONTRACT.md §5.6).
+      if (ob.kind === "tick") {
+        clock.pause();
+        const t0 = Date.now();
+        const ok = await sendTick(opts.playerBaseUrl, {
+          contract_version: CONTRACT_VERSION,
+          run_id: RUN_ID,
+          sim_time: renderSimTime(anchor, issuedAt),
+          guard_wall_s: GUARD_WALL_S,
+        });
+        clock.resume();
+        log.push({
+          kind: "obligation",
+          obligation: "tick",
+          requestId: ob.requestId,
+          travellerRef: null,
+          issuedAt,
+          deadline: issuedAt,
+          outcome: ok ? "ok" : "player_error",
+          latencyMs: Date.now() - t0,
+          itinerary: null,
+        });
+        continue;
+      }
+
       const deadline = issuedAt + PLAN_DEADLINE_S;
-      const query = world.queries.find((q) => q.id === next.payload.queryId)!;
+      const query = world.queries.find((q) => q.id === ob.queryId)!;
 
       // The clock stops while the player thinks. Safe only because operator
       // responses are pure functions of τ (TIME-MODEL.md §3).
@@ -159,8 +224,8 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         guard_wall_s: GUARD_WALL_S,
         requests: [
           {
-            request_id: next.payload.requestId,
-            traveller_ref: next.payload.travellerRef,
+            request_id: ob.requestId,
+            traveller_ref: ob.travellerRef,
             origin: { lat: query.originLat, lon: query.originLon },
             destination: { lat: query.destLat, lon: query.destLon },
             depart_after: renderSimTime(anchor, query.departAfterS),
@@ -186,14 +251,14 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       // player is charged P1's outcomes *and* a forgone obligation.
       const forgone = answer.itinerary === null;
       const simulated = forgone
-        ? fallbackToReference(base.p1Result, query.departAfterS)
-        : simulateItinerary(world, resolution, anchor, answer.itinerary, query);
+        ? fallbackToReference(base.p1Exec)
+        : simulateItinerary(world, resolution, table, answer.itinerary, query);
 
       log.push({
         kind: "obligation",
         obligation: "plan",
-        requestId: next.payload.requestId,
-        travellerRef: next.payload.travellerRef,
+        requestId: ob.requestId,
+        travellerRef: ob.travellerRef,
         issuedAt,
         deadline,
         outcome: answer.outcome,
@@ -205,7 +270,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
 
       outcomes.push({
         kind: "traveller",
-        travellerRef: next.payload.travellerRef,
+        travellerRef: ob.travellerRef,
         queryId: query.id,
         departAfter: query.departAfterS,
         arrived: simulated.arrived,
@@ -216,6 +281,73 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         forgone,
         oracleJourneyS: base.p0,
         referenceJourneyS: base.p1,
+      });
+    }
+
+    // Who was materially affected, and by when they needed telling. Recorded
+    // here so the scorer never has to consult the world (SCORING.md §1).
+    const staleness = new Map(
+      world.manifest.operators.map((o) => [
+        o.id,
+        ((o.manifest as { realtime?: { staleness_s?: number } }).realtime?.staleness_s ?? 0),
+      ]),
+    );
+    const operatorOfJourney = new Map<string, string>();
+    {
+      const lineOfPattern = new Map(world.patterns.map((p) => [p.id, p.lineId]));
+      const opOfLine = new Map(world.lines.map((l) => [l.id, l.operator]));
+      for (const j of world.journeys) {
+        const line = lineOfPattern.get(j.patternId);
+        const op = line ? opOfLine.get(line) : undefined;
+        if (op) operatorOfJourney.set(j.id, op);
+      }
+    }
+
+    for (const rec of log.filter((r) => r.kind === "obligation" && r.obligation === "plan")) {
+      const o = rec as Extract<RunRecord, { kind: "obligation" }>;
+      if (!o.itinerary || !o.travellerRef) continue;
+
+      let previousDepart: number | null = null;
+      for (const leg of o.itinerary.legs) {
+        if (leg.mode !== "transit") continue;
+        const journeyId = resolution.tripToJourney.get(`${leg.operator}:${leg.trip}`);
+        const journey = journeyId ? world.journeys.find((j) => j.id === journeyId) : undefined;
+        if (!journeyId || !journey) continue;
+
+        const d = table.get(journeyId);
+        if (!d) {
+          previousDepart = journey.startS;
+          continue;
+        }
+
+        const sk = staleness.get(operatorOfJourney.get(journeyId) ?? "") ?? 0;
+        log.push({
+          kind: "material_event",
+          travellerRef: o.travellerRef,
+          journeyId,
+          disruption: d.kind,
+          announcedAtS: d.announcedAtS,
+          knowableAtS: d.announcedAtS + sk,
+          // Once aboard the previous leg the traveller is committed, so that
+          // departure is the deadline. If the *first* leg is the one that
+          // fails there is no previous leg, and the deadline is that service's
+          // own scheduled departure — up to which the traveller is still
+          // standing there able to do something else. Using the moment the
+          // plan was issued instead, as the first version did, demanded a
+          // warning before the player had even answered.
+          lastDecisionPointS: previousDepart ?? journey.startS,
+        });
+        break;
+      }
+    }
+
+    for (const n of notifications) {
+      log.push({
+        kind: "notification",
+        tau: n.tau,
+        travellerRef: n.travellerRef,
+        notificationKind: n.kind,
+        message: n.message,
       });
     }
 
@@ -298,6 +430,45 @@ async function waitForHealth(baseUrl: string): Promise<void> {
   throw new Error(`player at ${baseUrl} never became ready`);
 }
 
+interface PlayerIdentity {
+  readonly capabilities: readonly string[];
+  readonly tickIntervalS: number | null;
+}
+
+async function readIdentity(baseUrl: string): Promise<PlayerIdentity> {
+  try {
+    const res = await fetch(`${baseUrl}/v1/identity`);
+    const body = (await res.json()) as {
+      capabilities?: string[];
+      tick?: { interval_sim_s?: number };
+    };
+    return {
+      capabilities: body.capabilities ?? [],
+      tickIntervalS: body.tick?.interval_sim_s ?? null,
+    };
+  } catch {
+    return { capabilities: [], tickIntervalS: null };
+  }
+}
+
+async function sendTick(baseUrl: string, body: unknown): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), GUARD_WALL_S * 1000);
+  try {
+    const res = await fetch(`${baseUrl}/v1/tick`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function post(baseUrl: string, path: string, body: unknown): Promise<void> {
   try {
     await fetch(`${baseUrl}${path}`, {
@@ -364,22 +535,13 @@ interface Simulated {
  * run does not abort — robustness is measured, not punished by forfeit
  * (PLAYER-CONTRACT.md §8).
  */
-function fallbackToReference(p1: RouteResult | null, departAfterS: number): Simulated {
-  if (!p1) {
-    return {
-      arrived: false,
-      journeyS: null,
-      waitS: 0,
-      transfers: 0,
-      failureReason: "forgone_and_no_reference_route",
-    };
-  }
+function fallbackToReference(p1: ReturnType<typeof executeReactively>): Simulated {
   return {
-    arrived: true,
-    journeyS: p1.arriveS - departAfterS,
+    arrived: p1.arrived,
+    journeyS: p1.journeyS,
     waitS: p1.waitS,
     transfers: p1.transfers,
-    failureReason: "forgone_used_reference_policy",
+    failureReason: p1.arrived ? "forgone_used_reference_policy" : `forgone_and_${p1.failureReason}`,
   };
 }
 
@@ -399,7 +561,7 @@ function fallbackToReference(p1: RouteResult | null, departAfterS: number): Simu
 function simulateItinerary(
   world: World,
   resolution: MergedResolution,
-  _anchor: ReturnType<typeof parseEpoch>,
+  table: DisruptionTable,
   itinerary: Itinerary | null,
   query: { id: string; departAfterS: number },
 ): Simulated {
@@ -479,8 +641,12 @@ function simulateItinerary(
       cursor += walk;
     }
 
-    const departS = journey.startS + pattern.stops[boardIdx]!.departOffsetS;
-    const arriveS = journey.startS + pattern.stops[alightIdx]!.arriveOffsetS;
+    // What the world actually does, not what the timetable said.
+    if (table.isCancelled(journey.id)) return fail(`trip_cancelled:${leg.trip}`);
+    const delayS = table.actualDelayS(journey.id);
+
+    const departS = journey.startS + delayS + pattern.stops[boardIdx]!.departOffsetS;
+    const arriveS = journey.startS + delayS + pattern.stops[alightIdx]!.arriveOffsetS;
     if (departS < cursor) return fail("missed_departure");
 
     waitS += departS - cursor;

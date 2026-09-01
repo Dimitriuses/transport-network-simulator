@@ -172,7 +172,9 @@ The alternative — exempting scored travellers from capacity — is worse in a 
 
 The asymmetry is real and worth stating plainly rather than discovering later: **ghost riders are affected by the world without affecting it.** They experience crowding they did not contribute to. That is the price of reproducibility, and it is bounded — the scored query set is O(10³–10⁴) against a background population orders of magnitude larger, so the crowding they *would* have caused is small. It stops being negligible only at a large app-user fraction, and by then closed loop is in play (Phase 2), where riders are real and the question does not arise.
 
-**Not yet implemented:** capacity is not modelled at all until M4, which is when vehicle loads first exist. The decision is recorded now so the M4 implementation has an answer waiting rather than inventing one.
+**Not yet implemented, and the milestone was wrong.** The M2 decision assumed vehicle loads would first exist at M4. They do not. M4 brought delays, cancellations and the realtime feeds that report them — but *loads* require simulating a background population as individuals, and open loop does not have one: its population is the reference policy applied to a demand table, not a crowd occupying seats.
+
+Capacity therefore belongs with closed loop in **Phase 2**, where riders are real and their crowding is a genuine feedback effect rather than a number attached to a vehicle. The decision above stands unchanged; only its milestone moves.
 
 ---
 
