@@ -196,7 +196,7 @@ Contents:
 
 ### A bundle is named by its content, not its bytes
 
-*Found at M2, in CI, on the first run against a different machine.*
+*Found at P0M2, in CI, on the first run against a different machine.*
 
 **SQLite stamps its own version number into the database header** (offset 96). Two machines with different Python builds therefore produce byte-different files from byte-identical worlds. A CI job asserting `sha256sum` equality of the file fails immediately and says nothing useful.
 
@@ -232,7 +232,7 @@ The builder emits nothing that has not passed:
 
 **Open:** trajectory in-bundle vs regenerated (§6).
 
-**Reviewed at M4 — `latency: sim` stays optional, for now.** §4 argued it should perhaps be promoted because non-atomic pagination depends on it. Revisiting with catalogue D actually implemented: the dependency is real but not yet *live*, because pagination is not implemented either. The operator APIs return whole feeds in one response, so there is no page boundary for inconsistency to appear across.
+**Reviewed at P0M4 — `latency: sim` stays optional, for now.** §4 argued it should perhaps be promoted because non-atomic pagination depends on it. Revisiting with catalogue D actually implemented: the dependency is real but not yet *live*, because pagination is not implemented either. The operator APIs return whole feeds in one response, so there is no page boundary for inconsistency to appear across.
 
 The two must arrive together or neither is worth having. Deferred to whichever milestone implements pagination — at which point `latency: sim` is not optional for that world, because without it the defect it enables is silently absent and the defect audit would say so.
 

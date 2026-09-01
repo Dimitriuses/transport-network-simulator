@@ -466,7 +466,7 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
                 : NAME,
           version: VERSION,
           contract_versions: [CONTRACT_VERSION],
-          // No `tick`: M1's timetable is static. No `notify`: no disruptions.
+          // No `tick`: P0M1's timetable is static. No `notify`: no disruptions.
           // A `blind` player never asks for ticks, so it never sees a
           // realtime feed and can never warn anybody. It exists to show what
           // the Information family measures: the floor is not "warns badly",

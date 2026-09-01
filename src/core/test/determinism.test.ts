@@ -1,6 +1,6 @@
-// The M0 exit condition, as an executable test.
+// The P0M0 exit condition, as an executable test.
 //
-// ROADMAP.md M0: "a deliberate Math.random() added to src/core fails CI".
+// ROADMAP.md P0M0: "a deliberate Math.random() added to src/core fails CI".
 // This asserts that, and the other three determinism rules with it, by linting
 // a fixture that violates all four and checking ESLint rejects each one.
 //

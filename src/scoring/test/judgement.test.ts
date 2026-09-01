@@ -1,6 +1,6 @@
-// The M5 exit condition, as tests.
+// The P0M5 exit condition, as tests.
 //
-// ROADMAP.md M5: "a complete scorecard renders for a real run, and the
+// ROADMAP.md P0M5: "a complete scorecard renders for a real run, and the
 // information-set audit correctly flags a deliberately planted leak."
 
 import { test } from "node:test";

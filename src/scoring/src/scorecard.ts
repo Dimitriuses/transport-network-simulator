@@ -19,7 +19,7 @@ import { scoreInformation, type InformationScore } from "./information.ts";
 /**
  * How much more a traveller minds waiting than riding.
  *
- * *Decided at M5.* Transit practice conventionally values waiting at around
+ * *Decided at P0M5.* Transit practice conventionally values waiting at around
  * twice in-vehicle time, and adopting a published convention beats inventing
  * one. It is a parameter rather than a constant because a world can reasonably
  * disagree — sheltered interchanges are not draughty bus stops — but it is not
@@ -225,7 +225,7 @@ export function scoreRun(log: readonly RunRecord[], opts: ScoreOptions = {}): Sc
     verdict = "invalid";
     verdictReason = opts.invalidReason;
   } else if (impossibleTravellers.length > 0 || (capture !== null && capture > 1)) {
-    // *Decided at M5: quarantine, do not invalidate.* Hard-invalidating risks
+    // *Decided at P0M5: quarantine, do not invalidate.* Hard-invalidating risks
     // punishing a player for our bug — and during Phase 0 every single
     // occurrence of this signal was our bug, three times over. The run is
     // scored and withheld from comparison pending the information-set audit

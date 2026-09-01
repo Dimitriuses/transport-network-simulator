@@ -11,7 +11,7 @@ look like a real city:
     from the first milestone rather than bolted on later (DATA-MODEL.md §2);
   * two lines meeting at the *same* quay, needing no walk;
   * two lines meeting at *different* quays of the same Site, needing one;
-  * **and, from M2, a second operator whose quays sit ~80 m from the first's
+  * **and, from P0M2, a second operator whose quays sit ~80 m from the first's
     but in separate Sites.**
 
 That last one is the point of the second operator. A transfer there is
@@ -41,15 +41,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 # World epoch: the local midnight that simulated time counts from.
-# One day, no DST transition — M1 has no time defects (CORECONCEPT.md §2.1 B).
+# One day, no DST transition — P0M1 has no time defects (CORECONCEPT.md §2.1 B).
 WORLD_EPOCH_ISO = "2031-04-07T00:00:00+03:00"
 WORLD_TIMEZONE = "Europe/Kyiv"
 WORLD_UTC_OFFSET_S = 3 * 3600
 
-# Two operators from M2 onward. The second exists to create *headroom*: its
+# Two operators from P0M2 onward. The second exists to create *headroom*: its
 # quays sit near the first's but in separate Sites, so P0 can transfer between
 # them and P1 cannot (REFERENCE-POLICY.md §4.1). Their data does not yet
-# disagree — semantic conflicts arrive at M3.
+# disagree — semantic conflicts arrive at P0M3.
 # Each operator publishes the same city through its own manifest. The manifest
 # *is* the difficulty declaration: every non-default setting is a conflict from
 # the catalogue in CORECONCEPT.md §2.1, and the defect audit verifies each one
@@ -238,7 +238,7 @@ QUAYS: tuple[Quay, ...] = (
     Quay("t-riverside", "site-t-riverside", "Riverside tram stop", 50.4506, 30.5286),
     # Sudbahn Regional. Its quays sit inside Sites the other operators already
     # serve, so the same physical place ends up with three published
-    # identities — which is the point of M3.
+    # identities — which is the point of P0M3.
     # Two platforms at Central, one per line. Sudbahn publishes at Site
     # granularity, so both appear as a single stop — and a player boarding
     # "Central Square" is not told which platform the train leaves from.

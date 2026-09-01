@@ -6,7 +6,11 @@ Guidance for Claude Code and for anyone else working in this repository.
 
 A simulation game about integration engineering. A generated city, several independent transport operators whose data disagrees in deliberate and specific ways, and a player who must unify them. See [`README.md`](README.md).
 
-**Current state: specification complete; Phase 0 in progress.** M0 (scaffolding), M1 (the walking skeleton), M2 (oracle, baselines, three-gap calibration) M3 (semantic conflicts, the defect library, the audit gate) **Phase 0 is complete: M0–M6 done, and all three proof gates pass** (`npm run gates`). The next work is Phase 1 — generation — scoped in [`docs/PHASES.md`](docs/PHASES.md).
+**Current state: specification complete; Phase 0 in progress.** P0M0 (scaffolding), P0M1 (the walking skeleton), P0M2 (oracle, baselines, three-gap calibration) P0M3 (semantic conflicts, the defect library, the audit gate) **Phase 0 is complete: P0M0–P0M6 done, and all three proof gates pass** (`npm run gates`). The next work is **Phase 1 — generation**, broken into milestones in [`ROADMAP.md`](ROADMAP.md).
+
+Milestones are numbered `P<phase>M<milestone>`. [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md) records what each completed milestone delivered and, more usefully, what it corrected. [`docs/KNOWN-ISSUES.md`](docs/KNOWN-ISSUES.md) lists defects we know about — check it before reporting one, and add to it rather than leaving a problem undocumented.
+
+The single most important open item is that **fourteen of fifteen declared conflicts cost a solver nothing measurable**. P1M0 exists to find out which can be made to matter before any generator is built on them.
 
 `npm run demo` runs the whole loop; `npm run calibrate` reports the three-gap difficulty calibration; `npm run audit` checks every declared conflict is actually present; `npm run world:build` regenerates the world bundle (content-hashed, and CI checks it).
 
@@ -19,7 +23,7 @@ Nine documents in [`docs/`](docs/) describe the system. They are heavily cross-r
 * **Read the relevant spec before writing code that touches its area.** They contain reasoning, not just decisions, and the reasoning is usually why the obvious implementation is wrong.
 * **If code and spec disagree, that is a bug in one of them.** Say which, and fix that one. Do not silently make the code match a spec you think is wrong, and do not silently diverge.
 * **Each milestone ends by reconciling the specs it touched.** Part of the milestone, not cleanup afterwards.
-* Items marked **OPEN** are genuinely undecided. Do not resolve one by implementing a guess — raise it. `ROADMAP.md` lists the milestone by which each must be closed.
+* Items marked **OPEN** are genuinely undecided. Do not resolve one by implementing a guess — raise it. Things that are *wrong* rather than undecided belong in `docs/KNOWN-ISSUES.md`.
 
 ## Hard rules — determinism
 

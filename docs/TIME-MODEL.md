@@ -149,7 +149,7 @@ This is the fairness property, stated as a mechanism. The traveller acts at the 
 
 The symmetry is deliberate: an answered request and an unanswered one both resolve at `deadline`, one with an itinerary and one with the fallback.
 
-**Decided at M4: answers land at the deadline. No modelled `δ`.**
+**Decided at P0M4: answers land at the deadline. No modelled `δ`.**
 
 The alternative — landing at `issued_at + δ` for a seeded app-response delay — is equally deterministic and slightly more lifelike, but it adds a knob the player cannot influence. Worse, it would blur the one property this section exists to guarantee: that response speed cannot affect the world. A modelled delay is still a delay, and the first time somebody tried to reason about why a fast player scored differently they would have to rule it out.
 
@@ -167,7 +167,7 @@ Player response latency is measured in wall time and written to the run log for 
 
 In `virtual` mode it is inert: it affects nothing in the world and contributes nothing to the primary score. It is surfaced as a separate **performance profile** — p50/p95/p99 per obligation type, plus total wall time — because it is genuinely useful to the player and genuinely uninteresting as a measure of integration quality.
 
-**Consequence for the golden-trajectory test**, found while building M1: because latency is recorded in the run log and is by design different on every run and every machine, **the golden-trajectory hash must be computed over the deterministic subset of the log**, excluding every wall-clock diagnostic. Hashing the whole log makes the reproducibility test fail for the one reason that proves this section is working — and a test that fails constantly gets deleted. Anything later added to the log that derives from wall time must be excluded there too.
+**Consequence for the golden-trajectory test**, found while building P0M1: because latency is recorded in the run log and is by design different on every run and every machine, **the golden-trajectory hash must be computed over the deterministic subset of the log**, excluding every wall-clock diagnostic. Hashing the whole log makes the reproducibility test fail for the one reason that proves this section is working — and a test that fails constantly gets deleted. Anything later added to the log that derives from wall time must be excluded there too.
 
 In `realtime` and `scaled` it affects the world by construction, which is the entire point of those modes.
 
@@ -285,7 +285,7 @@ The third line is the whole argument for keeping `virtual` the default.
 
 **Optional, default off:** modelled operator latency (§2.1) and controlled-hardware performance runs (§2.2). Both measure something real; neither is MVP.
 
-**Open items:** free-running ingestion in `realtime` (§6); sub-second resolution (§8). The modelled response delay (§4) was closed at M4: answers land at the deadline.
+**Open items:** free-running ingestion in `realtime` (§6); sub-second resolution (§8). The modelled response delay (§4) was closed at P0M4: answers land at the deadline.
 
 **Landed in `PLAYER-CONTRACT.md` v0.2:** `/v1/tick` with the `tick` capability, `interval_sim_s` and adaptive `next_interval_sim_s`; the §3 snapshot rule published as a player-facing guarantee (contract §6.4); `paused` in `/v1/clock` with FIFO queuing and `503` on overflow, `/v1/clock` exempt; `run.wall_budget_s` and `run.pause_queue_depth` in the brief; `time_mode`, `latency_mode` and `hardware_profile` in the run tuple.
 

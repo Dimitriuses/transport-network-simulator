@@ -1,4 +1,4 @@
-"""M0 smoke test: the offline packages import and the toolchain runs."""
+"""P0M0 smoke test: the offline packages import and the toolchain runs."""
 
 from analysis import PACKAGE_NAME as analysis_name
 from validate import PACKAGE_NAME as validate_name

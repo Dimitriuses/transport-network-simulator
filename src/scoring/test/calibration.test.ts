@@ -19,8 +19,8 @@ test("no policy beats perfect information", { skip }, () => {
   const c = calibrate(loadWorld(worldPath));
 
   // The invariant that matters most, and the one that has been violated twice
-  // during development: once by a free access walk (M1), once by evaluating P2
-  // on its own merged model instead of against the world (M2).
+  // during development: once by a free access walk (P0M1), once by evaluating P2
+  // on its own merged model instead of against the world (P0M2).
   for (const g of c.perQuery) {
     if (g.p0 === null) continue;
     if (g.p1 !== null) {
@@ -49,10 +49,10 @@ test("this world has headroom for a player to compete for", { skip }, () => {
 test("the conflicts are doing real work", { skip }, () => {
   const c = calibrate(loadWorld(worldPath));
 
-  // This assertion is the inverse of the one it replaced. At M2 the world
+  // This assertion is the inverse of the one it replaced. At P0M2 the world
   // declared no conflicts, a coordinate-threshold matcher reconciled it
   // perfectly, and the test asserted `gapP0P2 < 60` — with a note saying that
-  // when M3 landed it should fail and be replaced by its opposite. It did.
+  // when P0M3 landed it should fail and be replaced by its opposite. It did.
   //
   // The share, not the absolute gap, is the instrument: an absolute minute
   // count says nothing without knowing how much headroom existed to lose.

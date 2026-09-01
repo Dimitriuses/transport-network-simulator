@@ -165,7 +165,7 @@ Applied to `PLAYER-CONTRACT.md`.
 
 `trace` is the default because it costs about 2 MB over the minimum and provides the entire narrative in §2.
 
-**`verbatim` is capped at 250 MB, and the cap is enforced rather than advised.** *Decided at M6.* On reaching it the run keeps writing at `trace` level and records that it downgraded, rather than truncating — a truncated verbatim log is worse than a complete trace log, because it looks complete until the moment you need the part that is missing.
+**`verbatim` is capped at 250 MB, and the cap is enforced rather than advised.** *Decided at P0M6.* On reaching it the run keeps writing at `trace` level and records that it downgraded, rather than truncating — a truncated verbatim log is worse than a complete trace log, because it looks complete until the moment you need the part that is missing.
 
 The number is chosen to be roughly a short demo run and unambiguously not a full day: at ~200 KB per operator response, 250 MB is around 1,250 fetches. If you are hitting it, `verbatim` is the wrong level for what you are doing — the whole point of the snapshot rule is that bodies are regenerable, so `trace` plus a replay gives you the same bytes on demand (§4).
 
@@ -180,7 +180,7 @@ A trace contains ground truth: which conflicts fired, what the world's real stat
 * **Training / sandbox** — disclose fully. This is precisely the feedback that makes the project educational, and it is the strongest argument for building tracing at all.
 * **Assessment / benchmark** — a full trace of one run leaks a great deal about the world. Across several runs on the same seed it would substantially reconstruct the answer key.
 
-**Decided at M6.** Disclosure is a run-configuration setting with three levels, because a binary was the wrong shape — the attribution report genuinely sits on both sides of the line.
+**Decided at P0M6.** Disclosure is a run-configuration setting with three levels, because a binary was the wrong shape — the attribution report genuinely sits on both sides of the line.
 
 | Level | The player sees | For |
 |---|---|---|
@@ -214,6 +214,6 @@ Tooling, not specification. Worth deferring until the simulator runs, then worth
 * **The size concern: 13.7 MB rather than 3.4 GB**, because the snapshot rule makes response bodies regenerable and determinism makes trajectories regenerable. *Log inputs and decisions, never derived state.*
 * A mechanical procedure for diagnosing `capture > 1` — the information-set audit — that most often catches our own projection bugs.
 
-**Open:** none. Both closed at M6 — three disclosure levels rather than two (§8), and a 250 MB enforced cap that downgrades rather than truncates (§7).
+**Open:** none. Both closed at P0M6 — three disclosure levels rather than two (§8), and a 250 MB enforced cap that downgrades rather than truncates (§7).
 
 **Contract impact:** v0.3, additive, applied.

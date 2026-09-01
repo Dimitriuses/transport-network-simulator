@@ -75,7 +75,9 @@ Read in this order. Each is a draft; each marks its own open questions with **OP
 | [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) | Per-traveller causal tracing, and forensics on impossible scores |
 | [`docs/PLAYING.md`](docs/PLAYING.md) | **Building a solution.** Start here if you want to play |
 | [`docs/PHASES.md`](docs/PHASES.md) | The long arc: Phase 0 (MVP) through Phase 5, and Phase 0's result |
-| [`ROADMAP.md`](ROADMAP.md) | Milestones for the phase currently being built |
+| [`ROADMAP.md`](ROADMAP.md) | Work still to do — the current phase, broken into milestones |
+| [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md) | What has been built, and what each milestone taught us |
+| [`docs/KNOWN-ISSUES.md`](docs/KNOWN-ISSUES.md) | Defects and gaps we know about and have not fixed |
 | [`docs/GLOSSARY.md`](docs/GLOSSARY.md) | Shared vocabulary. Useful early, and useful when a term looks familiar but is being used precisely |
 | [`docs/LICENSING-NOTES.md`](docs/LICENSING-NOTES.md) | Why MIT, and why OpenStreetMap data stays out of the repository |
 
@@ -84,7 +86,7 @@ Two words are easy to confuse, and they mean different things:
 * **Tier** — how hard a *world* is for the player. Tiers 0–5, defined in `CORECONCEPT.md` §7. Appears in the run brief.
 * **Phase** — how far the *project* has been built. Phases 0–5, defined in `docs/PHASES.md`.
 
-Phase 0 delivers a Tier-2 world.
+Phase 0 delivered a Tier-2 world. Milestones are numbered **`P<phase>M<milestone>`**, so `P1M2` is the third milestone of Phase 1.
 
 ---
 
@@ -112,7 +114,7 @@ The specs describe the finished system. Phase 0 builds a deliberately small subs
 | `realtime` / `scaled` modes, `latency: sim` / `wall` | Phase 2–3 |
 | Monitoring UI, map replay, visualisation | Phase 2 |
 | Tiers 3–5, `single_operator_rt`, `habitual` | Phase 3 |
-| Counterfactual ablation | M5 (attribution stage 1 before that) |
+| Counterfactual ablation | P0M5 (attribution stage 1 before that) |
 | Hosted anything, sandboxing, leaderboards | Phase 4 |
 
 The target is **one hand-built Tier-2 world**: three operators, semantically divergent hand-written schemas, static timetables plus simple delays, open loop, a fixed query set, a scorecard.
@@ -168,7 +170,7 @@ Python keeps the offline pipeline: OSM extraction, world building, validation, a
 
 **Python** — `uv`, `ruff`, `pytest`. Consumes JSON Schema emitted by `src/schema` and validates on write.
 
-**CI** — lint, typecheck, tests, and the golden-trajectory hash from M4 onward.
+**CI** — lint, typecheck, tests, and the golden-trajectory hash from P0M4 onward.
 
 Four lint rules are load-bearing rather than stylistic, and are enforced in `src/core` and `src/router`. They exist because determinism is a hard requirement; see [`CLAUDE.md`](CLAUDE.md).
 

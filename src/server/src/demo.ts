@@ -1,8 +1,8 @@
-// M1 walking skeleton: build → simulate → call a player → score.
+// P0M1 walking skeleton: build → simulate → call a player → score.
 //
 //   npm run demo
 //
-// ROADMAP.md M1: "builds the world, runs the simulation, calls a player and
+// ROADMAP.md P0M1: "builds the world, runs the simulation, calls a player and
 // prints a score. Twice, with identical output."
 //
 // The player runs as a *separate process*. That matters: it means the seam

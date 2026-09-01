@@ -6,8 +6,8 @@
 // This is the floor a real solution must beat, and a smoke test for the
 // simulator. It is deliberately naive — it fetches the timetable once, builds a
 // crude index, and runs a two-round earliest-arrival search. It does no
-// reconciliation, because at M1 there is only one operator and nothing to
-// reconcile; that is exactly what makes M1 a walking skeleton rather than the
+// reconciliation, because at P0M1 there is only one operator and nothing to
+// reconcile; that is exactly what makes P0M1 a walking skeleton rather than the
 // game.
 //
 // Note what it does *not* get: canonical identifiers. It sees only what the

@@ -3,7 +3,7 @@
 //   node src/schema/scripts/generate-openapi.ts           write
 //   node src/schema/scripts/generate-openapi.ts --check   verify, exit 1 on drift
 //
-// ROADMAP.md M0 settles where generated API documents live:
+// ROADMAP.md P0M0 settles where generated API documents live:
 //
 //   contract/player-api.yaml, contract/control-api.yaml
 //       Repository artefacts. One per contract version, identical for every
@@ -38,7 +38,7 @@ const GENERATED_HEADER =
   "#\n" +
   "# Source: src/schema (Zod definitions).\n" +
   "# Regenerate: npm run contract:generate\n" +
-  "# CI asserts this file matches its source; see ROADMAP.md M0.\n";
+  "# CI asserts this file matches its source; see ROADMAP.md P0M0.\n";
 
 /** Zod schemas rendered into components/schemas, keyed by their `id`. */
 const COMPONENTS = { Identity, Health, Problem };

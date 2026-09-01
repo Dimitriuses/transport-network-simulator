@@ -5,7 +5,7 @@
 // after the arrival time there, and relaxes every downstream quay. Between
 // rounds, walk transfers are applied.
 //
-// Deliberately the plain textbook form: M1's network is 20 quays and ~300
+// Deliberately the plain textbook form: P0M1's network is 20 quays and ~300
 // journeys, and the interesting engineering is elsewhere. Optimisation waits
 // for a measurement (CLAUDE.md).
 

@@ -7,7 +7,7 @@
 // still mandatory (benchmarks/README.md, TECHNICAL-RESEARCH.md §11).
 //
 // Struct-of-arrays over TypedArrays is the measured-faster representation for
-// the hot path, but M1's event volume is trivial. This deliberately stays a
+// the hot path, but P0M1's event volume is trivial. This deliberately stays a
 // plain readable heap until there is a measurement saying otherwise — the
 // benchmark exists precisely so that switch can be made on evidence.
 

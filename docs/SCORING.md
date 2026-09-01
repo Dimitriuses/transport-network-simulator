@@ -80,11 +80,11 @@ Per scored traveller, captured against P0 and P1:
 
 **Non-arrival dominates.** A traveller who never reaches their destination is not a slow journey; it is a different category of failure. Non-arrivals are reported as a separate rate *and* enter the Service capture at a heavy fixed cost, so that a solution cannot buy a good mean journey time by stranding the difficult cases.
 
-**Wait counts double.** *Decided at M5.* Transit practice conventionally values waiting at around twice in-vehicle time, and adopting a published convention beats inventing one. Capture is therefore computed on **generalised time** — `journey + (w − 1) × wait`, with `w = 2` — not on raw door-to-door minutes.
+**Wait counts double.** *Decided at P0M5.* Transit practice conventionally values waiting at around twice in-vehicle time, and adopting a published convention beats inventing one. Capture is therefore computed on **generalised time** — `journey + (w − 1) × wait`, with `w = 2` — not on raw door-to-door minutes.
 
 This matters more than it sounds. On raw totals, a solution that trades two minutes of extra riding for eight minutes less standing on a platform looks *worse*. That is exactly the trade a good journey planner makes, and a metric that punishes it would be steering solutions away from the behaviour the project exists to reward.
 
-The scorecard still reports **raw** minutes for a human to read, because generalised minutes are a number nobody experiences. The two bases must be computed over the same population — mixing them was a bug during M5, caught by a test asserting the null player scores exactly 0.0.
+The scorecard still reports **raw** minutes for a human to read, because generalised minutes are a number nobody experiences. The two bases must be computed over the same population — mixing them was a bug during P0M5, caught by a test asserting the null player scores exactly 0.0.
 
 ---
 
@@ -114,7 +114,7 @@ That bound matters. Without it, the Information score would partly measure the w
 
 ### Reporting
 
-Four numbers, reported individually and combined. **Decided at M5:**
+Four numbers, reported individually and combined. **Decided at P0M5:**
 
 ```
 score = F1(recall, precision) × (0.5 + 0.5 × timeliness)
@@ -213,7 +213,7 @@ capture lost: 0.34
 
 That is the difference between "you scored 0.66" and "you scored 0.66, and here is the specific thing to fix first." For the training and assessment positioning in `CORECONCEPT.md`, it is arguably more valuable than the score.
 
-**Ablation is opt-in.** *Decided at M5.* Stage one — attributing lost capture to events — is bookkeeping over the run log, costs nothing, and is always on; it already names causes like *"did not arrive: origin unreachable"* against a capture figure. Stage two costs one extra evaluation per declared conflict, and the M4 world declares fifteen. At Tier 5 that will be far more.
+**Ablation is opt-in.** *Decided at P0M5.* Stage one — attributing lost capture to events — is bookkeeping over the run log, costs nothing, and is always on; it already names causes like *"did not arrive: origin unreachable"* against a capture figure. Stage two costs one extra evaluation per declared conflict, and the P0M4 world declares fifteen. At Tier 5 that will be far more.
 
 Making it standard would mean every routine run paying for an analysis almost nobody reads. It is a `--ablate` flag on the scorer, and the natural time to reach for it is when stage one says *where* the capture went and you want to know *which conflict* put it there.
 
@@ -235,15 +235,15 @@ Each known vector and its structural answer:
 
 The last row is the most useful, because it catches leaks nobody anticipated.
 
-**Quarantine, do not invalidate.** *Decided at M5, on evidence.* The run is scored, marked `quarantined`, and withheld from comparison pending the information-set audit.
+**Quarantine, do not invalidate.** *Decided at P0M5, on evidence.* The run is scored, marked `quarantined`, and withheld from comparison pending the information-set audit.
 
-The evidence is Phase 0 itself: this signal fired three times during construction, and **every single time it was our bug, not a player's** — a free access walk at M1, an imagined zero-cost transfer at M2, a cancelled service ridden anyway at M4. A rule that hard-invalidated would have thrown away three legitimate runs and told us nothing about why. Quarantine keeps the number for diagnosis and keeps it off the leaderboard, which is what both parties actually need.
+The evidence is Phase 0 itself: this signal fired three times during construction, and **every single time it was our bug, not a player's** — a free access walk at P0M1, an imagined zero-cost transfer at P0M2, a cancelled service ridden anyway at P0M4. A rule that hard-invalidated would have thrown away three legitimate runs and told us nothing about why. Quarantine keeps the number for diagnosis and keeps it off the leaderboard, which is what both parties actually need.
 
 ### `capture > 1` is not sufficient on its own
 
-Found while building M1. `capture` is a *ratio*, and its denominator is the headroom `m(P1) − m(P0)`. Where that headroom is zero or near-zero, the ratio cannot be formed and **the leak detector is silently blind** — which is exactly the situation in a low-tier world, a world with one operator, or any world whose declared conflicts turn out not to bite.
+Found while building P0M1. `capture` is a *ratio*, and its denominator is the headroom `m(P1) − m(P0)`. Where that headroom is zero or near-zero, the ratio cannot be formed and **the leak detector is silently blind** — which is exactly the situation in a low-tier world, a world with one operator, or any world whose declared conflicts turn out not to bite.
 
-M1 hit this for real: a simulator bug let players begin their journey at whichever quay they chose to board, skipping the walk from the origin. The reference player beat the oracle on seven of ten queries. `capture > 1` could not fire, because P1 and P0 coincided.
+P0M1 hit this for real: a simulator bug let players begin their journey at whichever quay they chose to board, skipping the walk from the origin. The reference player beat the oracle on seven of ten queries. `capture > 1` could not fire, because P1 and P0 coincided.
 
 **The companion invariant, which holds regardless of headroom:**
 
@@ -307,6 +307,6 @@ The non-arrival line is doing exactly what §4 intends: three stranded traveller
 **Q18** — initial world only.
 **Q19** — yes: record player responses, replay post hoc.
 
-**Open:** none. All four were closed at M5 — wait weighting (§4), the Information combination (§5), ablation as opt-in (§10), and quarantine-not-invalidate on `capture > 1` (§11).
+**Open:** none. All four were closed at P0M5 — wait weighting (§4), the Information combination (§5), ablation as opt-in (§10), and quarantine-not-invalidate on `capture > 1` (§11).
 
 **With this drafted, every question in `CORECONCEPT.md` §9 has a drafted answer except the platform and packaging questions Q39–Q40 and Q43–Q44**, which are product decisions that do not block building. The specifications are ready to become executable: OpenAPI documents and a conformance suite from the schema source in `DATA-MODEL.md` §5.

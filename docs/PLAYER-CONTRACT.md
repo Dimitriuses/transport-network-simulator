@@ -127,7 +127,7 @@ Channels 1 and 3 make the player an HTTP **client**; channel 2 makes it an HTTP 
 
 **The preparation phase is not optional.** Without it every solution is penalised for cold ingestion latency, which is a property of the world's size rather than of the solution's quality. The brief declares `preparation.wall_budget_s`; the simulated clock does not advance during it.
 
-**Preparation is free, and bounded rather than scored.** *Decided at M2.*
+**Preparation is free, and bounded rather than scored.** *Decided at P0M2.*
 
 Preparation cost is dominated by the size of the world, which the player does not choose. Scoring it would penalise a solution for facing a bigger city — measuring the world rather than the work. The `preparation.wall_budget_s` cap already prevents abuse: a player cannot buy an advantage with unlimited preparation, it simply must finish.
 
@@ -298,7 +298,7 @@ The single machine-readable entry point, and the answer to **Q41/Q42**: what a h
 
 The brief states *where* the operators are and how to authenticate. It says **nothing** about their schemas, their quality, or how their data relates. Discovering that is the game.
 
-**`docs_url` is always present.** *Decided at M3.*
+**`docs_url` is always present.** *Decided at P0M3.*
 
 Withholding it would make finding the endpoint part of the challenge, and that is a different — worse — game. The difficulty of this project lives in the *data*: what an identifier denotes, where a stop really is, what instant a timestamp means. None of that becomes more interesting if the player also has to guess a URL. It would also break the agent-benchmark use case outright, where an agent with no documentation is being tested on endpoint enumeration rather than on integration.
 
@@ -395,7 +395,7 @@ An itinerary the simulator cannot resolve — unknown operator, a stop that oper
 
 **Access legs are charged whether or not the player mentions them.** An itinerary names transit legs and the transfers between them; it does not have to describe the walk from the traveller's origin to the first boarding point, or from the last alighting point to their destination. The simulator supplies and charges for both, and rejects an itinerary whose first boarding quay is not reachable from the origin at all.
 
-This is not a detail. M1 shipped without it, and the consequence was that a journey silently began wherever the player chose to board — a free teleport of up to the full walking radius, at both ends. The reference player beat a perfectly-informed planner on seven queries out of ten. Anything a traveller physically does costs time, including the parts the player did not think to mention.
+This is not a detail. P0M1 shipped without it, and the consequence was that a journey silently began wherever the player chose to board — a free teleport of up to the full walking radius, at both ends. The reference player beat a perfectly-informed planner on seven queries out of ten. Anything a traveller physically does costs time, including the parts the player did not think to mention.
 
 ### Time representation
 
@@ -503,7 +503,7 @@ Had the player polled at a 300-second cadence instead of 30, it would have found
 
 **Materially advanced:** Q37–Q38 (local, no sandbox), Q41–Q42 (the brief).
 
-**OPEN items:** whether `docs_url` is always present (§6.1); free-running ingestion between ticks in `realtime` (§5.6). Preparation cost (§4) was closed at M2: free, bounded, revisited as *recovery* in Phase 3.
+**OPEN items:** whether `docs_url` is always present (§6.1); free-running ingestion between ticks in `realtime` (§5.6). Preparation cost (§4) was closed at P0M2: free, bounded, revisited as *recovery* in Phase 3.
 
 **Untouched — and next:** Q29, the open-loop reference policy. How simulated travellers decide without the player determines the fallback behaviour referenced throughout §8, and the MVP needs it because the MVP is open-loop.
 

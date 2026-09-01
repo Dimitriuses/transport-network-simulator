@@ -14,7 +14,7 @@ These are the easiest things in the project to confuse.
 
 **Phase** — how far the *project* has been built. Phases 0–5, from the MVP to procedural city generation. **Phase 0 delivers a Tier-2 world.** *(`PHASES.md`)*
 
-**Milestone** — a step within the current phase. M0–M6 for Phase 0. *(`ROADMAP.md`)*
+**Milestone** — a step within the current phase. P0M0–P0M6 for Phase 0. *(`ROADMAP.md`)*
 
 ---
 

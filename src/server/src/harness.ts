@@ -2,7 +2,7 @@
 //
 // Specification: PLAYER-CONTRACT.md §4, §5, §8, §9; TIME-MODEL.md §3, §4.
 //
-// This is the architectural seam M1 exists to prove. The simulation core is
+// This is the architectural seam P0M1 exists to prove. The simulation core is
 // synchronous and forbidden from touching the wall clock or the network; the
 // harness around it does all the I/O, pauses the clock while the player is
 // thinking, and applies each answer at a deterministic simulated instant.
@@ -617,7 +617,7 @@ function fallbackToReference(p1: ReturnType<typeof executeReactively>): Simulate
  * either end that the player's itinerary does not mention. Without that, a
  * player's journey silently begins at whichever quay it chose to board — a free
  * teleport from the origin — and it can beat the oracle, which is impossible.
- * M1 found exactly that on its first run.
+ * P0M1 found exactly that on its first run.
  */
 function simulateItinerary(
   world: World,

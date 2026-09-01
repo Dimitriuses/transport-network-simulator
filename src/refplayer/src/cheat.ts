@@ -6,7 +6,7 @@
 // the point.
 //
 // It exists so the information-set audit has a known leak to catch
-// (OBSERVABILITY.md §5, ROADMAP.md M5 exit condition). An audit that has never
+// (OBSERVABILITY.md §5, ROADMAP.md P0M5 exit condition). An audit that has never
 // been shown to fire on a real violation is an assertion, not a check.
 
 import { loadWorld, generateDisruptions } from "@tns/core";

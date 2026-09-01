@@ -45,7 +45,7 @@ No generation of anything. No closed loop. No UI beyond logs and a static map re
 
 Mechanical, and independent of whether the game is any good:
 
-1. All six roadmap milestones (M0–M6) meet their exit conditions.
+1. All six roadmap milestones (P0M0–P0M6) meet their exit conditions.
 2. The golden-trajectory hash test passes in CI — the same seed produces a byte-identical event log across runs and machines.
 3. All five world-validation gates pass (`DATA-MODEL.md` §7), including the defect audit confirming every declared conflict is actually present in the projections.
 4. The reference player completes a scored run without the simulator crashing, hanging, or producing an `invalid` result.

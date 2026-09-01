@@ -2,7 +2,7 @@
 #
 # Source: src/schema (Zod definitions).
 # Regenerate: npm run contract:generate
-# CI asserts this file matches its source; see ROADMAP.md M0.
+# CI asserts this file matches its source; see ROADMAP.md P0M0.
 
 openapi: 3.1.0
 info:

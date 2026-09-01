@@ -114,7 +114,7 @@ export interface WorldManifest {
   readonly contentHash: string;
   readonly walkSpeedMps: number;
   readonly maxWalkM: number;
-  /** Declared semantic conflicts. Empty at M1 — see CORECONCEPT.md §2.1. */
+  /** Declared semantic conflicts. Empty at P0M1 — see CORECONCEPT.md §2.1. */
   readonly activeConflicts: readonly string[];
 }
 

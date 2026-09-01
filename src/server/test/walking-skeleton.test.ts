@@ -1,6 +1,6 @@
-// The M1 exit condition, as an executable test.
+// The P0M1 exit condition, as an executable test.
 //
-// ROADMAP.md M1: "builds the world, runs the simulation, calls a player and
+// ROADMAP.md P0M1: "builds the world, runs the simulation, calls a player and
 // prints a score. Twice, with identical output."
 
 import { test } from "node:test";
@@ -113,9 +113,9 @@ test("a naive player is now actively harmful", { skip }, async () => {
   const log = await runOnce({ operator: 9270, control: 9279, player: 8270 });
   const card = scoreRun(log);
 
-  // At M2 this test asserted `capture > 0` — a naive player still helped,
+  // At P0M2 this test asserted `capture > 0` — a naive player still helped,
   // because a coordinate matcher reconciled a conflict-free world perfectly.
-  // M3 declared real conflicts and the same player went **negative**: it now
+  // P0M3 declared real conflicts and the same player went **negative**: it now
   // routes travellers into journeys worse than they would have found alone.
   //
   // That is the negative region of the capture scale doing exactly what
@@ -125,7 +125,7 @@ test("a naive player is now actively harmful", { skip }, async () => {
   assert.ok(
     card.service.capture! < 0,
     `naive player captured ${card.service.capture} — it is still helping, so the ` +
-      `conflicts are not biting the way M3 intends`,
+      `conflicts are not biting the way P0M3 intends`,
   );
   assert.ok(card.service.capture! < 1, `naive player matched the oracle (${card.service.capture})`);
 });

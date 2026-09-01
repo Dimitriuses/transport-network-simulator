@@ -1,6 +1,6 @@
 // The golden trajectory.
 //
-// ROADMAP.md M4 exit condition. TECHNICAL-RESEARCH.md §4: regenerate a known
+// ROADMAP.md P0M4 exit condition. TECHNICAL-RESEARCH.md §4: regenerate a known
 // seed and compare a hash of the event log, so any unintended change to the
 // engine breaks the build immediately rather than surfacing much later as
 // scores that no longer reproduce.
