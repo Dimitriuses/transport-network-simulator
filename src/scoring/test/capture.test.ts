@@ -14,6 +14,7 @@ const header: RunRecord = {
   kind: "run_header",
   runId: "t",
   worldSeed: 1,
+  worldContentHash: "test",
   engineVersion: "0",
   scorerVersion: "0",
   contractVersion: "0.3",

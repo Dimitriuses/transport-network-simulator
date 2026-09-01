@@ -58,16 +58,14 @@ jobs:
 
       - run: npm ci
 
-      # The world build is byte-deterministic, so a rebuild must reproduce the
-      # committed bundle exactly. This catches non-determinism creeping into
-      # the offline pipeline — where it would be invisible until scores stopped
-      # reproducing across machines.
+      # A rebuild must reproduce the committed world's *content*. Not its
+      # bytes: SQLite stamps its own version number into the database header,
+      # so a runner on a different Python build produces a byte-different file
+      # from an identical world. Comparing content is both the correct
+      # invariant and the one that actually matters — a world that does not
+      # rebuild identically makes runs incomparable across machines.
       - name: World bundle rebuilds identically
-        run: |
-          set -e
-          sha256sum worlds/m1.world.db > /tmp/committed.sha
-          (cd tools && uv sync && uv run python -m worldbuild)
-          sha256sum -c /tmp/committed.sha
+        run: cd tools && uv sync && uv run python -m worldbuild --verify
 
       # ROADMAP.md M1: builds the world, runs the simulation, calls a player
       # (as a separate process, over HTTP) and prints a score — twice, with

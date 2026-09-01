@@ -188,11 +188,24 @@ Contents:
 
 | | |
 |---|---|
-| `manifest` | seed, engine version, tier, active conflicts, operator manifests |
+| `manifest` | seed, engine version, tier, active conflicts, operator manifests, **content hash** |
 | L1 tables | sites, quays, lines, patterns, journeys, calendars, demand |
 | `resolution` | `(operator, published_id) → canonical` — private |
-| binary blobs | precomputed distance matrices as `Float64` |
+| distances | precomputed walking distances as **integer metres** |
 | `queries` | the fixed open-loop scored query set |
+
+### A bundle is named by its content, not its bytes
+
+*Found at M2, in CI, on the first run against a different machine.*
+
+**SQLite stamps its own version number into the database header** (offset 96). Two machines with different Python builds therefore produce byte-different files from byte-identical worlds. A CI job asserting `sha256sum` equality of the file fails immediately and says nothing useful.
+
+The invariant that matters is over the **logical rows**, so the bundle carries a `content_hash`: a SHA-256 over a canonical serialisation of every table, in fixed table order, rows sorted by primary key, floats rendered by shortest-round-trip repr. It is verified by `python -m worldbuild --verify`, which rebuilds into a temporary file and compares hashes.
+
+Two consequences worth keeping:
+
+* **The hash names a world independently of its container.** It belongs in the run identity alongside `world_seed`, and a `VACUUM` — which rewrites every page — leaves it unchanged. That is the property being asserted, and there is a test for exactly that.
+* **Distances are integers.** See `TECHNICAL-RESEARCH.md` §11: the offline haversine goes through the platform libm, which is not identical across operating systems. Rounding to whole metres removes every libm-produced float from the bundle, leaving only source-literal coordinates and derived integers.
 
 **OPEN:** whether the pre-recorded open-loop trajectory lives in the bundle or is regenerated from the seed. `TECHNICAL-RESEARCH.md` §4 recommended seed-as-canonical with the trajectory as a cache; that still seems right, but bundle size has not been estimated.
 

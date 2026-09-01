@@ -17,6 +17,8 @@ export interface RunHeader {
   readonly kind: "run_header";
   readonly runId: string;
   readonly worldSeed: number;
+  /** Names the world independently of its SQLite container. */
+  readonly worldContentHash: string;
   readonly engineVersion: string;
   readonly scorerVersion: string;
   readonly contractVersion: string;

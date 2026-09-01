@@ -16,6 +16,7 @@ import sqlite3
 from pathlib import Path
 
 from . import city
+from .content_hash import content_hash
 
 ENGINE_VERSION = "0.1.0"
 SCHEMA_VERSION = 1
@@ -71,10 +72,17 @@ CREATE TABLE journeys (
 
 -- Precomputed walking distances between quays within MAX_WALK_M. Computed
 -- here because the runtime core may not call Math.sin/cos/atan2.
+--
+-- Stored as INTEGER metres, not REAL. haversine_m goes through the platform's
+-- libm, which differs between operating systems in the last ULP — the same
+-- hazard TECHNICAL-RESEARCH.md §11 documents for V8, which moving the
+-- computation to Python relocates rather than removes. Rounding to whole
+-- metres puts nine orders of magnitude between libm noise and the stored
+-- value, so the bundle's content is identical on every platform.
 CREATE TABLE quay_distances (
     from_quay TEXT NOT NULL REFERENCES quays(id),
     to_quay   TEXT NOT NULL REFERENCES quays(id),
-    metres    REAL NOT NULL,
+    metres    INTEGER NOT NULL,
     PRIMARY KEY (from_quay, to_quay)
 );
 
@@ -92,7 +100,7 @@ CREATE TABLE query_access (
     query_id TEXT NOT NULL REFERENCES queries(id),
     endpoint TEXT NOT NULL CHECK (endpoint IN ('origin', 'destination')),
     quay_id  TEXT NOT NULL REFERENCES quays(id),
-    metres   REAL NOT NULL,
+    metres   INTEGER NOT NULL,
     PRIMARY KEY (query_id, endpoint, quay_id)
 );
 
@@ -163,7 +171,7 @@ def build(out_path: Path, seed: int = 481516) -> Path:
                 ("operators", ",".join(f"{oid}:{name}" for oid, name in city.OPERATORS)),
                 ("walk_speed_mps", str(city.WALK_SPEED_MPS)),
                 ("max_walk_m", str(city.MAX_WALK_M)),
-                # M1 declares no conflicts. The defect audit (DATA-MODEL.md §7)
+                # No conflicts declared yet. The defect audit (DATA-MODEL.md §7)
                 # therefore has nothing to find, which is itself worth asserting.
                 ("active_conflicts", ""),
             ],
@@ -218,7 +226,7 @@ def build(out_path: Path, seed: int = 481516) -> Path:
                     continue
                 metres = haversine_m(a.lat, a.lon, b.lat, b.lon)
                 if metres <= city.MAX_WALK_M:
-                    walk_rows.append((a.id, b.id, round(metres, 3)))
+                    walk_rows.append((a.id, b.id, round(metres)))
         db.executemany(
             "INSERT INTO quay_distances (from_quay, to_quay, metres) VALUES (?, ?, ?)",
             walk_rows,
@@ -240,12 +248,19 @@ def build(out_path: Path, seed: int = 481516) -> Path:
                 for q in city.QUAYS:
                     metres = haversine_m(lat, lon, q.lat, q.lon)
                     if metres <= city.MAX_WALK_M:
-                        access_rows.append((qid, endpoint, q.id, round(metres, 3)))
+                        access_rows.append((qid, endpoint, q.id, round(metres)))
         db.executemany(
             "INSERT INTO query_access (query_id, endpoint, quay_id, metres) VALUES (?, ?, ?, ?)",
             access_rows,
         )
 
+        # The content hash names this world independently of the SQLite
+        # container, which is version-stamped and therefore not comparable
+        # across machines. See content_hash.py.
+        db.execute(
+            "INSERT INTO manifest (key, value) VALUES ('content_hash', ?)",
+            (content_hash(db),),
+        )
         db.commit()
     finally:
         db.close()

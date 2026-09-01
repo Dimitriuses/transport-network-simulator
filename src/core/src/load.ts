@@ -53,6 +53,7 @@ function readManifest(db: DatabaseSync): WorldManifest {
         const [id, ...rest] = entry.split(":");
         return { id: id ?? entry, name: rest.join(":") };
       }),
+    contentHash: need("content_hash"),
     walkSpeedMps: Number(need("walk_speed_mps")),
     maxWalkM: Number(need("max_walk_m")),
     activeConflicts: conflicts === "" ? [] : conflicts.split(","),

@@ -115,6 +115,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       kind: "run_header",
       runId: RUN_ID,
       worldSeed: world.manifest.seed,
+      worldContentHash: world.manifest.contentHash,
       engineVersion: world.manifest.engineVersion,
       scorerVersion: SCORER_VERSION,
       contractVersion: CONTRACT_VERSION,

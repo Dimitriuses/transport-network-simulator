@@ -63,7 +63,14 @@ export interface Query {
   readonly departAfterS: number;
 }
 
-/** Precomputed walking access, in metres. Distances never computed at runtime. */
+/**
+ * Precomputed walking access, in **integer** metres.
+ *
+ * Distances are never computed at runtime — the core may not call
+ * transcendental Math functions. They are integers rather than reals because
+ * the offline haversine goes through the platform libm, which differs between
+ * operating systems in the last ULP (TECHNICAL-RESEARCH.md §11).
+ */
 export interface WalkLink {
   readonly fromQuay: string;
   readonly toQuay: string;
@@ -91,6 +98,14 @@ export interface WorldManifest {
   readonly timezone: string;
   readonly utcOffsetS: number;
   readonly operators: readonly OperatorInfo[];
+  /**
+   * Canonical hash of the bundle's logical rows.
+   *
+   * Names this world independently of the SQLite container, which stamps its
+   * own version into the file header and is therefore not byte-comparable
+   * across machines (DATA-MODEL.md §6).
+   */
+  readonly contentHash: string;
   readonly walkSpeedMps: number;
   readonly maxWalkM: number;
   /** Declared semantic conflicts. Empty at M1 — see CORECONCEPT.md §2.1. */
