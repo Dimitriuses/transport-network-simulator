@@ -385,6 +385,10 @@ For the same reason, `origin` and `destination` in a plan request are **coordina
 
 An itinerary the simulator cannot resolve — unknown operator, a stop that operator never published, a trip that does not serve those stops — is **not** a transport error. It is a well-formed answer that is wrong about the world, and is scored as such. Malformed JSON is a bug; an unresolvable itinerary is a modelling failure; they must never be conflated in the run log.
 
+**Access legs are charged whether or not the player mentions them.** An itinerary names transit legs and the transfers between them; it does not have to describe the walk from the traveller's origin to the first boarding point, or from the last alighting point to their destination. The simulator supplies and charges for both, and rejects an itinerary whose first boarding quay is not reachable from the origin at all.
+
+This is not a detail. M1 shipped without it, and the consequence was that a journey silently began wherever the player chose to board — a free teleport of up to the full walking radius, at both ends. The reference player beat a perfectly-informed planner on seven queries out of ten. Anything a traveller physically does costs time, including the parts the player did not think to mention.
+
 ### Time representation
 
 All contract timestamps are **RFC 3339 with an explicit offset**, in simulated time. The brief declares the world's timezone.

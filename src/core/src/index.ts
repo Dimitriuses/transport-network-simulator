@@ -7,5 +7,9 @@
 // no Math.random, no transcendental Math functions. Enforced by lint.
 // See CLAUDE.md and TECHNICAL-RESEARCH.md §11.
 
-/** Package identity. Replaced by real exports as the package is built out. */
 export const PACKAGE_NAME = "@tns/core";
+
+export * from "./rng.ts";
+export * from "./clock.ts";
+export * from "./queue.ts";
+export * from "./load.ts";

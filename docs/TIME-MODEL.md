@@ -163,6 +163,8 @@ Player response latency is measured in wall time and written to the run log for 
 
 In `virtual` mode it is inert: it affects nothing in the world and contributes nothing to the primary score. It is surfaced as a separate **performance profile** — p50/p95/p99 per obligation type, plus total wall time — because it is genuinely useful to the player and genuinely uninteresting as a measure of integration quality.
 
+**Consequence for the golden-trajectory test**, found while building M1: because latency is recorded in the run log and is by design different on every run and every machine, **the golden-trajectory hash must be computed over the deterministic subset of the log**, excluding every wall-clock diagnostic. Hashing the whole log makes the reproducibility test fail for the one reason that proves this section is working — and a test that fails constantly gets deleted. Anything later added to the log that derives from wall time must be excluded there too.
+
 In `realtime` and `scaled` it affects the world by construction, which is the entire point of those modes.
 
 ---

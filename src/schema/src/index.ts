@@ -9,12 +9,14 @@
 // operator documents emitted into world bundles, and the Python models the
 // world builder validates against. This is the reason the runtime is
 // TypeScript at all (TECHNICAL-RESEARCH.md §11).
-//
-// M0 defines only the two simplest contract shapes, to establish the pipeline
-// end to end. The rest arrive with the milestones that need them.
 
 export const PACKAGE_NAME = "@tns/schema";
 
 export const CONTRACT_VERSION = "0.3";
+export const SCORER_VERSION = "0.1.0";
 
 export * from "./contract/identity.ts";
+export * from "./contract/plan.ts";
+export * from "./simtime.ts";
+export type * from "./world.ts";
+export type * from "./runlog.ts";

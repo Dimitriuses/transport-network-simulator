@@ -221,6 +221,20 @@ Each known vector and its structural answer:
 
 The last row is the most useful, because it catches leaks nobody anticipated. **OPEN:** whether `capture > 1` should hard-invalidate a run or merely flag it for inspection. Hard-invalidating risks punishing a player for our bug; flagging risks letting a real exploit through. I lean toward flag-and-quarantine, scored but withheld from leaderboards pending review.
 
+### `capture > 1` is not sufficient on its own
+
+Found while building M1. `capture` is a *ratio*, and its denominator is the headroom `m(P1) − m(P0)`. Where that headroom is zero or near-zero, the ratio cannot be formed and **the leak detector is silently blind** — which is exactly the situation in a low-tier world, a world with one operator, or any world whose declared conflicts turn out not to bite.
+
+M1 hit this for real: a simulator bug let players begin their journey at whichever quay they chose to board, skipping the walk from the origin. The reference player beat the oracle on seven of ten queries. `capture > 1` could not fire, because P1 and P0 coincided.
+
+**The companion invariant, which holds regardless of headroom:**
+
+> **No traveller may arrive sooner than perfect information allows.** For every scored traveller, `journey ≥ oracle_journey`.
+
+This is strictly stronger — it is per-traveller rather than aggregate, so a single anomaly is enough, and it needs no denominator. A run with any such traveller is invalid and goes to the information-set audit (`OBSERVABILITY.md` §5).
+
+Implemented in `src/scoring` as `impossibleTravellers`. **Both checks should run**: the per-traveller one catches what the aggregate ratio cannot, and the ratio still catches systematic advantage spread thinly across many travellers where no single one looks impossible.
+
 ---
 
 ## 12. Closed loop (Q18–Q19)

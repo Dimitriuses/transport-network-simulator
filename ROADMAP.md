@@ -43,15 +43,26 @@ That second clause is the entire point of M0. The four lint rules below are load
 | no `Math.random` | `TECHNICAL-RESEARCH.md` §11 |
 | no `Math.sin/cos/tan/exp/pow/log/atan2` | `TECHNICAL-RESEARCH.md` §11 — V8 cross-version drift |
 
-### M1 — Walking skeleton
+### M1 — Walking skeleton ✅ complete
 
-The thinnest possible end-to-end slice, built to prove the seams rather than any component: a hand-drawn ~20-quay city, **one** operator, no defects, static timetable, `virtual` clock, ten scored queries, a trivial player, one number printed at the end.
+*Completed 2026-09-01. All exit conditions verified.*
+
+The thinnest possible end-to-end slice, built to prove the seams rather than any component: a hand-drawn 20-quay city, **one** operator, no defects, static timetable, `virtual` clock, ten scored queries, a trivial player, one number printed at the end.
 
 Deliberately crosses every layer — schema → world bundle → core → projection → operator API → contract → run log → score.
 
-**Exit:** `npm run demo` builds the world, runs the simulation, calls a player and prints a score. Twice, with identical output.
+**Exit:** `npm run demo` builds the world, runs the simulation, calls a player and prints a score. Twice, with identical output. — verified, byte-identical.
 
-**The risk this retires:** eight specifications were written before any code existed, and they cross-reference each other heavily. Some of them are wrong. This is the largest risk in the project, and M1 exists to hit it in week one rather than at M5.
+**Delivered:** a Python world builder emitting a byte-deterministic SQLite bundle; L1 loading via `node:sqlite`; virtual clock, seeded PRNG and a sequence-tie-broken event queue; RAPTOR serving P0 and P1; a faithful operator projection with its own published identifier namespace; operator and control HTTP APIs; the obligation loop with clock-pause-on-ask; a reference player running as a **separate process**; and a capture-based scorecard.
+
+**The risk this retired:** eight specifications were written before any code existed, and they cross-reference each other heavily. Some of them were wrong. M1 found four things:
+
+1. **The monotonic-clock guard fired on the first run.** Obligations are issued one deadline *before* their traveller departs, so the clock started later than the first event. A guard written from `TIME-MODEL.md` §8 caught a bug in the harness within seconds of the code first executing.
+2. **The simulator let players teleport.** It validated that an itinerary's trips existed and connected, but never that the traveller could physically *reach* the first boarding quay from their origin. A journey therefore silently began wherever the player chose to board. The reference player found this immediately and beat the oracle — impossible by construction. Both sides now charge for access walking.
+3. **`capture > 1` is blind without headroom.** The headline leak detector (`SCORING.md` §2) is a ratio, and M1's world has a zero denominator: one operator and no conflicts means P1 already matches P0. The invariant could not fire on a genuine violation. Fixed with a strictly stronger per-traveller check — *no traveller may arrive sooner than perfect information allows* — which holds regardless of headroom. **This needs folding back into `SCORING.md` §11.**
+4. **The golden-trajectory hash must exclude wall-clock diagnostics.** `latencyMs` is recorded for every obligation and differs on every run by design (`TIME-MODEL.md` §5). Hashing it made the reproducibility test fail for the one reason that proves the time model is working.
+
+**Also confirmed, and expected:** M1's capture is undefined, and the scorer says so rather than dividing by zero. A single-operator world with no declared conflicts has no headroom, because there is nothing to integrate. That is a true statement about the world, not a defect — and it is the first concrete illustration of Phase 0 Gate 2 (`docs/PHASES.md`).
 
 ### M2 — Oracle and baselines
 

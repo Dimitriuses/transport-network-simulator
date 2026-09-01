@@ -12,16 +12,18 @@ There is no reference solution, and no single right answer. You are scored on wh
 
 ## Status
 
-**Specification complete. Phase 0 in progress — M0 done, M1 next.**
+**Specification complete. Phase 0 in progress — M0 and M1 done, M2 next.**
 
-Every question that gates implementation has a drafted answer across eleven documents. The scaffolding is in place: workspaces, toolchain, CI, the determinism lint rules, and the schema → OpenAPI pipeline. No simulator yet.
-
-Next is [`ROADMAP.md`](ROADMAP.md) M1 — a walking skeleton crossing every layer, to find out where eight specifications written before any code fail to fit together.
+The walking skeleton runs end to end: a hand-built 20-quay city, one operator, a live operator API, a reference player in its own process, and a scorecard — reproducibly, byte for byte.
 
 ```
-npm ci && npm run check        # lint, typecheck, contract drift, tests
-cd tools && uv sync && uv run pytest
+npm ci
+npm run world:build            # Python: city -> SQLite world bundle
+npm run demo                   # build -> simulate -> call a player -> score
+npm run check                  # lint, typecheck, contract drift, tests
 ```
+
+Next is [`ROADMAP.md`](ROADMAP.md) M2 — the oracle and baselines, on which both the reference policy and the entire scoring normalisation depend.
 
 ---
 
