@@ -138,7 +138,9 @@ Expected order, subject to that evidence:
 
 **Delivers:** Tiers 3 through 5, and the fidelity axes that make them possible.
 
-* Catalogue §2.1 E and F in earnest — rate limits, partial outages, pagination over shifting data, incomplete coverage, documentation that disagrees with behaviour.
+* Catalogue §2.1 E and F in earnest — rate limits, partial outages, pagination over shifting data, incomplete coverage, documentation that disagrees with behaviour and with itself.
+* **Documentation defects arrive here, not earlier, and in a fixed order:** accurate documentation is generated at P1M2; defects wait until something can measure them (`KNOWN-ISSUES.md` #12). Section F exists to teach a habit — read the documentation, then verify it — so a world whose documentation is untrustworthy *before* it is worth reading teaches the opposite (`CORECONCEPT.md` §2.1).
+* Per-operator documentation *presentation* — a wiki here, Swagger there — as decorative variety between companies. Explicitly not a difficulty axis.
 * `single_operator_rt` reference competence from Tier 3, narrowing the headroom and demanding more of the player.
 * **`latency: sim`** — per-connection simulated-time cursors, making parallelism a real decision. Note that `DATA-MODEL.md` §4 found a catalogue D defect (non-atomic pagination) depends on it, so this may need to arrive earlier than its tier suggests.
 * Mid-run schema drift, high query volume, fault tolerance under load.

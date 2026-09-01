@@ -63,7 +63,9 @@ Act on what P1M0 found. Strengthen the conflicts that can be made to bite, retir
 
 Per-operator manifests sampled from the §2.1 catalogue, parameterised by tier. The manifest shape already exists and is already declarative, so this generates configuration rather than inventing a mechanism.
 
-**Exit:** generated manifests produce worlds whose defect audit passes and whose ablation profile falls within the band their declared tier targets.
+Also serves each operator's `docs_url`, which is currently advertised and unserved (`KNOWN-ISSUES.md` #11). **Accurate documentation only.** Defects wait for Phase 3 and for something able to measure them — a world whose documentation cannot be trusted before it is worth reading teaches players to ignore documentation, which is the reverse of the habit catalogue §2.1 F exists to build.
+
+**Exit:** generated manifests produce worlds whose defect audit passes and whose ablation profile falls within the band their declared tier targets, and every operator serves documentation that matches its own behaviour.
 
 ---
 
@@ -105,6 +107,7 @@ The second clause is the one that matters, and the harder of the two. Matching g
 | Sub-second time resolution | `TIME-MODEL.md` §8 | Phase 2 |
 | Trajectory in-bundle vs regenerated from seed | `DATA-MODEL.md` §6 | Phase 2 |
 | `replan` obligation — specified but never issued | `PLAYER-CONTRACT.md` §5.5 | `KNOWN-ISSUES.md` #1 |
+| Documentation *defects* and per-operator presentation | `CORECONCEPT.md` §2.1 F | Phase 3, gated on `KNOWN-ISSUES.md` #12 |
 
 ---
 

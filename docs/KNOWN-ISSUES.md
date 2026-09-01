@@ -102,6 +102,22 @@ Harmless while the only players are ours. It becomes real the first time a world
 
 `PLAYER-CONTRACT.md` §6.1 has every operator advertise a `docs_url`, and `DATA-MODEL.md` §5 specifies that operator documentation is generated from the same schema source as behaviour — so that divergence between them is deliberate rather than accidental (catalogue §2.1 F). The brief advertises the URL; nothing serves it.
 
-A player currently has to discover each operator's schema by fetching and reading. That is *harder* than intended and hard in the wrong way — endpoint archaeology rather than reconciliation.
+A player currently has to discover each operator's schema by fetching and reading. That is *harder* than intended and hard in the wrong way — endpoint archaeology rather than reconciliation. It also teaches the opposite of what §2.1 F is for: a world whose documentation is absent trains players to ignore documentation.
 
-**Owner:** P1M2, which is where generated projections and their documentation should arrive together.
+**Owner:** P1M2, which is where generated projections and their documentation should arrive together. **Accurate documentation first**; defects only once #12 is resolved.
+
+---
+
+## 12. No instrument can see a documentation defect — `open`
+
+Difficulty is measured through P2, the lazy baseline. P2 never reads documentation, so ablation reports every catalogue F conflict at exactly zero — not because they do not matter, but because nothing we measure with can perceive them.
+
+This is the same trap as #2 with one important difference: those fourteen conflicts *could* be measured and were found wanting. These cannot be measured at all, so anything built on them rests on faith rather than evidence.
+
+**Why it is not trivially fixable.** A baseline that reads prose documentation would need to understand it, which is a different project. The plausible routes are all indirect:
+
+* watch a real person meet the APIs and record where documentation helped or misled (P1M0);
+* for the agent-benchmark case specifically, an agent *does* read documentation, so an agent's score is a genuine measurement — expensive, and not part of the automated instrument;
+* make documentation defects have an observable consequence in the data, so an existing instrument catches them — which mostly means the defect was really a data conflict wearing documentation as a costume.
+
+**Owner:** P1M0 for the first data point. Blocks generating documentation *defects*, not generating accurate documentation.

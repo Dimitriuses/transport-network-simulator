@@ -168,6 +168,51 @@ The generator is therefore defined as *sampling from a catalogue of semantic con
 * Missing geometry / shapes, so paths must be inferred from stop sequences.
 * No inter-operator transfer information at all — transfers must be discovered, not read.
 * Undocumented fields; documentation that disagrees with the live API; documentation that is correct but incomplete.
+* Documentation that disagrees with **itself** — see below.
+
+### Documentation is here to teach a habit, not to add friction
+
+Section F is the one place where the point is not difficulty. Everything else in this catalogue exists to make integration hard in a way that rewards thinking. Documentation exists to teach one specific professional habit:
+
+> **Read the documentation. Then verify it against what the API actually does.**
+
+That is a real skill, it is rarely taught deliberately, and almost every integration engineer learns it the expensive way. A world where the documentation is worth reading *and* cannot be fully trusted teaches it in an afternoon.
+
+This framing decides several things that would otherwise be arguable.
+
+**Documentation must be worth reading.** If it is absent, wrong in every particular, or too tedious to consult, a player rationally ignores it and reverse-engineers the API instead — and then the world has taught the opposite habit. **The default is accurate documentation.** Defects are the exception, and they must be the kind a careful reader can catch.
+
+**Defects must be verifiable, not merely present.** "This field is undocumented" teaches nothing except that documentation is unreliable in general. "The overview says delays are in minutes and the field reference says seconds, and one API call settles it" teaches the habit precisely. Every documentation defect should have an observation that resolves it.
+
+**Do not make the reader hunt.** A field buried on an obscure page is search cost, not thinking cost. That is the cosmetic/semantic line from the top of this section, and burying things falls on the wrong side of it.
+
+### Why a multi-page wiki, specifically
+
+The obvious argument — real operators publish wikis, so it is more realistic — is not strong enough on its own. Navigation is not reconciliation.
+
+The good argument is structural: **a multi-page wiki can contradict itself, and a generated schema document essentially cannot.** An OpenAPI file produced from `src/schema` is internally consistent by construction; that is the point of generating it. Prose spread across several pages can disagree with the API, with its own examples, and with its other pages — and self-contradiction is a genuine class of defect that has no other home in this catalogue.
+
+Build the wiki for that capability. Not for its shape.
+
+### Format is presentation, not difficulty — deferred
+
+An operator publishing a PDF rather than a wiki, or Swagger rather than prose, is **decorative variety between companies**. It is worth having eventually, for the same reason operator names and liveries are worth having: the world should feel like several companies rather than one company three times.
+
+It is explicitly **not** a difficulty axis, for three reasons:
+
+1. **It is solved once and never thought about again.** Writing a PDF extractor is exactly the "one adapter and the challenge is permanently gone" pattern this section opens by warning against.
+2. **Everything interesting about it is really about content.** A PDF describing the API as it was two years ago is interesting because it is *stale*, not because it is a PDF — and a stale OpenAPI file would be exactly as interesting. The format is the wrapper; the defect is the payload.
+3. **It penalises agents for the wrong thing.** An agent handed a PDF is being measured on document extraction rather than integration, which cuts against the benchmark positioning in *Positioning* above. The same reasoning already settled `docs_url` (`PLAYER-CONTRACT.md` §6.1): withholding it would test endpoint-guessing rather than integration, and format obfuscation is that argument one step removed.
+
+Deferred to a later phase, and to be taken up for the "wow" rather than counted as difficulty.
+
+### The measurement gap
+
+**No instrument in this project can currently see a documentation defect.** Difficulty is measured through P2, the lazy baseline, and P2 never reads documentation — so ablation would report every conflict in this section at exactly zero, whether or not it costs a real solver anything.
+
+That is uncomfortably close to the position Phase 0 found the rest of the catalogue in, with one important difference: those conflicts *could* be measured and were found wanting, whereas these cannot be measured at all. Any documentation work built before that gap is closed rests on faith.
+
+Recorded in `KNOWN-ISSUES.md`. The first evidence will come from watching a real person meet these APIs (`ROADMAP.md` P1M0).
 
 ### Design rule
 
