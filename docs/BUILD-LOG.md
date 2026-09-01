@@ -262,3 +262,81 @@ The reference player (valid but bad); the conformance suite; player-facing docum
 **Open items closed:** trace disclosure gained a **third** level (§8) — `attributed` names the catalogue *section* that cost you capture without naming the operator or setting, which is the difference between a hint and an answer key; and `verbatim` is capped at 250 MB and **downgrades rather than truncates** (§7), because a truncated log looks complete until you need the missing part.
 
 ---
+
+---
+
+## P1M0 — Evidence before generation
+
+**Part B, the conflict-depth probe, is complete. Part A, the external playtest, cannot be run from inside the project** — [`PLAYTEST-KIT.md`](PLAYTEST-KIT.md) is the runnable form of it and is waiting on a session with an engineer who has not seen this repository.
+
+### The instrument was blind, and reported the blindness as an absence
+
+Before the probe could measure anything it had to be trusted, and it could not be.
+
+`calibrate()` built P2rt — the realtime-aware lazy baseline, and the instrument Gate 3 is measured on — from `disruptionsForNaive(world, disruptions)`: the world's **true** disruption set. It never fetched a feed. So every conflict that lives in a feed cost it exactly nothing *by construction*:
+
+| Conflict | What it does | What P2rt saw |
+|---|---|---|
+| `D-staleness` | feed describes the past | nothing; it never read the feed |
+| `D-silent-cancellation` | cancelled trip simply vanishes | nothing; it was told the truth |
+| `C-delay-unit` | delay published in minutes, read as seconds | nothing; it never parsed a delay |
+| `D-no-delays` | delays not published at all | nothing |
+
+Ablation reported all four at 0.00 and the report was not wrong about its own arithmetic. It was answering a question nobody had asked: *what do these conflicts cost a reader that does not read?*
+
+**This is the fifth time in this project that something was credited with an advantage the world does not owe it** — a free access walk (P0M1), an imagined zero-cost transfer (P0M2), a service that never ran (P0M4), a bound that was not a bound (P0M6), and now a baseline handed the answer. The first four were found because a number looked too good. This one was found because the milestone whose job is to distrust the previous milestone's numbers went looking.
+
+**The fix.** [`src/scoring/src/belief.ts`](../src/scoring/src/belief.ts) — `believedDisruptions()` polls each operator's published feed on a five-minute cadence up to the moment of planning and believes what it is told: a delay figure at face value in seconds whatever unit was meant, an absent trip as running, a stale feed as the present. Each is a mistake a real integrator makes, and each is now something a world can charge for.
+
+`src/scoring/test/belief.test.ts` guards it with the assertion the old code would have failed: *a naive reader must believe something, and what it believes must not be the truth.* Four more assert that each feed defect changes belief.
+
+### Gate 3, re-measured
+
+```
+its shortfall, as things are                 2.37m
+the same, with every conflict switched off   2.26m
+caused by conflicts   0.10m  (4%)
+```
+
+**Gate 3 fails.** The recorded 61 % is withdrawn; `PHASES.md` carries the correction with the original number left visible.
+
+The coincidence is worth naming so nobody reads it as a mistake: the *original* P2 measurement also gave 4 %, and was rejected on the sound grounds that a baseline ignoring realtime is guaranteed to lose to a disrupted day. That reasoning was right. The replacement was simply built wrong.
+
+### What the probe found
+
+`npm run probe` — every conflict alone, at each strength, on each operator in turn, against a conflict-free world.
+
+**The floor is 2.26 min, and it is not conflict cost.** A world with *no conflicts at all* still costs a lazy integrator that much, because it plans thirty minutes out, is told about trouble afterwards, and is never asked to replan. That term is roughly twenty times the conflict term, and it swamps everything measured without subtracting it.
+
+| Conflict | Best | On | At | Verdict |
+|---|---|---|---|---|
+| `C-latlon-order` | 2.13m | nordline | `lon_lat` | bites hard |
+| `B-time-encoding` | 2.13m | nordline | `epoch_ms` | bites hard |
+| `C-coordinate-offset` | 1.85m | nordline | 500 m | bites, with a threshold |
+| `C-delay-unit` | 0.31m | nordline | `minutes` | bites weakly |
+| `D-staleness` | 0.31m | nordline | 900 s | bites weakly, with a threshold |
+| `D-no-delays` | 0.31m | nordline | `false` | bites weakly |
+| `A-coordinate-precision` | 0.10m | ostline | 3 | below the noise floor |
+| `A-granularity`, `A-id-scheme`, `A-naming`, `A-coordinate-source`, `D-silent-cancellation` | 0.00m | — | — | **inert everywhere** |
+
+**Six of twelve can be made to bite. Six cannot, at any setting, on any operator.**
+
+### Four things the probe forced
+
+**Conflicts have thresholds, and the committed world sits below them.** `C-coordinate-offset` costs nothing at 30, 60 or 130 m and only bites from 260 m. The committed world uses **130 m**. `D-staleness` costs nothing at 60 or 300 s and bites from 900 s; the committed world uses 90 s and 300 s. The catalogue is not as shallow as P0M6 concluded — *the settings are too weak*, which is a much more tractable problem than a wrong catalogue.
+
+**Which operator carries a defect matters more than the defect.** Every conflict scores highest on `nordline`, and **sudbahn scores 0.00 on all twelve at every strength** — it is not on enough critical paths for anything done to it to reach a traveller. A generator that scatters conflicts uniformly across operators will produce worlds whose declared difficulty is mostly decorative. *Conflict placement must be weighted by how much traffic an operator actually carries.*
+
+**Being perceptible and being costly are different properties, and both must be checked.** The belief tests prove all four feed defects *do* change what a naive reader believes. The probe shows three of them barely change what it *chooses*. That is a real finding rather than another blind spot — but only because the two were measured separately. Had `belief.test.ts` not been written, "inert" would have been indistinguishable from "invisible", which is exactly the error being corrected.
+
+**The identity conflicts are the inert ones, and that is the most uncomfortable result here.** `A-granularity`, `A-id-scheme`, `A-naming`, `A-coordinate-source` — the whole of catalogue A except precision — cost nothing anywhere. Identity reconciliation is what `CORECONCEPT.md` presents as the heart of the challenge. The probe says that in this world it is free, because the naive merger matches on geometry and never needs ids to agree. **A conflict only costs something if the solver's method depends on the thing being corrupted**, and difficulty is therefore a property of the pair, not of the world alone. That belongs in the specification, and it makes P2's merge strategy part of the measuring instrument rather than an implementation detail of a baseline.
+
+### Exit
+
+The milestone's exit is *"we can name which conflicts are worth generating and roughly how strong each must be, and we have at least one external data point on discoverability."*
+
+**First clause: met.** Named above, with thresholds.
+
+**Second clause: not met, and not meetable from here.** [`PLAYTEST-KIT.md`](PLAYTEST-KIT.md) makes it a session someone can run rather than an intention.
+
+**And Gate 3 now fails, which `PHASES.md` says must be allowed to stop the project rather than be tuned away.** P1M1 was already scoped to strengthen conflicts; it is now the milestone that decides whether Gate 3 can honestly be made to pass. That is a decision about the project, not a task inside it.

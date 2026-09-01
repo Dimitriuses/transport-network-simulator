@@ -21,6 +21,7 @@ import { buildIndex, route, executeReactively, type Access, type RouterIndex } f
 import { generateDisruptions } from "@tns/core";
 import { projectOperator, type Timetable } from "@tns/projections";
 import type { Disruption } from "@tns/core";
+import { believedDisruptionsAt } from "./belief.ts";
 
 /** How close two published stops must be for a lazy matcher to fuse them. */
 export const NAIVE_MATCH_THRESHOLD_M = 120;
@@ -235,6 +236,9 @@ export interface Calibration {
   readonly comparable: number;
 }
 
+/** Mirrors the harness: travellers ask for a plan well before they set out. */
+const PLAN_LEAD_S = 1800;
+
 const accessFor = (w: World, queryId: string, endpoint: "origin" | "destination"): Access[] =>
   w.queryAccess
     .filter((a) => a.queryId === queryId && a.endpoint === endpoint)
@@ -364,23 +368,6 @@ function evaluateAgainstTruth(
 }
 
 /** Map real journey ids onto the naive world's `operator:trip` ids. */
-function disruptionsForNaive(
-  world: World,
-  disruptions: readonly Disruption[],
-): Disruption[] {
-  const naiveIdOf = new Map<string, string>();
-  for (const op of world.manifest.operators) {
-    for (const [trip, journey] of projectOperator(world, op.id, 0).resolution.tripToJourney) {
-      naiveIdOf.set(journey, `${op.id}:${trip}`);
-    }
-  }
-  return disruptions
-    .map((d) => {
-      const id = naiveIdOf.get(d.journeyId);
-      return id ? { ...d, journeyId: id } : null;
-    })
-    .filter((d): d is Disruption => d !== null);
-}
 
 export function calibrate(world: World): Calibration {
   // The day that actually happens, from the world seed.
@@ -394,10 +381,18 @@ export function calibrate(world: World): Calibration {
 
   const naive = naiveMergedWorld(world);
   const naiveIx = buildIndex(naive);
-  // The same lazy model, but aware of the day. Isolates matching quality.
-  const naiveRtIx = buildIndex(naive, disruptionsForNaive(world, disruptions));
 
-  const perQuery: QueryGaps[] = world.queries.map((q) => {
+  // Belief is built by replaying polls in order, so every query's planning
+  // instant is snapshotted from a single walk of the feeds rather than one
+  // walk each. The conflict-depth probe calibrates eighty-odd worlds and
+  // would otherwise spend nearly all its time re-reading the same feed.
+  const beliefs = believedDisruptionsAt(
+    world,
+    disruptions,
+    world.queries.map((q) => q.departAfterS - PLAN_LEAD_S),
+  );
+
+  const perQuery: QueryGaps[] = world.queries.map((q, qi) => {
     // P2 plans on its own merged model...
     const plan = route(
       naiveIx,
@@ -446,8 +441,14 @@ export function calibrate(world: World): Calibration {
     // measured. The first version of this file did exactly that.
     const fellBack = p2 === null && p1 !== null;
 
+    // What a lazy integrator *believes*, having polled the published feeds up
+    // to the moment it plans. Not the truth: it reads delays at face value,
+    // assumes an absent trip is running, and takes a stale feed for the
+    // present. Handing it the truth instead — as an earlier version did —
+    // made every catalogue D conflict cost it exactly nothing, because it was
+    // never reading a feed to be misled by.
     const rtPlan = route(
-      naiveRtIx,
+      buildIndex(naive, beliefs[qi]!),
       accessFor(naive, q.id, "origin"),
       accessFor(naive, q.id, "destination"),
       q.departAfterS,

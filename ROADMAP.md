@@ -16,11 +16,13 @@ Milestones are numbered **`P<phase>M<milestone>`** — `P1M2` is the third miles
 |---|---|
 | 1 — buildable | PASS — a solution built only from the brief captures 0.292 |
 | 2 — discriminating | PASS — four solutions, four distinct scores, 0.56 of spread |
-| 3 — conflicts doing the work | PASS — 61 % of a lazy integrator's shortfall is conflict-caused |
+| 3 — conflicts doing the work | ~~PASS — 61 %~~ **FAIL — 4 %.** Corrected at P1M0 with a baseline that actually reads the feeds; see `docs/PHASES.md`. |
 
 **But the gates validated the instruments, and the instruments are now saying the content needs work.** Two findings shape everything below:
 
 * **Of fifteen conflicts declared and audited as present, one does nearly all the work.** `C-coordinate-offset` accounts for the entire conflict-caused loss. The other fourteen are real, verified, and individually cost a solver nothing measurable. A generator that samples the catalogue uniformly would spend most of its effort on ornaments.
+
+* **P1M0 found this understated.** The conflict-depth probe says six of twelve settings can be made to bite at *some* strength on *some* operator, but the committed world places most of them below their threshold or on an operator that cannot express them. Worse, the 61 % above was measured with a baseline handed the true disruption set, so it never read a feed and could not perceive catalogue D at all. Corrected, Gate 3 reads 4 % and fails.
 * **Gate 1 was approximated, not tested.** The competent solution was written by someone who had seen the world. That measures whether the world is *solvable*, not whether it is *discoverable*, and no amount of internal work closes that gap.
 
 ---

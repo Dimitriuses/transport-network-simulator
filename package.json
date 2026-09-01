@@ -24,7 +24,8 @@
     "audit": "node src/projections/scripts/audit.ts",
     "gates": "node src/scoring/scripts/gates.ts",
     "ablate": "node src/scoring/scripts/gates.ts",
-    "conformance": "node src/conformance/scripts/check.ts"
+    "conformance": "node src/conformance/scripts/check.ts",
+    "probe": "node src/scoring/scripts/probe.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

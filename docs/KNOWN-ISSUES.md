@@ -18,13 +18,21 @@ Design questions that have never been settled live as **OPEN** markers inside th
 
 ---
 
-## 2. Fourteen of fifteen conflicts cost a solver nothing measurable — `open`
+## 2. The committed world sets its conflicts below the strength at which they bite — `open`
 
-Ablation at P0M6 attributes the entire conflict-caused shortfall to `C-coordinate-offset`. The rest are declared, verified present by the defect audit, and individually worth nothing.
+Ablation at P0M6 attributed the entire conflict-caused shortfall to `C-coordinate-offset` and reported the other fourteen at nothing. P1M0's conflict-depth probe (`npm run probe`) re-measured that properly and split it into three separate problems.
 
-This is the most important open item in the project. It is not a code defect — every conflict does what its manifest says — but it means the catalogue in `CORECONCEPT.md` §2.1 is currently one conflict deep, and a generator built on it would mostly generate ornaments.
+**a. The instrument was blind.** P2rt was handed the world's true disruption set and never read a published feed, so all four catalogue D conflicts were unmeasurable by construction. Fixed at P1M0 by `believedDisruptions()`. This also withdraws the recorded Gate 3 pass — see #13.
 
-**Owner:** P1M0 (measure which can be made to bite) and P1M1 (make them, or retire them).
+**b. Six of twelve conflicts do bite; the world sets them too weak.** `C-coordinate-offset` costs nothing until 260 m and the world uses 130. `D-staleness` costs nothing until 900 s and the world uses 90 and 300. This is a much better problem than "the catalogue is one deep": the settings are wrong, not the design.
+
+**c. Six are inert at every setting on every operator** — `A-granularity`, `A-id-scheme`, `A-naming`, `A-coordinate-source`, `A-coordinate-precision`, `D-silent-cancellation`. Nearly all of catalogue A, which `CORECONCEPT.md` presents as the heart of the challenge.
+
+**The reason (c) matters more than it looks.** They are inert because the lazy merger matches on *geometry* and never needs identifiers to agree, so corrupting identifiers costs it nothing. A conflict only costs something if the solver's method depends on the thing being corrupted — which makes difficulty a property of the (world, solver) pair rather than of the world. P2's merge strategy is therefore part of the measuring instrument, and that is not yet written down anywhere in the specification.
+
+**Also found:** conflict placement matters more than conflict choice. `sudbahn` scores 0.00 on all twelve at every strength, because it is not on enough critical paths for anything done to it to reach a traveller.
+
+**Owner:** P1M1, which must now decide whether Gate 3 can honestly be made to pass.
 
 ---
 
@@ -34,7 +42,7 @@ The competent solution used to measure Gate 1 was written by someone who had alr
 
 No internal work can close this. The gate output says so in its own text so the caveat travels with the number.
 
-**Owner:** P1M0, part A.
+**Owner:** P1M0 part A, which is **not closed**. The kit for running it is [`PLAYTEST-KIT.md`](PLAYTEST-KIT.md); it needs an engineer who has not seen this repository, and nothing internal substitutes for that.
 
 ---
 
@@ -121,3 +129,17 @@ This is the same trap as #2 with one important difference: those fourteen confli
 * make documentation defects have an observable consequence in the data, so an existing instrument catches them — which mostly means the defect was really a data conflict wearing documentation as a costume.
 
 **Owner:** P1M0 for the first data point. Blocks generating documentation *defects*, not generating accurate documentation.
+
+---
+
+## 13. The recorded Gate 3 pass was measured with a blind instrument — `open`
+
+`PHASES.md` recorded Gate 3 as passing at 61 %. P1M0 found that number was produced by a baseline handed the true disruption set, which never read a published feed and therefore could not perceive any conflict living in one. Re-measured with a feed-reading baseline, Gate 3 reads **4 % and fails**.
+
+The correction is recorded in `PHASES.md`, `ROADMAP.md` and `README.md` with the original number left visible, because a result that is quietly rewritten cannot be challenged.
+
+**What it does not mean.** It is not evidence that the world is undramatic. The probe shows six conflicts that bite at achievable strengths; the committed world sets most of them below threshold. It is evidence that Phase 0 exited on a number it had not earned.
+
+**What it blocks.** `PHASES.md`: *"Do not begin Phase 1 on a failed Gate 3."* Phase 1 has begun, and P1M0 — the milestone whose stated purpose is to test what Phase 0 concluded — is what found it. Whether that counts as the process working or as grounds to stop is a judgement for the project owner, not something to settle by continuing.
+
+**Owner:** P1M1, blocking. Nothing downstream of conflict generation should be built until it resolves.
