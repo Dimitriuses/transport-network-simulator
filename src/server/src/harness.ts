@@ -64,7 +64,12 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
 
   const baselines = new Map<
     string,
-    { p0: number | null; p1: number | null; p1Exec: ReturnType<typeof executeReactively> }
+    {
+      p0: number | null;
+      p0Wait: number | null;
+      p1: number | null;
+      p1Exec: ReturnType<typeof executeReactively>;
+    }
   >();
   for (const q of world.queries) {
     const o = accessFor(q.id, "origin");
@@ -75,6 +80,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
     const p1 = executeReactively(world, scheduleIx, disruptions, o, d, q.departAfterS, "obvious");
     baselines.set(q.id, {
       p0: p0 ? p0.arriveS - q.departAfterS : null,
+      p0Wait: p0 ? p0.waitS : null,
       p1: p1.journeyS,
       p1Exec: p1,
     });
@@ -97,7 +103,9 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
   }
 
   let state: "preparation" | "running" | "paused" | "ended" = "preparation";
-  const ingestion: (OperatorCall & { operator: string })[] = [];
+  const ingestion: (OperatorCall & { operator: string; cause: string | null })[] = [];
+  // The obligation currently being handled, for temporal attribution.
+  let attributeTo: string | null = null;
   const notifications: NotificationRecord[] = [];
 
   // One API per operator, on its own host and port. They know nothing about
@@ -114,7 +122,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         op.id,
         disruptions,
         () => clock.now(),
-        (call: OperatorCall) => ingestion.push({ ...call, operator: op.id }),
+        (call: OperatorCall) => ingestion.push({ ...call, operator: op.id, cause: attributeTo }),
         port,
       ),
     );
@@ -186,6 +194,11 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       // with the freshest data it could have had (PLAYER-CONTRACT.md §5.6).
       if (ob.kind === "tick") {
         clock.pause();
+        // Everything the player fetches from here until resume happens at this
+        // τ, and the clock is frozen — so those calls are *provably* part of
+        // this handler, whether or not the player propagates trace context
+        // (OBSERVABILITY.md §3.1).
+        attributeTo = ob.requestId;
         const t0 = Date.now();
         const ok = await sendTick(opts.playerBaseUrl, {
           contract_version: CONTRACT_VERSION,
@@ -194,6 +207,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
           guard_wall_s: GUARD_WALL_S,
         });
         clock.resume();
+        attributeTo = null;
         log.push({
           kind: "obligation",
           obligation: "tick",
@@ -281,6 +295,8 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         forgone,
         oracleJourneyS: base.p0,
         referenceJourneyS: base.p1,
+        oracleWaitS: base.p0Wait,
+        referenceWaitS: base.p1Exec.waitS,
       });
     }
 
@@ -361,9 +377,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         status: call.status,
         bytes: call.bytes,
         bodyHash: call.bodyHash,
-        // M1's player ingests before the run starts, so no obligation caused
-        // this call. Attribution arrives with ticks at M4.
-        cause: null,
+        cause: call.cause,
       });
     }
     log.push(...outcomes);

@@ -83,6 +83,15 @@ export interface TravellerOutcome {
   /** P0 and P1 for this query — the endpoints of the capture scale. */
   readonly oracleJourneyS: number | null;
   readonly referenceJourneyS: number | null;
+  /**
+   * Waiting done by each, so capture can be computed on *generalised* time.
+   *
+   * Travellers mind waiting more than riding, so comparing raw door-to-door
+   * totals understates a solution that trades a little extra riding for a lot
+   * less standing about (SCORING.md §4).
+   */
+  readonly oracleWaitS: number | null;
+  readonly referenceWaitS: number | null;
 }
 
 /**

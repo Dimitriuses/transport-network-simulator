@@ -9,6 +9,9 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@tns/schema": "*"
+    "@tns/schema": "*",
+    "@tns/core": "*",
+    "@tns/router": "*",
+    "@tns/projections": "*"
   }
 }

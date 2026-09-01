@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@tns/schema": "*",
+    "@tns/core": "*",
     "@tns/router": "*",
-    "@tns/projections": "*"
+    "@tns/projections": "*",
+    "@tns/server": "*"
   }
 }

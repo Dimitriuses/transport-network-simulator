@@ -8,7 +8,7 @@ import { startPlayer } from "../src/player.ts";
 const port = Number(process.env["TNS_PLAYER_PORT"] ?? 8080);
 const controlUrl = process.env["TNS_CONTROL_URL"] ?? "http://127.0.0.1:9000";
 const raw = process.env["TNS_PLAYER_MODE"];
-const mode = raw === "null" ? "null" : raw === "blind" ? "blind" : "naive";
+const mode = raw === "null" || raw === "blind" || raw === "cheat" ? raw : "naive";
 
 // The control API may not be listening the instant we start. Retry rather than
 // racing it; the simulator polls /v1/health and will wait.

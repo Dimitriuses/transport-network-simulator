@@ -92,10 +92,19 @@ jobs:
         run: |
           set -e
           TNS_PLAYER_MODE=blind npm run demo > /tmp/blind.txt
-          npm run demo > /tmp/seeing.txt
-          grep -q "family score          0.000" /tmp/blind.txt
-          grep -q "never warned        3" /tmp/blind.txt
-          ! grep -q "family score          0.000" /tmp/seeing.txt
+          npm run demo > /tmp/honest.txt
+          grep -q "score   0.000" /tmp/blind.txt
+          ! grep -q "score   0.000" /tmp/honest.txt
+
+      # M5 exit condition. An audit that has never fired on a real violation is
+      # an assertion, not a check — so CI plants one every build.
+      - name: The information-set audit catches a planted leak
+        run: |
+          set -e
+          TNS_PLAYER_MODE=cheat npm run demo > /tmp/cheat.txt
+          grep -q "INFORMATION-SET AUDIT   clean" /tmp/honest.txt
+          grep -q "LEAK(S)" /tmp/cheat.txt
+          cat /tmp/honest.txt
 
   offline:
     name: Python offline pipeline

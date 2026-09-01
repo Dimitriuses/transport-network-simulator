@@ -5,6 +5,7 @@
 // problem does not arise (TECHNICAL-RESEARCH.md §10).
 
 import { createServer, type Server } from "node:http";
+import { makeCheatPlanner, type CheatPlanner } from "./cheat.ts";
 
 interface StopTime {
   stop_id: string;
@@ -322,7 +323,7 @@ export interface PlayerOptions {
    * the traveller falls back to the reference policy and the player is charged
    * for it (REFERENCE-POLICY.md §8).
    */
-  readonly mode?: "naive" | "null" | "blind";
+  readonly mode?: "naive" | "null" | "blind" | "cheat";
 }
 
 interface Held {
@@ -340,6 +341,12 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
 
   // Itineraries this player has handed out, so it knows who to warn.
   const held = new Map<string, Held>();
+
+  // A test fixture, not a competitor: opens the world directly and plans with
+  // information no feed has published. The information-set audit exists to
+  // catch exactly this (OBSERVABILITY.md §5).
+  const cheat: CheatPlanner | null =
+    mode === "cheat" ? makeCheatPlanner(process.env["TNS_WORLD"] ?? "worlds/m1.world.db") : null;
 
   // Ingestion. The brief says where the operators are and nothing else — not
   // their schemas, not their quality, and certainly not how their stops relate
@@ -373,7 +380,7 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
    * the things a real solution has to work out.
    */
   const pollRealtime = async (): Promise<void> => {
-    if (mode !== "naive") return;
+    if (mode !== "naive" && mode !== "cheat") return;
 
     const trouble = new Set<string>();
     for (const op of operators) {
@@ -431,8 +438,12 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
           // the Information family measures: the floor is not "warns badly",
           // it is "never looks".
           capabilities:
-            mode === "naive" ? ["plan", "tick", "notify"] : ["plan"],
-          ...(mode === "naive" ? { tick: { interval_sim_s: 120 } } : {}),
+            mode === "naive" || mode === "cheat"
+              ? ["plan", "tick", "notify"]
+              : ["plan"],
+          ...(mode === "naive" || mode === "cheat"
+            ? { tick: { interval_sim_s: 120 } }
+            : {}),
         });
       }
 
@@ -456,7 +467,9 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
             // obligation (REFERENCE-POLICY.md §8).
             return { request_id: r.request_id, status: "declined", itinerary: null };
           }
-          const itinerary = plan(model!, r.origin, r.destination, r.depart_after);
+          const itinerary = cheat
+            ? cheat.plan(r.origin, r.destination, cheat.timeOf(r.depart_after))
+            : plan(model!, r.origin, r.destination, r.depart_after);
           if (itinerary === null) {
             return { request_id: r.request_id, status: "no_route", itinerary: null };
           }
@@ -464,7 +477,7 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
           // can be matched back to somebody who needs telling.
           held.set(r.traveller_ref, {
             travellerRef: r.traveller_ref,
-            trips: itinerary.legs
+            trips: (itinerary.legs as Record<string, unknown>[])
               .filter((l) => l["mode"] === "transit")
               .map((l) => `${String(l["operator"])}:${String(l["trip"])}`),
             warned: false,

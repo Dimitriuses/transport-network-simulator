@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import type { RunRecord, TravellerOutcome } from "@tns/schema";
-import { score } from "../src/index.ts";
+import { scoreRun } from "../src/index.ts";
 
 const header: RunRecord = {
   kind: "run_header",
@@ -38,31 +38,33 @@ function traveller(journeyS: number, oracle: number, reference: number): Travell
     forgone: false,
     oracleJourneyS: oracle,
     referenceJourneyS: reference,
+    oracleWaitS: 0,
+    referenceWaitS: 0,
   };
 }
 
-const scoreOf = (...ts: TravellerOutcome[]) => score([header, ...ts]);
+const scoreOf = (...ts: TravellerOutcome[]) => scoreRun([header, ...ts]);
 
 test("matching the oracle captures all of the headroom", () => {
   const card = scoreOf(traveller(600, 600, 900), traveller(1200, 1200, 1500));
-  assert.equal(card.capture, 1);
+  assert.equal(card.service.capture, 1);
 });
 
 test("matching the reference policy captures none of it", () => {
   // This is what a player that answers nothing scores: its travellers fall
   // back to P1, so it lands exactly on the zero point (REFERENCE-POLICY.md §8).
   const card = scoreOf(traveller(900, 600, 900), traveller(1500, 1200, 1500));
-  assert.equal(card.capture, 0);
+  assert.equal(card.service.capture, 0);
 });
 
 test("being worse than no integration at all scores negative", () => {
   const card = scoreOf(traveller(1200, 600, 900));
-  assert.equal(card.capture, -1);
+  assert.equal(card.service.capture, -1);
 });
 
 test("landing halfway captures half", () => {
   const card = scoreOf(traveller(750, 600, 900));
-  assert.equal(card.capture, 0.5);
+  assert.equal(card.service.capture, 0.5);
 });
 
 test("beating the oracle is flagged, not scored", () => {
@@ -75,6 +77,6 @@ test("beating the oracle is flagged, not scored", () => {
 
 test("with no headroom the scorer reports rather than dividing by zero", () => {
   const card = scoreOf(traveller(700, 600, 600));
-  assert.equal(card.capture, null);
-  assert.match(card.captureNote ?? "", /no headroom/);
+  assert.equal(card.service.capture, null);
+  assert.match(card.service.captureNote ?? "", /no headroom/);
 });

@@ -176,11 +176,46 @@ DES event generation (delays, cancellations, breakdowns); L2 dynamics; realtime 
 
 **Scope correction:** the M2 decision on ghost-rider capacity assumed vehicle loads would first exist at M4. They do not. Loads require simulating a background population *as individuals*, and open loop has no crowd — its population is the reference policy applied to a demand table. Capacity moves to Phase 2 with closed loop, where riders are real. The decision itself stands; only its milestone moves.
 
-### M5 — Judgement
+### M5 — Judgement ✅ complete
+
+*Completed 2026-09-01. All exit conditions verified.*
 
 Full scoring vector and profiles; validity and tier clearance; run log at `trace` level; attribution stage 1; the information-set audit; the scorecard from `SCORING.md` §13.
 
-**Exit:** a complete scorecard renders for a real run, and the information-set audit correctly flags a deliberately planted leak.
+**Exit:** a complete scorecard renders for a real run, and the information-set audit correctly flags a deliberately planted leak. — both verified, and both checked in CI on every build.
+
+**Delivered:** the three-family vector with four named profiles; three levels of verdict (valid / quarantined / invalid, then tier clearance, then a continuous score); capture computed on **generalised time** with waiting weighted double; attribution stage one naming where the capture went; trace-level causal attribution of ingestion calls to the tick that caused them; the information-set audit; and a **cheating player** that opens the world bundle directly and plans with the oracle's information, so the audit has a real violation to catch.
+
+**The audit works, and the discrimination is the point:**
+
+| Player | capture | information-set audit |
+|---|---:|---|
+| `naive` — honest | −1.386 | **clean** over 22 obligations |
+| `cheat` — plans with the oracle's information | 1.000 | **1 leak**: *"beat its information set by 386 s; 6 disruptions affecting this day were not yet visible in any feed it had read"* |
+
+Note what the headline invariants cannot do here. The cheat lands on **exactly 1.000**, not above it, so `capture > 1` never fires and the per-traveller `journey ≥ oracle` check stays silent. **Only the information-set audit separates earned from unearned.** That is precisely the case `OBSERVABILITY.md` §5 was written for, and it is now demonstrated rather than asserted.
+
+It flags one obligation of twenty-two, which is correct rather than weak: cheating only pays where the withheld information actually mattered, and an audit that flagged every query would be a false-positive machine.
+
+**Attribution, stage one, on a real run:**
+
+```
+  WHERE THE CAPTURE WENT
+      8.25  2 travellers     did not arrive: origin_unreachable:7
+      3.00  3 travellers     arrived, but slower than the oracle
+      2.00  2 travellers     forgone obligation — fell back to the reference policy
+```
+
+The top line is the ID collision biting: stop `7` means different places to different operators, and the naive player picked the wrong one. The report names it without anyone having to open the log.
+
+**One thing M5 found:** introducing generalised time created two inconsistent bases — capture on weighted minutes, the reported mean on raw ones, over *different populations*. Caught immediately by the M2 test asserting a declining player scores exactly 0.0, which stopped being exactly 0.0. The scorecard now reports raw minutes for a human to read and computes capture on generalised time, over one population, and says which is which.
+
+**All four open items closed, one of them on evidence:**
+
+* **Wait counts double** (§4) — capture on generalised time. On raw totals a solution that trades two minutes riding for eight minutes less waiting looks *worse*, which is exactly backwards.
+* **Information combines** as `F1(recall, precision) × (0.5 + 0.5 × timeliness)` (§5) — timeliness scales rather than averages, floored at 0.5 because being told late is still worth something.
+* **Ablation is opt-in** (§10) — stage one is free and always on; stage two costs one evaluation per declared conflict, and there are already fifteen.
+* **`capture > 1` quarantines rather than invalidates** (§11) — **decided on evidence.** The signal fired three times during Phase 0 and every single time it was *our* bug, not a player's. A rule that hard-invalidated would have discarded three legitimate runs and explained nothing.
 
 ### M6 — Phase 0 complete
 
@@ -203,10 +238,10 @@ No open item blocks M0 or M1 — work can start now. Each has a milestone by whi
 | ~~`docs_url` always present~~ | `PLAYER-CONTRACT.md` §6.1 | ✅ closed M3 |
 | `latency: sim` promotion | `DATA-MODEL.md` §4 | reviewed M4 → deferred to whichever milestone adds pagination |
 | ~~Modelled response delay δ~~ | `TIME-MODEL.md` §4 | ✅ closed M4 |
-| Wait-time weighting | `SCORING.md` §4 | **M5** |
-| Information combination form | `SCORING.md` §5 | **M5** |
-| `capture > 1`: invalidate or quarantine | `SCORING.md` §11 | M5 |
-| Ablation standard or opt-in | `SCORING.md` §10 | M5 |
+| ~~Wait-time weighting~~ | `SCORING.md` §4 | ✅ closed M5 |
+| ~~Information combination form~~ | `SCORING.md` §5 | ✅ closed M5 |
+| ~~`capture > 1`: invalidate or quarantine~~ | `SCORING.md` §11 | ✅ closed M5 |
+| ~~Ablation standard or opt-in~~ | `SCORING.md` §10 | ✅ closed M5 |
 | Trace redaction line | `OBSERVABILITY.md` §8 | M6 |
 | `verbatim` log size cap | `OBSERVABILITY.md` §7 | M6 |
 | Free-running ingestion in `realtime` | `TIME-MODEL.md` §6 | Phase 2 |

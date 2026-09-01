@@ -11,7 +11,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadWorld } from "@tns/core";
-import { score } from "@tns/scoring";
+import { scoreRun } from "@tns/scoring";
 import type { RunRecord } from "@tns/schema";
 import { runOpenLoop, hashLog } from "../src/harness.ts";
 
@@ -80,7 +80,7 @@ test("the run is byte-identical when repeated", { skip }, async () => {
 
 test("no traveller beats perfect information", { skip }, async () => {
   const log = await runOnce({ operator: 9250, control: 9259, player: 8250 });
-  const card = score(log);
+  const card = scoreRun(log);
 
   // Strictly stronger than `capture > 1`, which cannot be formed at all when
   // P0 and P1 coincide — as they do in a single-operator world with no
@@ -94,15 +94,15 @@ test("no traveller beats perfect information", { skip }, async () => {
 
 test("a player that answers nothing scores exactly 0.0", { skip }, async () => {
   const log: RunRecord[] = await runOnce({ operator: 9260, control: 9269, player: 8260 }, "null");
-  const card = score(log);
+  const card = scoreRun(log);
 
   // The zero point of the capture scale, demonstrated end to end rather than
   // asserted. Every obligation is declined, every traveller falls back to the
   // reference policy, and the player is charged for exactly that — so it lands
   // on 0.0 by construction, not by coincidence (REFERENCE-POLICY.md §8).
   assert.equal(card.obligations["declined"], world().queries.length);
-  assert.equal(card.capture, 0);
-  assert.equal(card.meanJourneyS, card.meanReferenceS);
+  assert.equal(card.service.capture, 0);
+  assert.equal(card.service.meanJourneyS, card.service.meanReferenceS);
 
   // And it is not rewarded for the tidiness: every one is recorded as forgone.
   const forgone = log.filter((r) => r.kind === "traveller" && r.forgone).length;
@@ -111,7 +111,7 @@ test("a player that answers nothing scores exactly 0.0", { skip }, async () => {
 
 test("a naive player is now actively harmful", { skip }, async () => {
   const log = await runOnce({ operator: 9270, control: 9279, player: 8270 });
-  const card = score(log);
+  const card = scoreRun(log);
 
   // At M2 this test asserted `capture > 0` — a naive player still helped,
   // because a coordinate matcher reconciled a conflict-free world perfectly.
@@ -121,13 +121,13 @@ test("a naive player is now actively harmful", { skip }, async () => {
   // That is the negative region of the capture scale doing exactly what
   // SCORING.md §2 designed it for, and it is the clearest single piece of
   // evidence that the conflicts are not decorative.
-  assert.notEqual(card.capture, null);
+  assert.notEqual(card.service.capture, null);
   assert.ok(
-    card.capture! < 0,
-    `naive player captured ${card.capture} — it is still helping, so the ` +
+    card.service.capture! < 0,
+    `naive player captured ${card.service.capture} — it is still helping, so the ` +
       `conflicts are not biting the way M3 intends`,
   );
-  assert.ok(card.capture! < 1, `naive player matched the oracle (${card.capture})`);
+  assert.ok(card.service.capture! < 1, `naive player matched the oracle (${card.service.capture})`);
 });
 
 function world() {

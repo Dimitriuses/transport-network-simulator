@@ -14,7 +14,7 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadWorld } from "@tns/core";
-import { score, renderScorecard } from "@tns/scoring";
+import { scoreRun, renderScorecard, auditInformationSets } from "@tns/scoring";
 import { runOpenLoop, hashLog } from "./harness.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -72,9 +72,16 @@ async function main(): Promise<number> {
       controlPort: CONTROL_PORT,
     });
 
-    console.log(renderScorecard(score(log)));
+    const card = scoreRun(log, { profile: process.env["TNS_PROFILE"] ?? "balanced", tier: world.manifest.tier });
+    // The forensic pass. Cheap here, and the only check that holds when the
+    // headline invariants cannot fire (OBSERVABILITY.md §5).
+    const audit = auditInformationSets(world, log);
+
+    console.log(renderScorecard(card, audit));
     console.log(`  run log: ${log.length} records · hash ${hashLog(log)}`);
     console.log("");
+
+    return audit.clean ? 0 : 0; // a leak is reported, not a build failure here
 
     return 0;
   } finally {

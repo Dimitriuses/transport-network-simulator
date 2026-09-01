@@ -12,7 +12,7 @@ There is no reference solution, and no single right answer. You are scored on wh
 
 ## Status
 
-**Specification complete. Phase 0 in progress — M0–M4 done, M5 next.**
+**Specification complete. Phase 0 in progress — M0–M5 done, M6 next.**
 
 The loop runs end to end: a hand-built 34-quay city, **three operators whose data genuinely disagrees**, live operator APIs, a reference player in its own process, and a capture-scored scorecard — reproducibly, byte for byte.
 
@@ -29,7 +29,9 @@ npm run check                  # lint, typecheck, contract drift, tests
 
 The world is now **live**: services run late and get cancelled, each operator's feed lags and lies in its own way, and a player that never looks at a realtime feed scores exactly 0 on Information while one that polls sensibly scores 0.658.
 
-Next is [`ROADMAP.md`](ROADMAP.md) M5 — judgement: the full scoring vector, profiles, tier clearance, `trace`-level logging and the information-set audit.
+Runs now produce a full scorecard — three families, a named profile, tier clearance, and a report of **where the capture went**. A player that plans with information no feed published is caught by the information-set audit even though its score looks perfect.
+
+Next is [`ROADMAP.md`](ROADMAP.md) M6 — the reference player, a conformance suite, player-facing documentation, and one polished Tier-2 world. Then Phase 0's three proof gates decide whether the core loop is actually worth building on.
 
 ---
 
