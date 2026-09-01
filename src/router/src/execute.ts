@@ -28,6 +28,16 @@ export interface Execution {
   /** How many times the plan collapsed and had to be remade. */
   readonly replans: number;
   readonly failureReason: string | null;
+  /**
+   * Journeys this traveller relied on that turned out to be disrupted.
+   *
+   * Needed because a player that declines an obligation still owes the
+   * traveller a warning: they travel under the reference policy and hit the
+   * same trouble. Without this, refusing to answer would produce *no material
+   * events at all* and score a perfect Information family — declining your way
+   * to a flawless record (REFERENCE-POLICY.md §8).
+   */
+  readonly disruptedEncountered: readonly string[];
 }
 
 const MAX_REPLANS = 3;
@@ -64,6 +74,7 @@ export function executeReactively(
   let waitS = 0;
   let transfers = 0;
   let replans = 0;
+  const disruptedEncountered: string[] = [];
   // Where the traveller currently stands. Null means still at the origin.
   let atQuay: string | null = null;
 
@@ -78,6 +89,7 @@ export function executeReactively(
         transfers,
         replans,
         failureReason: attempt === 0 ? "no_route" : "stranded_after_replan",
+        disruptedEncountered,
       };
     }
 
@@ -100,19 +112,20 @@ export function executeReactively(
       const journey = journeyById.get(leg.journeyId);
       const pattern = journey ? patternById.get(journey.patternId) : undefined;
       if (!journey || !pattern) {
-        return { arrived: false, journeyS: null, waitS, transfers, replans, failureReason: "bad_plan" };
+        return { arrived: false, journeyS: null, waitS, transfers, replans, failureReason: "bad_plan", disruptedEncountered };
       }
 
       const boardIdx = pattern.stops.findIndex((s) => s.quayId === leg.fromQuay);
       const alightIdx = pattern.stops.findIndex((s) => s.quayId === leg.toQuay);
       if (boardIdx < 0 || alightIdx <= boardIdx) {
-        return { arrived: false, journeyS: null, waitS, transfers, replans, failureReason: "bad_plan" };
+        return { arrived: false, journeyS: null, waitS, transfers, replans, failureReason: "bad_plan", disruptedEncountered };
       }
 
       atQuay = leg.fromQuay;
 
       // The traveller is standing at the quay. Now they find out.
       if (cancelled.has(leg.journeyId)) {
+        disruptedEncountered.push(leg.journeyId);
         // It simply never comes. They waited for it, and that time is gone.
         const scheduled = journey.startS + pattern.stops[boardIdx]!.departOffsetS;
         waitS += Math.max(0, scheduled - cursor);
@@ -128,6 +141,7 @@ export function executeReactively(
 
       if (departS < cursor) {
         // An earlier delay cost them this connection.
+        if (delay > 0) disruptedEncountered.push(leg.journeyId);
         replans++;
         broke = true;
         break;
@@ -143,7 +157,7 @@ export function executeReactively(
 
     const finalWalk = atQuay !== null ? destBy.get(atQuay) : undefined;
     if (finalWalk === undefined) {
-      return { arrived: false, journeyS: null, waitS, transfers, replans, failureReason: "bad_plan" };
+      return { arrived: false, journeyS: null, waitS, transfers, replans, failureReason: "bad_plan", disruptedEncountered };
     }
 
     return {
@@ -153,6 +167,7 @@ export function executeReactively(
       transfers: Math.max(0, transfers - 1),
       replans,
       failureReason: null,
+      disruptedEncountered,
     };
   }
 
@@ -163,5 +178,6 @@ export function executeReactively(
     transfers,
     replans,
     failureReason: "abandoned_after_replans",
+    disruptedEncountered,
   };
 }

@@ -158,6 +158,12 @@ export function startControlApi(
           seed: world.manifest.seed,
           engine_version: world.manifest.engineVersion,
           timezone: world.manifest.timezone,
+          // Stated here and nowhere else. An operator publishing local time
+          // with no offset is undecodable without it (catalogue §2.1 B).
+          utc_offset: (world.manifest.utcOffsetS < 0 ? "-" : "+") +
+            String(Math.floor(Math.abs(world.manifest.utcOffsetS) / 3600)).padStart(2, "0") +
+            ":" +
+            String(Math.floor((Math.abs(world.manifest.utcOffsetS) % 3600) / 60)).padStart(2, "0"),
         },
         run: {
           mode: "open_loop",

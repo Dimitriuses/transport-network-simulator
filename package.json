@@ -21,7 +21,10 @@
     "world:build": "cd tools && uv run python -m worldbuild",
     "demo": "node src/server/src/demo.ts",
     "calibrate": "node src/scoring/scripts/calibrate.ts",
-    "audit": "node src/projections/scripts/audit.ts"
+    "audit": "node src/projections/scripts/audit.ts",
+    "gates": "node src/scoring/scripts/gates.ts",
+    "ablate": "node src/scoring/scripts/gates.ts",
+    "conformance": "node src/conformance/scripts/check.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

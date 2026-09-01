@@ -75,6 +75,34 @@ All three gates pass, or the design is revisited. **Do not begin Phase 1 on a fa
 
 ---
 
+## Phase 0 — result
+
+*Measured 2026-09-01 with `npm run gates`. **All three gates pass.***
+
+| Gate | Result |
+|---|---|
+| **1 — buildable** | PASS. A solution built only from the brief and the operator APIs captures **0.292** of the headroom, headline 0.546. |
+| **2 — headroom real and discriminating** | PASS. 3.14 min of headroom; four solutions of different quality produce four distinct scores spanning 0.56 of headline. |
+| **3 — conflicts are doing the work** | PASS. **61 %** of a lazy integrator's shortfall is conflict-caused, measured against the same world with every declared conflict switched off. |
+
+### Three things the measurement forced
+
+**Gate 3 needed a different instrument than the one specified.** P2 as defined ignores realtime, so it is *guaranteed* to lose to a disrupted day whether or not any conflict exists — which confounds exactly the question the gate asks. Measured that way, conflicts accounted for 4 % of its loss and the gate failed. Measured on a lazy integrator that handles realtime and therefore differs from a careful one **in matching quality alone**, they account for 61 %. The first number was not wrong; it was answering a different question.
+
+**Leave-one-out ablation attributes almost nothing, and that is a true fact about the world.** Remove the coordinate offset and a lazy integrator still trips over colliding identifiers; remove those and it still misreads the timestamps. The defects are individually unnecessary and collectively sufficient, so removing any one changes nothing. Leave-*one-in* — switch everything off and add one back — is what measures a defect's standalone contribution.
+
+**One conflict is doing nearly all the work.** Of fifteen declared and audited as present, `C-coordinate-offset` alone accounts for the entire 0.70 min of conflict-caused loss. The other fourteen are real, verified, and individually cost a lazy integrator nothing measurable. *(`A-coordinate-precision` scores −0.34 alone: truncation partially cancels the offset, so adding it in isolation helps.)*
+
+### What this says about Phase 1
+
+The gates pass, so Phase 1 may begin. But the ablation is a sharper instruction than the verdict:
+
+* **Generate the conflicts that bite.** A generator that samples the catalogue uniformly would spend most of its effort on defects that cost a solver nothing. The ablation report is the tool for finding out which earn their place — and it should be run against every generated world, not just this one.
+* **Interaction is the norm, not the exception.** Defects here are jointly sufficient and individually unnecessary. A difficulty model that treats conflicts as independent and additive will be wrong.
+* **Gate 1's caveat still stands.** The competent solution was written by someone who had seen the world. That measures whether the world is *solvable*, not whether it is *discoverable*, and no amount of internal testing can close that gap. The first genuine Gate 1 evidence will come from the first stranger who plays.
+
+---
+
 ## Phase 1 — Generation
 
 **Delivers:** the ability to produce worlds instead of hand-authoring them — *for the content that Phase 0's attribution showed was carrying the difficulty, and no other.*

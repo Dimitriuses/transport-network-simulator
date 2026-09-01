@@ -28,7 +28,8 @@
 import type { IngestionRecord, ObligationRecord, RunRecord, TravellerOutcome, World } from "@tns/schema";
 import type { Disruption } from "@tns/core";
 import { generateDisruptions } from "@tns/core";
-import { buildIndex, executeReactively, type Access } from "@tns/router";
+import { buildIndex, route, type Access } from "@tns/router";
+import { projectOperator } from "@tns/projections";
 
 export interface LeakFinding {
   readonly travellerRef: string;
@@ -47,6 +48,10 @@ export interface AuditResult {
   readonly obligationsChecked: number;
   readonly findings: readonly LeakFinding[];
   readonly clean: boolean;
+  /** Times the player boarded a service it could not have known was doomed. */
+  readonly blindHits: number;
+  /** Times an optimal planner with the same information would have. */
+  readonly expectedBlindHits: number;
 }
 
 const TOLERANCE_S = 30;
@@ -119,31 +124,83 @@ export function auditInformationSets(
       .map((a) => ({ quayId: a.quayId, seconds: Math.ceil(a.metres / world.manifest.walkSpeedMps) }))
       .sort((a, b) => (a.quayId < b.quayId ? -1 : 1));
 
+  const tripToJourney = new Map<string, string>();
+  for (const op of world.manifest.operators) {
+    for (const [trip, journey] of projectOperator(world, op.id, 0).resolution.tripToJourney) {
+      tripToJourney.set(`${op.id}:${trip}`, journey);
+    }
+  }
+
   const findings: LeakFinding[] = [];
+  // The statistical tell. Comparing *times* against a sound bound turns out to
+  // be too permissive to catch anything: a bound that is optimistic about
+  // disruptions it does not know about is very hard to beat. Comparing
+  // *choices* is sharper.
+  //
+  // A player planning without knowledge of a cancellation will sometimes pick
+  // the doomed service, at roughly the rate an equally-informed optimal
+  // planner does. A player that never once does has information it was not
+  // given, however ordinary its arrival times look.
+  let blindHits = 0;
+  let expectedBlindHits = 0;
 
   for (const o of obligations) {
     if (!o.travellerRef) continue;
     const outcome = outcomes.get(o.travellerRef);
     if (!outcome || !outcome.arrived || outcome.journeyS === null) continue;
+    // A forgone obligation produced no answer to audit. The traveller's
+    // outcome is the reference policy's, which by construction owes nothing to
+    // the player's information set — auditing it flags a player for declining.
+    if (outcome.forgone) continue;
 
     const query = world.queries.find((q) => q.id === outcome.queryId);
     if (!query) continue;
 
-    // The ceiling: a perfect planner, restricted to what had been served.
+    // The ceiling, and it has to be a *sound* one.
+    //
+    // Take the optimal plan available under what had actually been served, and
+    // its predicted arrival. Reality only ever adds delay and cancellation —
+    // it never makes a journey quicker than planned — so any player restricted
+    // to that information realises a time no better than this prediction, even
+    // if it picks a different plan. Beating it is not skill.
+    //
+    // An earlier version used the reactive executor as the bound, which is a
+    // *heuristic* and therefore not an upper bound on performance at all: a
+    // player whose plan happened to survive reality beat it and was flagged.
+    // A bound that flags honest players is worse than no bound.
     const known = knowableBy(world, disruptions, ingestion, o.issuedAt);
     const boundIx = buildIndex(world, known);
-    const bound = executeReactively(
-      world,
+    const optimal = route(
       boundIx,
-      disruptions,
       accessFor(query.id, "origin"),
       accessFor(query.id, "destination"),
       query.departAfterS,
       "all",
     );
 
-    if (!bound.arrived || bound.journeyS === null) continue;
-    const excess = bound.journeyS - outcome.journeyS;
+    if (!optimal) continue;
+
+    // Services that were doomed and that no feed had shown this player yet.
+    const knownIds = new Set(known.map((d) => d.journeyId));
+    const blind = new Set(
+      disruptions
+        .filter((d) => d.kind === "cancellation" && !knownIds.has(d.journeyId))
+        .map((d) => d.journeyId),
+    );
+
+    for (const leg of optimal.legs) {
+      if (leg.mode === "transit" && blind.has(leg.journeyId)) expectedBlindHits++;
+    }
+    if (o.itinerary) {
+      for (const leg of o.itinerary.legs) {
+        if (leg.mode !== "transit") continue;
+        const journeyId = tripToJourney.get(`${leg.operator}:${leg.trip}`);
+        if (journeyId && blind.has(journeyId)) blindHits++;
+      }
+    }
+
+    const boundS = optimal.arriveS - query.departAfterS;
+    const excess = boundS - outcome.journeyS;
     if (excess <= TOLERANCE_S) continue;
 
     // What it seems to have known: a disruption on this traveller's day that
@@ -156,7 +213,7 @@ export function auditInformationSets(
       travellerRef: o.travellerRef,
       queryId: outcome.queryId,
       actualS: outcome.journeyS,
-      boundS: bound.journeyS,
+      boundS,
       excessS: excess,
       explanation:
         early.length > 0
@@ -166,9 +223,27 @@ export function auditInformationSets(
     });
   }
 
+  // Perfect avoidance of the unknowable, where an equally-informed planner
+  // would have been caught out repeatedly, is not luck.
+  if (expectedBlindHits >= 3 && blindHits === 0) {
+    findings.push({
+      travellerRef: "(run)",
+      queryId: "(all)",
+      actualS: 0,
+      boundS: 0,
+      excessS: 0,
+      explanation:
+        `never once boarded a service it could not have known was cancelled, ` +
+        `where an optimal planner with the same information would have done so ` +
+        `${expectedBlindHits} times — that is not luck`,
+    });
+  }
+
   return {
     obligationsChecked: obligations.length,
     findings,
     clean: findings.length === 0,
+    blindHits,
+    expectedBlindHits,
   };
 }

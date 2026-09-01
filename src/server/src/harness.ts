@@ -22,6 +22,24 @@ import {
 } from "./apis.ts";
 
 const RUN_ID = "m1-demo";
+/**
+ * How far ahead of departure a traveller asks for a plan.
+ *
+ * Was twenty seconds, which is nobody's behaviour: you check before you set
+ * out, not while stepping onto the pavement. That was not merely unrealistic —
+ * it quietly broke two things.
+ *
+ * With plans issued twenty seconds before departure, every disruption relevant
+ * to a journey had already been announced by the time it was planned. So there
+ * was nothing a player could *fail* to know, which left the information-set
+ * audit with nothing to detect, and it left the Information family with almost
+ * no window in which a warning could still change anybody's mind.
+ *
+ * Half an hour of lead time restores both: some of the day's trouble is
+ * genuinely unannounced when the plan is made, and a warning sent later has
+ * somewhere to land.
+ */
+const PLAN_LEAD_S = 1800;
 /** Simulated seconds a traveller will wait for a plan before acting alone. */
 const PLAN_DEADLINE_S = 20;
 /** Wall-clock anti-hang guard. Generous, and never scored (TIME-MODEL.md §4). */
@@ -87,14 +105,14 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
   }
 
   // ---- the clock and the event queue -------------------------------------
-  // Obligations are issued one deadline *before* the traveller wants to leave,
-  // so the run starts earlier than the earliest departure.
-  const firstTau = Math.min(...world.queries.map((q) => q.departAfterS - PLAN_DEADLINE_S));
+  // Obligations are issued well before the traveller wants to leave, so the
+  // run starts earlier than the earliest departure.
+  const firstTau = Math.min(...world.queries.map((q) => q.departAfterS - PLAN_LEAD_S));
   const clock = makeVirtualClock(firstTau);
   const queue = new EventQueue<Obligation>();
 
   for (const q of world.queries) {
-    queue.push(q.departAfterS - PLAN_DEADLINE_S, {
+    queue.push(q.departAfterS - PLAN_LEAD_S, {
       kind: "plan",
       queryId: q.id,
       travellerRef: `trv-${q.id}`,
@@ -317,6 +335,35 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         const op = line ? opOfLine.get(line) : undefined;
         if (op) operatorOfJourney.set(j.id, op);
       }
+    }
+
+    // Forgone obligations still owe the traveller a warning. They travel under
+    // the reference policy and hit the same trouble, so declining does not make
+    // the trouble go away — it only makes the player blind to it. Without these
+    // events a player that answers nothing would face no material events at all
+    // and score a *perfect* Information family, which is declining your way to
+    // a flawless record (REFERENCE-POLICY.md §8).
+    // `outcomes` rather than the log: traveller records are appended below,
+    // so filtering the log here would iterate an empty list — which it did.
+    for (const rec of outcomes) {
+      const t = rec as Extract<RunRecord, { kind: "traveller" }>;
+      if (t.kind !== "traveller" || !t.forgone) continue;
+      const exec = baselines.get(t.queryId)?.p1Exec;
+      const hit = exec?.disruptedEncountered[0];
+      if (!hit) continue;
+      const d = table.get(hit);
+      if (!d) continue;
+      const sk = staleness.get(operatorOfJourney.get(hit) ?? "") ?? 0;
+      log.push({
+        kind: "material_event",
+        travellerRef: t.travellerRef,
+        journeyId: hit,
+        disruption: d.kind,
+        announcedAtS: d.announcedAtS,
+        knowableAtS: d.announcedAtS + sk,
+        // No plan was issued, so the deadline is the moment they set out.
+        lastDecisionPointS: t.departAfter,
+      });
     }
 
     for (const rec of log.filter((r) => r.kind === "obligation" && r.obligation === "plan")) {

@@ -191,6 +191,8 @@ export interface QueryGaps {
   readonly p2: number | null;
   /** True when P2 produced no workable plan and fell back to the reference policy. */
   readonly p2FellBack: boolean;
+  /** P2's outcome when it also handles realtime. */
+  readonly p2rt: number | null;
 }
 
 export interface Calibration {
@@ -220,6 +222,16 @@ export interface Calibration {
   readonly conflictShare: number;
   /** Queries where P2 produced no workable plan at all. */
   readonly p2Failures: number;
+  /**
+   * P2's shortfall when it *does* handle realtime perfectly.
+   *
+   * P2 as specified ignores realtime (`REFERENCE-POLICY.md` §2), which means it
+   * is guaranteed to lose to a disrupted day whether or not any conflict
+   * exists. That confounds the one question Gate 3 asks. This variant differs
+   * from a careful integrator in **matching quality alone**, so whatever it
+   * loses is attributable to reconciliation.
+   */
+  readonly gapP0P2rt: number;
   readonly comparable: number;
 }
 
@@ -351,6 +363,25 @@ function evaluateAgainstTruth(
   return cursor + finalWalk - departAfterS;
 }
 
+/** Map real journey ids onto the naive world's `operator:trip` ids. */
+function disruptionsForNaive(
+  world: World,
+  disruptions: readonly Disruption[],
+): Disruption[] {
+  const naiveIdOf = new Map<string, string>();
+  for (const op of world.manifest.operators) {
+    for (const [trip, journey] of projectOperator(world, op.id, 0).resolution.tripToJourney) {
+      naiveIdOf.set(journey, `${op.id}:${trip}`);
+    }
+  }
+  return disruptions
+    .map((d) => {
+      const id = naiveIdOf.get(d.journeyId);
+      return id ? { ...d, journeyId: id } : null;
+    })
+    .filter((d): d is Disruption => d !== null);
+}
+
 export function calibrate(world: World): Calibration {
   // The day that actually happens, from the world seed.
   const disruptions = generateDisruptions(world.journeys, world.manifest.seed);
@@ -363,6 +394,8 @@ export function calibrate(world: World): Calibration {
 
   const naive = naiveMergedWorld(world);
   const naiveIx = buildIndex(naive);
+  // The same lazy model, but aware of the day. Isolates matching quality.
+  const naiveRtIx = buildIndex(naive, disruptionsForNaive(world, disruptions));
 
   const perQuery: QueryGaps[] = world.queries.map((q) => {
     // P2 plans on its own merged model...
@@ -413,22 +446,49 @@ export function calibrate(world: World): Calibration {
     // measured. The first version of this file did exactly that.
     const fellBack = p2 === null && p1 !== null;
 
+    const rtPlan = route(
+      naiveRtIx,
+      accessFor(naive, q.id, "origin"),
+      accessFor(naive, q.id, "destination"),
+      q.departAfterS,
+      "all",
+    );
+    const p2rt = rtPlan
+      ? evaluateAgainstTruth(
+          world,
+          naive,
+          rtPlan.legs.map((l) => ({
+            mode: l.mode,
+            fromQuay: l.fromQuay,
+            toQuay: l.toQuay,
+            ...(l.mode === "transit" ? { journeyId: l.journeyId } : {}),
+          })),
+          q.id,
+          q.departAfterS,
+          disruptions,
+        )
+      : null;
+
     return {
       queryId: q.id,
       p0: journeyOf(world, oracleIx, q.id, q.departAfterS, "all"),
       p1,
       p2: fellBack ? p1 : p2,
       p2FellBack: fellBack,
+      p2rt: p2rt ?? p1,
     };
   });
 
-  const usable = perQuery.filter((g) => g.p0 !== null && g.p1 !== null && g.p2 !== null);
+  const usable = perQuery.filter(
+    (g) => g.p0 !== null && g.p1 !== null && g.p2 !== null && g.p2rt !== null,
+  );
   const mean = (pick: (g: QueryGaps) => number | null): number =>
     usable.length === 0 ? 0 : usable.reduce((a, g) => a + pick(g)!, 0) / usable.length;
 
   const meanP0 = mean((g) => g.p0);
   const meanP1 = mean((g) => g.p1);
   const meanP2 = mean((g) => g.p2);
+  const meanP2rt = mean((g) => g.p2rt);
 
   return {
     perQuery,
@@ -440,6 +500,138 @@ export function calibrate(world: World): Calibration {
     gapP1P2: meanP1 - meanP2,
     conflictShare: meanP1 - meanP0 === 0 ? 0 : (meanP2 - meanP0) / (meanP1 - meanP0),
     p2Failures: perQuery.filter((g) => g.p2FellBack).length,
+    gapP0P2rt: meanP2rt - meanP0,
     comparable: usable.length,
+  };
+}
+
+// ---------------------------------------------------------------- ablation
+
+/**
+ * Conflict names to the manifest setting that produces them, and the value
+ * that would switch it off. Mirrors `tools/worldbuild/build.py`.
+ */
+const CONFLICT_SETTINGS: Record<string, [string, string, unknown]> = {
+  "A-granularity": ["identity", "granularity", "quay"],
+  "A-id-scheme": ["identity", "id_scheme", "prefixed"],
+  "A-naming": ["naming", "variant", "official"],
+  "A-coordinate-precision": ["geometry", "precision", 6],
+  "A-coordinate-source": ["geometry", "source", "quay"],
+  "C-coordinate-offset": ["geometry", "offset_m", 0],
+  "C-latlon-order": ["geometry", "latlon_order", "lat_lon"],
+  "B-time-encoding": ["time", "encoding", "iso_offset"],
+  "D-staleness": ["realtime", "staleness_s", 0],
+  "D-silent-cancellation": ["realtime", "cancellations", "explicit"],
+  "C-delay-unit": ["realtime", "delay_unit", "seconds"],
+  "D-no-delays": ["realtime", "publishes_delays", true],
+};
+
+/** A copy of the world with *every* declared conflict switched off. */
+function withNoConflicts(world: World): World {
+  let out = world;
+  for (const c of world.manifest.activeConflicts) out = without(out, c) ?? out;
+  return out;
+}
+
+/** A copy of the world with one declared conflict switched off. */
+function without(world: World, conflict: string): World | null {
+  const [name, operatorId] = conflict.split(":");
+  const setting = CONFLICT_SETTINGS[name ?? ""];
+  if (!setting || !operatorId) return null;
+  const [group, key, def] = setting;
+
+  const operators = world.manifest.operators.map((o) => {
+    if (o.id !== operatorId) return o;
+    const m = structuredClone(o.manifest) as Record<string, Record<string, unknown>>;
+    if (!m[group]) return o;
+    m[group]![key] = def;
+    return { ...o, manifest: m };
+  });
+
+  return { ...world, manifest: { ...world.manifest, operators } };
+}
+
+export interface AblationEntry {
+  readonly conflict: string;
+  /** Seconds of P2's loss this conflict is responsible for. */
+  readonly costS: number;
+}
+
+export interface AblationReport {
+  readonly baselineGapS: number;
+  /**
+   * The lazy integrator's shortfall in a world with **every declared conflict
+   * switched off**.
+   *
+   * The number Gate 3 actually turns on. Whatever remains here is not caused by
+   * semantic conflict at all — it is the cost of the day going wrong, which a
+   * player must handle whether or not any operator misbehaves.
+   */
+  readonly cleanGapS: number;
+  readonly entries: readonly AblationEntry[];
+  readonly attributedS: number;
+  readonly residualS: number;
+}
+
+/**
+ * Stage-two attribution: what each declared conflict actually costs.
+ *
+ * Neutralise one conflict, recompute the lazy integrator, and measure how much
+ * of its shortfall disappears. The delta *is* that conflict's contribution.
+ *
+ * Opt-in, because the cost scales with the conflict count (SCORING.md §10) —
+ * but it is the only instrument that answers Phase 0's Gate 3 directly, rather
+ * than by proxy.
+ */
+export function ablate(world: World): AblationReport {
+  // Measured on the realtime-aware lazy integrator, so what is left when the
+  // conflicts are switched off is reconciliation cost and nothing else.
+  const base = calibrate(world);
+  const clean = withNoConflicts(world);
+  const cleanGap = calibrate(clean).gapP0P2rt;
+
+  // **Leave-one-in, not leave-one-out.** Removing a single conflict attributes
+  // almost nothing here, and that is a true fact about the world rather than a
+  // broken measurement: the defects are jointly redundant. Take away the
+  // coordinate offset and a lazy integrator still trips over colliding
+  // identifiers; take away those and it still misreads the timestamps. Each is
+  // individually unnecessary and collectively sufficient, so leave-one-out
+  // reports zero for all of them.
+  //
+  // Switching everything off and then adding one back measures what each
+  // defect can do *on its own*. The shares will over-sum, because a cost two
+  // conflicts would each have caused alone is counted twice — that overlap is
+  // the redundancy itself, and it is worth seeing rather than hiding.
+  const entries: AblationEntry[] = [];
+  for (const conflict of world.manifest.activeConflicts) {
+    const setting = CONFLICT_SETTINGS[(conflict.split(":")[0] ?? "")];
+    if (!setting) continue; // cross-operator conflicts have no single setting
+
+    const [group, key] = setting;
+    const [, operatorId] = conflict.split(":");
+    const original = world.manifest.operators.find((o) => o.id === operatorId);
+    if (!original) continue;
+    const live = (original.manifest as Record<string, Record<string, unknown>>)[group]?.[key];
+
+    const operators = clean.manifest.operators.map((o) => {
+      if (o.id !== operatorId) return o;
+      const m = structuredClone(o.manifest) as Record<string, Record<string, unknown>>;
+      if (m[group]) m[group]![key] = live;
+      return { ...o, manifest: m };
+    });
+    const only = { ...clean, manifest: { ...clean.manifest, operators } };
+
+    entries.push({ conflict, costS: calibrate(only).gapP0P2rt - cleanGap });
+  }
+
+  entries.sort((a, b) => b.costS - a.costS);
+  const attributed = entries.reduce((a, e) => a + Math.max(0, e.costS), 0);
+
+  return {
+    baselineGapS: base.gapP0P2rt,
+    cleanGapS: cleanGap,
+    entries,
+    attributedS: attributed,
+    residualS: base.gapP0P2 - attributed,
   };
 }

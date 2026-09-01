@@ -193,9 +193,9 @@ Full scoring vector and profiles; validity and tier clearance; run log at `trace
 | `naive` — honest | −1.386 | **clean** over 22 obligations |
 | `cheat` — plans with the oracle's information | 1.000 | **1 leak**: *"beat its information set by 386 s; 6 disruptions affecting this day were not yet visible in any feed it had read"* |
 
-Note what the headline invariants cannot do here. The cheat lands on **exactly 1.000**, not above it, so `capture > 1` never fires and the per-traveller `journey ≥ oracle` check stays silent. **Only the information-set audit separates earned from unearned.** That is precisely the case `OBSERVABILITY.md` §5 was written for, and it is now demonstrated rather than asserted.
+Note what the headline invariants cannot do here. The cheat lands on **exactly 1.000**, not above it, so `capture > 1` never fires and the per-traveller `journey ≥ oracle` check stays silent. **Only the information-set audit separates earned from unearned.** That is precisely the case `OBSERVABILITY.md` §5 was written for.
 
-It flags one obligation of twenty-two, which is correct rather than weak: cheating only pays where the withheld information actually mattered, and an audit that flagged every query would be a false-positive machine.
+> **Corrected at M6.** The audit as built here used the reactive executor as its ceiling, and that is a *heuristic*, not an upper bound on achievable performance — so it flagged honest players whose plans happened to survive the day, and the "leak" it found was partly an artefact of its own weakness. M6 replaced it with a sound bound and then found that the sound version detected nothing at all, because the world gave a cheat almost nothing to cheat with. Both problems, and the fix, are recorded under M6.
 
 **Attribution, stage one, on a real run:**
 
@@ -217,13 +217,37 @@ The top line is the ID collision biting: stop `7` means different places to diff
 * **Ablation is opt-in** (§10) — stage one is free and always on; stage two costs one evaluation per declared conflict, and there are already fifteen.
 * **`capture > 1` quarantines rather than invalidates** (§11) — **decided on evidence.** The signal fired three times during Phase 0 and every single time it was *our* bug, not a player's. A rule that hard-invalidated would have discarded three legitimate runs and explained nothing.
 
-### M6 — Phase 0 complete
+### M6 — Phase 0 complete ✅ complete
+
+*Completed 2026-09-01. All exit conditions verified. **All three proof gates pass.***
 
 The reference player (valid but bad); the conformance suite; player-facing documentation; one polished Tier-2 world committed to `worlds/`.
 
-**Exit:** someone who has never seen the repository can clone it, read the brief, and build a solution that scores.
+**Delivered:** a **competent** reference solution — the honest instrument for Gates 1 and 2, and the worked example a player can read; a conformance suite (`npm run conformance`) checking any candidate speaks the contract; [`docs/PLAYING.md`](docs/PLAYING.md); conflict ablation and the gates harness (`npm run gates`); and the world promoted to **Tier 2**.
 
-Then the three proof gates in [`docs/PHASES.md`](docs/PHASES.md) decide whether Phase 1 begins.
+**The solution ladder, which is Gate 2's evidence:**
+
+| mode | capture | information | headline | audit |
+|---|---:|---:|---:|---|
+| `null` — declines everything | 0.000 | 0.000 | 0.000 | clean |
+| `blind` — plans, never looks at a feed | −0.023 | 0.000 | −0.014 | clean |
+| `naive` — polls, matches by coordinates | −0.023 | 0.825 | 0.316 | clean |
+| `competent` — reconciles properly | **0.292** | **0.928** | **0.546** | clean |
+| `cheat` — plans with the oracle's information | 1.000 | 0.920 | — | **3 leaks** |
+
+**Four things M6 found, and three of them were wrong before it started.**
+
+**1. A player that answers nothing scored a *perfect* Information family.** Declining every obligation meant no traveller held an itinerary a disruption could hit, so there were no material events, so recall and precision were both vacuously 1.0 — 0.400 on the headline for doing nothing at all, beating a player that tried. Forgone travellers now generate material events from the reference policy's journey: they still hit the trouble, and the player still owed them a warning. Declining now scores 0.000 on both families, as `REFERENCE-POLICY.md` §8 always intended.
+
+**2. The information-set audit's bound was not a bound.** It used the reactive executor as its ceiling — a heuristic, so a player whose plan happened to survive the day beat it and was flagged. An audit that flags honest players is worse than no audit. Replaced with a sound ceiling: the optimal *predicted* time under what had actually been served. Reality only ever adds delay, so no player restricted to that information can realise better.
+
+**3. The sound bound then caught nothing — and the reason was a modelling error.** Travellers were asking for plans **twenty seconds before departure**, which is nobody's behaviour. Every disruption relevant to a journey had therefore already been announced by the time it was planned, so there was nothing a player could fail to know and nothing for a cheat to gain. Travellers now plan **thirty minutes ahead**, and it fixed three things at once: the audit became demonstrable, the Information family gained a window in which a warning can still change somebody's mind, and the competent solution's capture nearly doubled — 0.174 to 0.292 — because it can finally *use* what it learns.
+
+   The audit's tell is now about choices rather than times: *"never once boarded a service it could not have known was cancelled, where an optimal planner with the same information would have done so four times — that is not luck."* Comparing times against a sound bound turns out to be far too permissive; comparing decisions is sharp.
+
+**4. The coordinate offset is not fully recoverable, and that is the correct answer.** The competent solution estimates it by iterated mutual-nearest-neighbour displacement — and lands on 223 m for a 130 m offset, because the displacement and the genuine ~80 m separation between neighbouring quays are the same order of magnitude and proximity cannot decompose them. No cleverer estimator fixes this. The engineering response is to stop trusting the geometry and put a floor under transfer times, which is what it does.
+
+**Open items closed:** trace disclosure gained a **third** level (§8) — `attributed` names the catalogue *section* that cost you capture without naming the operator or setting, which is the difference between a hint and an answer key; and `verbatim` is capped at 250 MB and **downgrades rather than truncates** (§7), because a truncated log looks complete until you need the missing part.
 
 ---
 
@@ -242,8 +266,8 @@ No open item blocks M0 or M1 — work can start now. Each has a milestone by whi
 | ~~Information combination form~~ | `SCORING.md` §5 | ✅ closed M5 |
 | ~~`capture > 1`: invalidate or quarantine~~ | `SCORING.md` §11 | ✅ closed M5 |
 | ~~Ablation standard or opt-in~~ | `SCORING.md` §10 | ✅ closed M5 |
-| Trace redaction line | `OBSERVABILITY.md` §8 | M6 |
-| `verbatim` log size cap | `OBSERVABILITY.md` §7 | M6 |
+| ~~Trace redaction line~~ | `OBSERVABILITY.md` §8 | ✅ closed M6 |
+| ~~`verbatim` log size cap~~ | `OBSERVABILITY.md` §7 | ✅ closed M6 |
 | Free-running ingestion in `realtime` | `TIME-MODEL.md` §6 | Phase 2 |
 | Sub-second resolution | `TIME-MODEL.md` §8 | Phase 2 |
 | Trajectory in-bundle vs regenerated | `DATA-MODEL.md` §6 | Phase 2 |

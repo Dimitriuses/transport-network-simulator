@@ -163,7 +163,11 @@ Applied to `PLAYER-CONTRACT.md`.
 | **`replay`** | + every player response verbatim | ~20 MB | closed loop |
 | **`verbatim`** | + reconstructed response bodies inline | GBs | opt-in, short runs only |
 
-`trace` is the default because it costs about 2 MB over the minimum and provides the entire narrative in §2. `verbatim` exists for tutorials and demos, where a self-contained artefact matters more than size, and should be bounded to short runs.
+`trace` is the default because it costs about 2 MB over the minimum and provides the entire narrative in §2.
+
+**`verbatim` is capped at 250 MB, and the cap is enforced rather than advised.** *Decided at M6.* On reaching it the run keeps writing at `trace` level and records that it downgraded, rather than truncating — a truncated verbatim log is worse than a complete trace log, because it looks complete until the moment you need the part that is missing.
+
+The number is chosen to be roughly a short demo run and unambiguously not a full day: at ~200 KB per operator response, 250 MB is around 1,250 fetches. If you are hitting it, `verbatim` is the wrong level for what you are doing — the whole point of the snapshot rule is that bodies are regenerable, so `trace` plus a replay gives you the same bytes on demand (§4).
 
 **Format:** newline-delimited JSON while running — append-only, streamable, and a crashed run still leaves a usable log — compacted to SQLite at run end for analysis. SQLite matches the world-bundle choice in `DATA-MODEL.md` §6, so one query tool serves both.
 
@@ -176,9 +180,17 @@ A trace contains ground truth: which conflicts fired, what the world's real stat
 * **Training / sandbox** — disclose fully. This is precisely the feedback that makes the project educational, and it is the strongest argument for building tracing at all.
 * **Assessment / benchmark** — a full trace of one run leaks a great deal about the world. Across several runs on the same seed it would substantially reconstruct the answer key.
 
-**Proposal:** trace disclosure is a run-configuration setting, defaulting to full in sandbox and to a redacted summary under assessment. The redacted form keeps the player's own actions and its outcomes but withholds ground truth and conflict attribution.
+**Decided at M6.** Disclosure is a run-configuration setting with three levels, because a binary was the wrong shape — the attribution report genuinely sits on both sides of the line.
 
-**OPEN:** where exactly the redaction line falls. The attribution report in `SCORING.md` §10 is on the wrong side of it — naming the conflicts that cost a player points is enormously useful for learning and is close to an answer key for assessment. It may need to be tiered rather than binary.
+| Level | The player sees | For |
+|---|---|---|
+| `full` | everything: ground truth, the disruption stream, per-conflict attribution | sandbox, learning |
+| `attributed` *(default)* | its own actions and outcomes, plus **which catalogue sections** cost it capture — `A: identity`, `D: realtime truthfulness` — but not which operator or which setting | most runs |
+| `outcome` | its own actions and outcomes only | assessment, benchmark |
+
+The middle level is the one that took working out. Naming *"stop-matching errors cost you 0.19"* tells a player what kind of problem they have without telling them the answer: they still have to find which operator, which stops, and why. Naming *"`A-granularity:sudbahn`"* hands over the answer key.
+
+That distinction is exactly the difference between a hint and a solution, and it is also why `attributed` is the default rather than `full`: a player who is told the section learns the lesson, and one who is told the setting learns nothing except how to patch one world.
 
 ---
 
@@ -202,6 +214,6 @@ Tooling, not specification. Worth deferring until the simulator runs, then worth
 * **The size concern: 13.7 MB rather than 3.4 GB**, because the snapshot rule makes response bodies regenerable and determinism makes trajectories regenerable. *Log inputs and decisions, never derived state.*
 * A mechanical procedure for diagnosing `capture > 1` — the information-set audit — that most often catches our own projection bugs.
 
-**Open:** the redaction line under assessment (§8); whether `verbatim` needs a hard size cap rather than guidance (§7).
+**Open:** none. Both closed at M6 — three disclosure levels rather than two (§8), and a 250 MB enforced cap that downgrades rather than truncates (§7).
 
 **Contract impact:** v0.3, additive, applied.

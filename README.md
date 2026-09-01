@@ -12,7 +12,7 @@ There is no reference solution, and no single right answer. You are scored on wh
 
 ## Status
 
-**Specification complete. Phase 0 in progress — M0–M5 done, M6 next.**
+**Phase 0 complete. All three proof gates pass.**
 
 The loop runs end to end: a hand-built 34-quay city, **three operators whose data genuinely disagrees**, live operator APIs, a reference player in its own process, and a capture-scored scorecard — reproducibly, byte for byte.
 
@@ -31,7 +31,16 @@ The world is now **live**: services run late and get cancelled, each operator's 
 
 Runs now produce a full scorecard — three families, a named profile, tier clearance, and a report of **where the capture went**. A player that plans with information no feed published is caught by the information-set audit even though its score looks perfect.
 
-Next is [`ROADMAP.md`](ROADMAP.md) M6 — the reference player, a conformance suite, player-facing documentation, and one polished Tier-2 world. Then Phase 0's three proof gates decide whether the core loop is actually worth building on.
+Four solutions of different quality separate cleanly, a lazy integrator forfeits **61 %** of its shortfall to the declared conflicts, and a player planning with information no feed published is caught by the information-set audit even though its score looks perfect.
+
+```
+npm run gates                  # the three Phase 0 proof gates
+npm run conformance -- URL     # check a player speaks the contract
+```
+
+**Want to build a solution?** [`docs/PLAYING.md`](docs/PLAYING.md).
+
+Next is Phase 1 — generation — scoped in [`docs/PHASES.md`](docs/PHASES.md).
 
 ---
 
@@ -64,7 +73,8 @@ Read in this order. Each is a draft; each marks its own open questions with **OP
 | [`docs/REFERENCE-POLICY.md`](docs/REFERENCE-POLICY.md) | How travellers decide *without* a player — the baseline you compete against |
 | [`docs/SCORING.md`](docs/SCORING.md) | Headroom capture, the three metric families, explaining a score |
 | [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) | Per-traveller causal tracing, and forensics on impossible scores |
-| [`docs/PHASES.md`](docs/PHASES.md) | The long arc: Phase 0 (MVP) through Phase 5 |
+| [`docs/PLAYING.md`](docs/PLAYING.md) | **Building a solution.** Start here if you want to play |
+| [`docs/PHASES.md`](docs/PHASES.md) | The long arc: Phase 0 (MVP) through Phase 5, and Phase 0's result |
 | [`ROADMAP.md`](ROADMAP.md) | Milestones for the phase currently being built |
 | [`docs/GLOSSARY.md`](docs/GLOSSARY.md) | Shared vocabulary. Useful early, and useful when a term looks familiar but is being used precisely |
 | [`docs/LICENSING-NOTES.md`](docs/LICENSING-NOTES.md) | Why MIT, and why OpenStreetMap data stays out of the repository |

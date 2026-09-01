@@ -104,7 +104,15 @@ jobs:
           TNS_PLAYER_MODE=cheat npm run demo > /tmp/cheat.txt
           grep -q "INFORMATION-SET AUDIT   clean" /tmp/honest.txt
           grep -q "LEAK(S)" /tmp/cheat.txt
-          cat /tmp/honest.txt
+
+      # Phase 0's verdict, recomputed every build. If a change to the engine,
+      # the world or the scorer moves a gate, that is worth knowing at once
+      # rather than the next time somebody remembers to look.
+      - name: Phase 0 proof gates
+        run: |
+          set -e
+          npm run gates | tee /tmp/gates.txt
+          grep -q "VERDICT: all three gates pass" /tmp/gates.txt
 
   offline:
     name: Python offline pipeline

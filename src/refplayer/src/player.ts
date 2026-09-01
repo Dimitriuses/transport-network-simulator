@@ -6,6 +6,12 @@
 
 import { createServer, type Server } from "node:http";
 import { makeCheatPlanner, type CheatPlanner } from "./cheat.ts";
+import {
+  applyRealtime,
+  buildCompetentModel,
+  planCompetently,
+  type CompetentModel,
+} from "./competent-model.ts";
 
 interface StopTime {
   stop_id: string;
@@ -323,7 +329,7 @@ export interface PlayerOptions {
    * the traveller falls back to the reference policy and the player is charged
    * for it (REFERENCE-POLICY.md §8).
    */
-  readonly mode?: "naive" | "null" | "blind" | "cheat";
+  readonly mode?: "naive" | "null" | "blind" | "cheat" | "competent";
 }
 
 interface Held {
@@ -348,6 +354,10 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
   const cheat: CheatPlanner | null =
     mode === "cheat" ? makeCheatPlanner(process.env["TNS_WORLD"] ?? "worlds/m1.world.db") : null;
 
+  // The competent integrator keeps its own reconciled model — offsets
+  // corrected, encodings inferred, nearby stops linked rather than fused.
+  let competent: CompetentModel | null = null;
+
   // Ingestion. The brief says where the operators are and nothing else — not
   // their schemas, not their quality, and certainly not how their stops relate
   // (PLAYER-CONTRACT.md §6.1). Everything past this point is inference.
@@ -366,6 +376,17 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
     }
 
     model = buildModel(timetables);
+    if (mode === "competent") {
+      // The brief states the world's timezone; no operator does. That single
+      // published fact is what makes an offsetless timestamp decodable.
+      const offsetS = /([+-])(\d{2}):?(\d{2})/.exec(
+        String((brief as { world?: { utc_offset?: string } }).world?.utc_offset ?? "+03:00"),
+      );
+      const worldOffsetS = offsetS
+        ? (offsetS[1] === "-" ? -1 : 1) * (Number(offsetS[2]) * 3600 + Number(offsetS[3]) * 60)
+        : 3 * 3600;
+      competent = buildCompetentModel(timetables, worldOffsetS);
+    }
     ready = true;
   };
 
@@ -380,7 +401,7 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
    * the things a real solution has to work out.
    */
   const pollRealtime = async (): Promise<void> => {
-    if (mode !== "naive" && mode !== "cheat") return;
+    if (mode === "null" || mode === "blind") return;
 
     const trouble = new Set<string>();
     for (const op of operators) {
@@ -388,9 +409,17 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
         const feed = (await (await fetch(`${op.base_url}/realtime`)).json()) as {
           updates?: { trip_id: string; status: string; delay?: number }[];
         };
-        for (const u of feed.updates ?? []) {
-          if (u.status === "cancelled" || (u.status === "delayed" && (u.delay ?? 0) > 0)) {
-            trouble.add(`${op.id}:${u.trip_id}`);
+        if (competent) {
+          // Infers delay units from magnitude, and treats a trip that has
+          // vanished since the last look as cancelled rather than punctual.
+          applyRealtime(competent, op.id, feed.updates ?? []);
+          for (const k of competent.cancelled) trouble.add(k);
+          for (const k of competent.delayed.keys()) trouble.add(k);
+        } else {
+          for (const u of feed.updates ?? []) {
+            if (u.status === "cancelled" || (u.status === "delayed" && (u.delay ?? 0) > 0)) {
+              trouble.add(`${op.id}:${u.trip_id}`);
+            }
           }
         }
       } catch {
@@ -429,7 +458,12 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
 
       if (req.method === "GET" && url.pathname === "/v1/identity") {
         return json(res, 200, {
-          name: mode === "null" ? "null-player" : NAME,
+          name:
+            mode === "null"
+              ? "null-player"
+              : mode === "competent"
+                ? "competent-integrator"
+                : NAME,
           version: VERSION,
           contract_versions: [CONTRACT_VERSION],
           // No `tick`: M1's timetable is static. No `notify`: no disruptions.
@@ -438,12 +472,12 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
           // the Information family measures: the floor is not "warns badly",
           // it is "never looks".
           capabilities:
-            mode === "naive" || mode === "cheat"
-              ? ["plan", "tick", "notify"]
-              : ["plan"],
-          ...(mode === "naive" || mode === "cheat"
-            ? { tick: { interval_sim_s: 120 } }
-            : {}),
+            mode === "null" || mode === "blind"
+              ? ["plan"]
+              : ["plan", "tick", "notify"],
+          ...(mode === "null" || mode === "blind"
+            ? {}
+            : { tick: { interval_sim_s: mode === "competent" ? 60 : 120 } }),
         });
       }
 
@@ -467,9 +501,21 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
             // obligation (REFERENCE-POLICY.md §8).
             return { request_id: r.request_id, status: "declined", itinerary: null };
           }
+          const departS = (() => {
+            const d = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/.exec(r.depart_after);
+            return d
+              ? (Number(d[3]) - 7) * 86400 +
+                  Number(d[4]) * 3600 +
+                  Number(d[5]) * 60 +
+                  Number(d[6])
+              : 0;
+          })();
+
           const itinerary = cheat
-            ? cheat.plan(r.origin, r.destination, cheat.timeOf(r.depart_after))
-            : plan(model!, r.origin, r.destination, r.depart_after);
+            ? cheat.plan(r.origin, r.destination, departS)
+            : competent
+              ? planCompetently(competent, r.origin, r.destination, departS)
+              : plan(model!, r.origin, r.destination, r.depart_after);
           if (itinerary === null) {
             return { request_id: r.request_id, status: "no_route", itinerary: null };
           }

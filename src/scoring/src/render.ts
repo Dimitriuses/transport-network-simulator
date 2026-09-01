@@ -113,7 +113,11 @@ export function renderScorecard(card: Scorecard, audit?: AuditResult): string {
 
   if (audit) {
     if (audit.clean) {
-      p(`  INFORMATION-SET AUDIT   clean over ${audit.obligationsChecked} obligations`);
+      p(
+        `  INFORMATION-SET AUDIT   clean over ${audit.obligationsChecked} obligations ` +
+          `(boarded ${audit.blindHits} doomed services it could not have known about; ` +
+          `an equally-informed planner would have boarded ${audit.expectedBlindHits})`,
+      );
     } else {
       p(`  INFORMATION-SET AUDIT   ${audit.findings.length} LEAK(S) over ${audit.obligationsChecked} obligations`);
       for (const f of audit.findings.slice(0, 6)) {

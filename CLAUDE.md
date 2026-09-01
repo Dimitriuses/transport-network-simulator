@@ -6,7 +6,7 @@ Guidance for Claude Code and for anyone else working in this repository.
 
 A simulation game about integration engineering. A generated city, several independent transport operators whose data disagrees in deliberate and specific ways, and a player who must unify them. See [`README.md`](README.md).
 
-**Current state: specification complete; Phase 0 in progress.** M0 (scaffolding), M1 (the walking skeleton), M2 (oracle, baselines, three-gap calibration) M3 (semantic conflicts, the defect library, the audit gate) M4 (the live world) and M5 (the full scoring vector, attribution, the information-set audit) are done. The active work is [`ROADMAP.md`](ROADMAP.md) milestone **M6** — the reference player, conformance suite and player documentation.
+**Current state: specification complete; Phase 0 in progress.** M0 (scaffolding), M1 (the walking skeleton), M2 (oracle, baselines, three-gap calibration) M3 (semantic conflicts, the defect library, the audit gate) **Phase 0 is complete: M0–M6 done, and all three proof gates pass** (`npm run gates`). The next work is Phase 1 — generation — scoped in [`docs/PHASES.md`](docs/PHASES.md).
 
 `npm run demo` runs the whole loop; `npm run calibrate` reports the three-gap difficulty calibration; `npm run audit` checks every declared conflict is actually present; `npm run world:build` regenerates the world bundle (content-hashed, and CI checks it).
 

@@ -222,7 +222,11 @@ def build(out_path: Path, seed: int = 481516) -> Path:
                 ("schema_version", str(SCHEMA_VERSION)),
                 ("engine_version", ENGINE_VERSION),
                 ("seed", str(seed)),
-                ("tier", "0"),
+                # Tier 2 (CORECONCEPT.md §7): several operators, no stop mapping
+                # provided, catalogue A-D active. Not Tier 3 — the reference
+                # policy is still `timetable`, and the feeds, while stale and
+                # dishonest, are neither throttled nor unreliable.
+                ("tier", "2"),
                 ("world_epoch_iso", city.WORLD_EPOCH_ISO),
                 ("timezone", city.WORLD_TIMEZONE),
                 ("utc_offset_s", str(city.WORLD_UTC_OFFSET_S)),
