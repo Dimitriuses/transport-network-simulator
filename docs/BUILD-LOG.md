@@ -231,6 +231,8 @@ The top line is the ID collision biting: stop `7` means different places to diff
 
 ### P0M6 — Phase 0 complete ✅ complete
 
+> **The heading was true when written and is not true now.** P1M0 re-measured Gate 3 and it fails; Phase 0 is reopened with P0M7 and P0M8. Left as written, with the correction attached, because the record of what was believed at the time is the useful part.
+
 *Completed 2026-09-01. All exit conditions verified. **All three proof gates pass.***
 
 The reference player (valid but bad); the conformance suite; player-facing documentation; one polished Tier-2 world committed to `worlds/`.
@@ -345,7 +347,9 @@ The milestone's exit is *"we can name which conflicts are worth generating and r
 
 **Second clause: not met, and not meetable from here.** [`PLAYTEST-KIT.md`](PLAYTEST-KIT.md) makes it a session someone can run rather than an intention.
 
-**And Gate 3 now fails, which `PHASES.md` says must be allowed to stop the project rather than be tuned away.** P1M1 was already scoped to strengthen conflicts; it is now the milestone that decides whether Gate 3 can honestly be made to pass. That is a decision about the project, not a task inside it.
+**And Gate 3 now fails, which `PHASES.md` says must be allowed to stop the project rather than be tuned away.**
+
+**Outcome: Phase 0 was reopened.** Phase 1's generation milestones are blocked behind a new joint exit — P0M7 (`replan`) then P0M8 (conflict potency) — and Gate 3's criterion was ratified at 20 % of headroom. Conflict potency moved out of Phase 1 into Phase 0, since it is gate remediation rather than generation work, and the remaining Phase 1 milestones shifted down one.
 
 ### The reference was wrong too — P0a
 
@@ -372,7 +376,7 @@ FAIL
 
 **Gate 3 still fails, and the share is no longer why.** That `0.00m` is the load-bearing result and now carries a test: *with no conflicts, a lazy integrator on a matched horizon is exactly optimal.* Which means the conflict-caused share is **100 % by construction** — remove the conflicts and there is nothing else left to lose to. Share stopped being a test the moment the reference was matched, and a gate reading "100 % PASS" would have been the purest available form of tuning a gate until it passes.
 
-So the gate now judges **materiality**: conflict cost against the 3.14 min of headroom a player actually competes for. That reads **3 %**. The 20 % threshold is provisional, chosen because the gate needed one, and says so in its own output.
+So the gate now judges **materiality**: conflict cost against the 3.14 min of headroom a player actually competes for. That reads **3 %**. The 20 % threshold was chosen because the gate needed one, and ratified by the project owner immediately afterwards; it is recorded in `PHASES.md` under Gate 3.
 
 ### What this located
 
@@ -387,7 +391,7 @@ So the gate now judges **materiality**: conflict cost against the 3.14 min of he
 
 Conflict cost more than quadruples as the lead shortens, and the failure column falls with it. One cause: **a planner that never replans is mostly blind, and a blind planner cannot be punished for reconciling badly.** At the harness's 30-minute lead, neither the optimum nor the lazy integrator knows enough for reconciliation quality to matter much.
 
-That makes `KNOWN-ISSUES.md` #1 — `replan`, specified since contract v0.3 and never issued — a **prerequisite for Gate 3** rather than a Phase 2 enrichment. It does not close the gate alone: 0.46m is still 15 % of headroom. Conflict strengthening and `replan` are now both necessary, and P1M1 owns the decision.
+That makes `KNOWN-ISSUES.md` #1 — `replan`, specified since contract v0.3 and never issued — a **prerequisite for Gate 3** rather than a Phase 2 enrichment. It does not close the gate alone: 0.46m is still 15 % of headroom. Conflict strengthening and `replan` are now both necessary, and P0M8 owns the decision.
 
 ### The pattern, for the sixth time
 

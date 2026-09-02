@@ -27,7 +27,7 @@ Both columns move together, and the reason is one thing: **a planner that never 
 
 This makes `replan` a prerequisite for Gate 3 rather than a Phase 2 enrichment. It does not by itself close the gate - 0.46m is still only 15 % of headroom - but no amount of strengthening conflicts compensates for a player who only ever answers once.
 
-**Owner:** Phase 2 as scheduled, **but P1M1 must decide whether to pull it forward**, because Gate 3 is unlikely to pass honestly without it.
+**Owner:** Phase 2 as scheduled, **but P0M8 must decide whether to pull it forward**, because Gate 3 is unlikely to pass honestly without it.
 
 ---
 
@@ -45,7 +45,7 @@ Ablation at P0M6 attributed the entire conflict-caused shortfall to `C-coordinat
 
 **Also found:** conflict placement matters more than conflict choice. `sudbahn` scores 0.00 on all twelve at every strength, because it is not on enough critical paths for anything done to it to reach a traveller.
 
-**Owner:** P1M1, which must now decide whether Gate 3 can honestly be made to pass.
+**Owner:** P0M8, which must now decide whether Gate 3 can honestly be made to pass.
 
 ---
 
@@ -61,9 +61,9 @@ No internal work can close this. The gate output says so in its own text so the 
 
 ## 4. Gap estimates are noisy at this world size — `open`
 
-22 scored queries means each is about 4.5 % of the score, and a single traveller changing outcome moves a gap noticeably. Fine for detecting the large effects Phase 0 was looking for; not fine for P1M5's claim that two generated worlds match "within tolerance".
+22 scored queries means each is about 4.5 % of the score, and a single traveller changing outcome moves a gap noticeably. Fine for detecting the large effects Phase 0 was looking for; not fine for P1M4's claim that two generated worlds match "within tolerance".
 
-**Owner:** P1M3, which must generate a query set large enough for the gaps to be stable across seeds.
+**Owner:** P1M2, which must generate a query set large enough for the gaps to be stable across seeds.
 
 ---
 
@@ -125,7 +125,7 @@ Harmless while the only players are ours. It becomes real the first time a world
 
 A player currently has to discover each operator's schema by fetching and reading. That is *harder* than intended and hard in the wrong way — endpoint archaeology rather than reconciliation. It also teaches the opposite of what §2.1 F is for: a world whose documentation is absent trains players to ignore documentation.
 
-**Owner:** P1M2, which is where generated projections and their documentation should arrive together. **Accurate documentation first**; defects only once #12 is resolved.
+**Owner:** P1M1, which is where generated projections and their documentation should arrive together. **Accurate documentation first**; defects only once #12 is resolved.
 
 ---
 
@@ -166,6 +166,8 @@ The correction is recorded in `PHASES.md`, `ROADMAP.md` and `README.md` with the
 
 **The gate still fails, and the share is no longer the reason.** Against a matched reference the share is 100 % by construction - remove the conflicts and a lazy integrator becomes optimal, so everything left is conflict-caused whatever the conflicts do. The informative number is the last row: the conflicts cost **3 % of the headroom a player competes for**.
 
-**A provisional threshold now exists and has not been ratified.** `gates.ts` requires conflict cost > 20 % of headroom. That number was chosen at P1M0 because the gate needed *some* materiality criterion once share went degenerate, and it is marked PROVISIONAL in the gate's own output. Ratifying or replacing it is a decision for the project owner.
+**The criterion is now 20 % of headroom, ratified.** `gates.ts` requires conflict cost > 20 % of `P0−P1`. Chosen at P1M0 because the gate needed *some* materiality criterion once share went degenerate, and ratified by the project owner; recorded in `PHASES.md` under Gate 3. The world currently reads 3 %.
 
-**Owner:** P1M1, blocking. Nothing downstream of conflict generation should be built until it resolves.
+**Phase 0 is reopened.** `PHASES.md` says not to begin Phase 1 on a failed Gate 3, so P0M7 (`replan`) and P0M8 (conflict potency) now sit ahead of it, and Phase 1's generation milestones are blocked behind their joint exit.
+
+**Owner:** P0M8, blocking. Nothing downstream of conflict generation should be built until it resolves.

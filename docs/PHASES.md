@@ -63,7 +63,14 @@ Mechanical, and independent of whether the game is any good:
 
 *Fails if:* all solutions cluster. A world that cannot tell good from mediocre cannot teach, assess, or benchmark.
 
-**Gate 3 — The conflicts are doing the work.** *The real gate.* The attribution report must show that most lost capture traces to **declared semantic conflicts** — stop matching, staleness, unit and time mismatches — and not to topology, randomness, or raw routing difficulty.
+**Gate 3 — The conflicts are doing the work.** *The real gate.* The attribution report must show that lost capture traces to **declared semantic conflicts** — stop matching, staleness, unit and time mismatches — and not to topology, randomness, or raw routing difficulty.
+
+**Criterion, ratified after P1M0:** the declared conflicts must cost a realtime-aware lazy integrator **at least 20 % of the P0−P1 headroom**, measured against `P0a` — an optimum held to the same announcement horizon (`REFERENCE-POLICY.md` §2.1).
+
+Two things about that wording are the result of getting it wrong first, and both matter:
+
+* **Measured against `P0a`, not `P0`.** P0 is clairvoyant: it routes around disruptions before they are announced. Dividing by a gap containing that advantage measures the oracle's foresight as though it were the world's difficulty, and at a 30-minute planning lead that term is over twenty times the conflict term.
+* **Judged on headroom, not on share.** The original wording — "*most* lost capture" — stops being a test under a matched reference. With the conflicts switched off, a lazy integrator is exactly optimal, so the conflict-caused share is 100 % by construction whatever the conflicts do. Share is still reported; it is no longer the binding criterion.
 
 *Fails if:* loss is dominated by topology or chance. That would mean we have built a routing puzzle wearing an integration costume, and the central thesis of `CORECONCEPT.md` §2.1 — that semantic variability, not network complexity, is what makes integration interesting — is wrong for this design.
 
@@ -72,6 +79,8 @@ Mechanical, and independent of whether the game is any good:
 ### Exit
 
 All three gates pass, or the design is revisited. **Do not begin Phase 1 on a failed Gate 3.**
+
+> **This clause was invoked on 2026-09-02.** Gate 3 was recorded as passing at P0M6 and re-measured as failing at P1M0. Phase 0 is reopened: P0M7 (`replan`) and P0M8 (conflict potency) now sit ahead of Phase 1, whose generation milestones are blocked behind their joint exit. See [`../ROADMAP.md`](../ROADMAP.md).
 
 ---
 
@@ -156,7 +165,7 @@ Expected order, subject to that evidence:
 **Delivers:** Tiers 3 through 5, and the fidelity axes that make them possible.
 
 * Catalogue §2.1 E and F in earnest — rate limits, partial outages, pagination over shifting data, incomplete coverage, documentation that disagrees with behaviour and with itself.
-* **Documentation defects arrive here, not earlier, and in a fixed order:** accurate documentation is generated at P1M2; defects wait until something can measure them (`KNOWN-ISSUES.md` #12). Section F exists to teach a habit — read the documentation, then verify it — so a world whose documentation is untrustworthy *before* it is worth reading teaches the opposite (`CORECONCEPT.md` §2.1).
+* **Documentation defects arrive here, not earlier, and in a fixed order:** accurate documentation is generated at P1M1; defects wait until something can measure them (`KNOWN-ISSUES.md` #12). Section F exists to teach a habit — read the documentation, then verify it — so a world whose documentation is untrustworthy *before* it is worth reading teaches the opposite (`CORECONCEPT.md` §2.1).
 * Per-operator documentation *presentation* — a wiki here, Swagger there — as decorative variety between companies. Explicitly not a difficulty axis.
 * `single_operator_rt` reference competence from Tier 3, narrowing the headroom and demanding more of the player.
 * **`latency: sim`** — per-connection simulated-time cursors, making parallelism a real decision. Note that `DATA-MODEL.md` §4 found a catalogue D defect (non-atomic pagination) depends on it, so this may need to arrive earlier than its tier suggests.

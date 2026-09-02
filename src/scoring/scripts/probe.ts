@@ -75,6 +75,6 @@ console.log("");
 if (report.inertCount > report.results.length / 2) {
   console.log("  More than half the catalogue is inert. A generator sampling it");
   console.log("  uniformly would mostly produce defects that cost a solver nothing.");
-  console.log("  See ROADMAP.md P1M1 — strengthen or retire.");
+  console.log("  See ROADMAP.md P0M8 — strengthen or retire.");
   console.log("");
 }

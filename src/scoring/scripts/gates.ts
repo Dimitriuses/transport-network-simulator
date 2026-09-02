@@ -171,10 +171,10 @@ if (ab.entries.some((e) => Math.abs(e.costS) > 1)) {
 // scale for that is the headroom being competed for.
 console.log(`    conflict cost against the ${mins(ab.headroomS)} of headroom:   ${(materiality * 100).toFixed(0)}%`);
 console.log("");
-console.log("    Share is near-tautological under a matched reference. The");
-console.log("    materiality line is the one carrying information, and its 20%");
-console.log("    threshold is PROVISIONAL — introduced at P1M0, not yet ratified.");
-console.log("    See docs/KNOWN-ISSUES.md #13.");
+console.log("    Share is near-tautological under a matched reference — with the");
+console.log("    conflicts off the residual is zero, so the share is 100% whatever");
+console.log("    they do. The materiality line is the one carrying information.");
+console.log("    Its 20% threshold was ratified after P1M0 (PHASES.md, Gate 3).");
 console.log("");
 
 const g3 = share > 0.5 && materiality > 0.2;

@@ -90,7 +90,7 @@ Which one, at what time, and **how**:
 * from a score that made no sense,
 * by accident.
 
-That last column is the one that decides P1M1. A conflict nobody finds is a conflict that costs points for reasons the player never understands, which is indistinguishable from an unfair world.
+That last column is the one that decides P0M8. A conflict nobody finds is a conflict that costs points for reasons the player never understands, which is indistinguishable from an unfair world.
 
 ### Verbatim quotes
 

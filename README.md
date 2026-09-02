@@ -12,7 +12,7 @@ There is no reference solution, and no single right answer. You are scored on wh
 
 ## Status
 
-**Phase 0 complete. All three proof gates pass.**
+**Phase 0 reopened. Gate 3 fails.**
 
 The loop runs end to end: a hand-built 34-quay city, **three operators whose data genuinely disagrees**, live operator APIs, a reference player in its own process, and a capture-scored scorecard — reproducibly, byte for byte.
 
@@ -40,7 +40,7 @@ npm run conformance -- URL     # check a player speaks the contract
 
 **Want to build a solution?** [`docs/PLAYING.md`](docs/PLAYING.md).
 
-Next is Phase 1 — generation — scoped in [`docs/PHASES.md`](docs/PHASES.md).
+Next is P0M7 (`replan`) and P0M8 (conflict potency), which exist to make Gate 3 pass. Phase 1 — generation — is blocked behind them and scoped in [`docs/PHASES.md`](docs/PHASES.md).
 
 ---
 
