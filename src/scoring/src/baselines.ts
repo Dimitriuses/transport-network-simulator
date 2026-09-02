@@ -17,11 +17,18 @@
 
 import type { Journey, Line, Pattern, PatternStop, Quay, Site, World } from "@tns/schema";
 import { parseSimTime, parseEpoch } from "@tns/schema";
-import { buildIndex, route, executeReactively, type Access, type RouterIndex } from "@tns/router";
+import {
+  buildIndex,
+  route,
+  executeReactively,
+  MAX_REPLANS,
+  type Access,
+  type RouterIndex,
+} from "@tns/router";
 import { generateDisruptions } from "@tns/core";
 import { projectOperator, type Timetable } from "@tns/projections";
 import type { Disruption } from "@tns/core";
-import { believedDisruptionsAt } from "./belief.ts";
+import { believedDisruptionsAt, NAIVE_POLL_CADENCE_S } from "./belief.ts";
 
 /** How close two published stops must be for a lazy matcher to fuse them. */
 export const NAIVE_MATCH_THRESHOLD_M = 120;
@@ -196,6 +203,8 @@ export interface QueryGaps {
   readonly p2rt: number | null;
   /** The optimum available knowing only what had been announced at plan time. */
   readonly p0a: number | null;
+  /** True when P2rt produced no workable plan of its own and took P1's outcome. */
+  readonly p2rtFellBack: boolean;
   /** True when P0-announced produced no plan that survived the day. */
   readonly p0aFellBack: boolean;
 }
@@ -258,7 +267,18 @@ export interface Calibration {
   readonly gapP0aP2rt: number;
   /** Queries where P0-announced had no plan survive, and fell back to P1. */
   readonly p0aFailures: number;
+  /** Queries where the lazy integrator had no workable plan of its own. */
+  readonly p2rtFailures: number;
+  /** How many queries `gapP0aP2rt` is averaged over. */
+  readonly attributable: number;
   readonly comparable: number;
+}
+
+/** The better of two journey times, either of which may be missing. */
+function bestOf(a: number | null, b: number | null): number | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return Math.min(a, b);
 }
 
 /** Mirrors the harness: travellers ask for a plan well before they set out. */
@@ -360,6 +380,45 @@ function canonicalPlanSpace(world: World): PlanSpace {
   };
 }
 
+/** A leg as a planner expresses it, in its own id space. */
+interface PlanLeg {
+  readonly mode: string;
+  readonly fromQuay: string | null;
+  readonly toQuay: string | null;
+  readonly journeyId?: string;
+}
+
+/**
+ * Route onward from where a broken plan left the traveller.
+ *
+ * `fromPlanQuay` is in the planner's *own* id space, because that is the only
+ * name it has for the place it is standing; `atS` is when it is standing there,
+ * which bounds what it can have been told. Both baselines replan on the same
+ * budget the reference policy gets (`MAX_REPLANS`), so none of them is being
+ * compared against a traveller held to a different rule.
+ *
+ * Added at P0M7. Without it every baseline planned once and was charged for
+ * everything that happened afterwards, which suppressed the thing Gate 3
+ * measures: a planner with almost nothing to reconcile cannot be punished for
+ * reconciling badly (`KNOWN-ISSUES.md` #1).
+ */
+type Replanner = (fromPlanQuay: string, atS: number) => readonly PlanLeg[] | null;
+
+/**
+ * Carry on under the reference policy from where a planner gave up.
+ *
+ * `fromQuay` is *canonical*, because this is the world moving a traveller, not
+ * a planner reasoning about one. Returns the total door-to-door seconds.
+ *
+ * This replaces charging a stuck baseline P1's whole-journey outcome, which was
+ * sound while nobody could replan and became incoherent the moment they could:
+ * being rescued from the origin was frequently *better* than routing onward,
+ * so failing outscored trying and the conflict-free world measured harder than
+ * the declared one. A stranded traveller resumes from where they are standing —
+ * the same rule the harness applies to a player's traveller.
+ */
+type Resume = (fromQuay: string, atS: number) => number | null;
+
 function evaluateAgainstTruth(
   world: World,
   space: PlanSpace,
@@ -367,6 +426,8 @@ function evaluateAgainstTruth(
   queryId: string,
   departAfterS: number,
   disruptions: readonly Disruption[],
+  replan?: Replanner,
+  resume?: Resume,
 ): number | null {
   // Reality is not only geometry. A plan built on the published schedule also
   // does not know which of those services will not run, and charging it for the
@@ -397,8 +458,31 @@ function evaluateAgainstTruth(
 
   let cursor = departAfterS;
   let atQuay: string | null = null;
+  // The same place, in the id space the *plan* is written in. A lazy
+  // integrator standing at canonical quay `q-central-2` is, to itself, standing
+  // at `merged-0007`, and that is the only name it can plan from.
+  let atPlanQuay: string | null = null;
+  let attempts = 0;
+  let queue: readonly PlanLeg[] = legs;
 
-  for (const leg of legs) {
+  // The traveller is stuck at `atQuay` at `cursor`. Ask this planner to route
+  // onward with whatever it knows *now*. Returns false when it cannot, or when
+  // it has used up the same replan budget the reference policy gets.
+  // Out of ideas: travel on as anyone would with no integration layer at all.
+  const giveUp = (): number | null =>
+    resume && atQuay !== null ? resume(atQuay, cursor) : null;
+
+  const tryReplan = (): boolean => {
+    if (!replan || atPlanQuay === null || attempts >= MAX_REPLANS) return false;
+    attempts++;
+    const next = replan(atPlanQuay, cursor);
+    if (!next || next.length === 0) return false;
+    queue = next;
+    return true;
+  };
+
+  for (let i = 0; i < queue.length; i++) {
+    const leg = queue[i]!;
     if (leg.mode !== "transit" || !leg.journeyId) continue;
 
     const realJourneyId = space.canonicalJourneyId(leg.journeyId);
@@ -422,16 +506,35 @@ function evaluateAgainstTruth(
       atQuay === null
         ? access("origin", realBoard.quayId)
         : walkBetween(atQuay, realBoard.quayId);
-    if (cost === null) return null; // a transfer P2 imagined but cannot make
+    // A transfer this planner imagined but cannot make. It is standing where
+    // the last leg left it, so it may try again from there.
+    if (cost === null) {
+      if (tryReplan()) { i = -1; continue; }
+      return giveUp();
+    }
     cursor += cost;
+    atQuay = realBoard.quayId;
+    atPlanQuay = leg.fromQuay;
 
-    if (cancelled.has(journey.id)) return null; // it planned onto a service that never ran
+    // It planned onto a service that never ran. It finds out by standing on the
+    // platform until the departure it was promised does not happen — the wait
+    // is real and is charged (REFERENCE-POLICY.md §4.3).
+    if (cancelled.has(journey.id)) {
+      cursor = Math.max(cursor, journey.startS + realBoard.departOffsetS);
+      if (tryReplan()) { i = -1; continue; }
+      return giveUp();
+    }
 
     const delay = delayOf.get(journey.id) ?? 0;
     const departS = journey.startS + delay + realBoard.departOffsetS;
-    if (departS < cursor) return null; // the walk it never accounted for lost it the connection
+    // The walk it never accounted for lost it the connection.
+    if (departS < cursor) {
+      if (tryReplan()) { i = -1; continue; }
+      return giveUp();
+    }
     cursor = journey.startS + delay + realAlight.arriveOffsetS;
     atQuay = realAlight.quayId;
+    atPlanQuay = leg.toQuay;
   }
 
   if (atQuay === null) return null;
@@ -481,6 +584,33 @@ export function calibrate(world: World, options: CalibrateOptions = {}): Calibra
     disruptions,
     world.queries.map((q) => q.departAfterS - planLeadS),
   );
+
+  // A traveller can be stranded at any instant, and what it believes then is
+  // not what it believed when it planned. Rather than replaying the morning per
+  // break, snapshot belief on the poll cadence once and look up by flooring —
+  // which is also honest, since a reader polling every five minutes learns
+  // nothing between polls.
+  const GRID_START_S = 6 * 3600;
+  const GRID_END_S = 26 * 3600;
+  const gridTaus: number[] = [];
+  for (let t = GRID_START_S; t <= GRID_END_S; t += NAIVE_POLL_CADENCE_S) gridTaus.push(t);
+  const beliefGrid = believedDisruptionsAt(world, disruptions, gridTaus);
+  const beliefAt = (t: number): readonly Disruption[] => {
+    const i = Math.floor((t - GRID_START_S) / NAIVE_POLL_CADENCE_S);
+    return beliefGrid[Math.max(0, Math.min(beliefGrid.length - 1, i))]!;
+  };
+  const announcedAt = (t: number): readonly Disruption[] =>
+    disruptions.filter((d) => d.announcedAtS <= t);
+
+  const legsOf = (plan: { legs: readonly { mode: string; fromQuay: string | null; toQuay: string | null; journeyId?: string }[] } | null) =>
+    plan
+      ? plan.legs.map((l) => ({
+          mode: l.mode,
+          fromQuay: l.fromQuay,
+          toQuay: l.toQuay,
+          ...(l.mode === "transit" ? { journeyId: l.journeyId } : {}),
+        }))
+      : null;
 
   const perQuery: QueryGaps[] = world.queries.map((q, qi) => {
     // P2 plans on its own merged model...
@@ -544,6 +674,32 @@ export function calibrate(world: World, options: CalibrateOptions = {}): Calibra
       q.departAfterS,
       "all",
     );
+    // Stranded, the lazy integrator re-reads its feeds and routes on from where
+    // it is standing — believing, as ever, exactly what it is told.
+    const resumeFrom: Resume = (fromQuay, atS) => {
+      const exec = executeReactively(
+        world,
+        scheduleIx,
+        disruptions,
+        [{ quayId: fromQuay, seconds: 0 }],
+        accessFor(world, q.id, "destination"),
+        atS,
+        "obvious",
+      );
+      return exec.journeyS === null ? null : atS - q.departAfterS + exec.journeyS;
+    };
+
+    const p2rtReplan: Replanner = (fromPlanQuay, atS) =>
+      legsOf(
+        route(
+          indexFor(naive, "naive", beliefAt(atS)),
+          [{ quayId: fromPlanQuay, seconds: 0 }],
+          accessFor(naive, q.id, "destination"),
+          atS,
+          "all",
+        ),
+      );
+
     const p2rt = rtPlan
       ? evaluateAgainstTruth(
           world,
@@ -557,6 +713,8 @@ export function calibrate(world: World, options: CalibrateOptions = {}): Calibra
           q.id,
           q.departAfterS,
           disruptions,
+          p2rtReplan,
+          resumeFrom,
         )
       : null;
 
@@ -578,6 +736,17 @@ export function calibrate(world: World, options: CalibrateOptions = {}): Calibra
       q.departAfterS,
       "all",
     );
+    const p0aReplan: Replanner = (fromPlanQuay, atS) =>
+      legsOf(
+        route(
+          indexFor(world, "canon", announcedAt(atS)),
+          [{ quayId: fromPlanQuay, seconds: 0 }],
+          accessFor(world, q.id, "destination"),
+          atS,
+          "all",
+        ),
+      );
+
     const p0a = aPlan
       ? evaluateAgainstTruth(
           world,
@@ -591,6 +760,8 @@ export function calibrate(world: World, options: CalibrateOptions = {}): Calibra
           q.id,
           q.departAfterS,
           disruptions,
+          p0aReplan,
+          resumeFrom,
         )
       : null;
 
@@ -601,9 +772,19 @@ export function calibrate(world: World, options: CalibrateOptions = {}): Calibra
       p2: fellBack ? p1 : p2,
       p2FellBack: fellBack,
       p2rt: p2rt ?? p1,
-      // Falls back exactly as P2rt does, so the two stay comparable. An
-      // unmatched fallback rule would flatter whichever side got the softer one.
-      p0a: p0a ?? p1,
+      p2rtFellBack: p2rt === null,
+      // **An optimum must dominate every achievable strategy**, and P1 is one:
+      // it plans on the bare schedule with no disruption knowledge at all, which
+      // is strictly less than "everything announced by now". So where P1 does
+      // better, P1's outcome *is* the announcement-limited optimum, and a P0a
+      // that ignored it would not be a bound.
+      //
+      // This is not a fudge to keep a gap positive. It was found because the gap
+      // went negative — P2rt failed, fell back to P1, and beat the reference it
+      // was being measured against, which is impossible for a real optimum and
+      // meant the construction was under-powered. `matched-reference.test.ts`
+      // now asserts the domination directly.
+      p0a: bestOf(p0a, p1),
       p0aFellBack: p0a === null,
     };
   });
@@ -621,6 +802,21 @@ export function calibrate(world: World, options: CalibrateOptions = {}): Calibra
   const meanP2rt = mean((g) => g.p2rt);
   const meanP0a = mean((g) => g.p0a);
 
+  // **Gate 3's gap is measured only where the lazy integrator answered for
+  // itself.** A P2rt with no workable plan is charged P1's outcome, which is
+  // right for scoring — a failed integration layer leaves you travelling as if
+  // there were none — and ruinous for attribution, because P1 is frequently
+  // *better* than what P2rt manages by trying. Once the baselines could replan
+  // (P0M7), that rescue inverted the measurement: the conflict-free world
+  // looked harder than the declared one, because the declared one failed more
+  // often and kept being rescued.
+  //
+  // So the two are compared on the population where both routed themselves,
+  // and the rescues are counted rather than averaged in.
+  const own = usable.filter((g) => !g.p2rtFellBack);
+  const ownMean = (pick: (g: QueryGaps) => number | null): number =>
+    own.length === 0 ? 0 : own.reduce((a, g) => a + pick(g)!, 0) / own.length;
+
   return {
     perQuery,
     meanP0,
@@ -633,7 +829,9 @@ export function calibrate(world: World, options: CalibrateOptions = {}): Calibra
     p2Failures: perQuery.filter((g) => g.p2FellBack).length,
     gapP0P2rt: meanP2rt - meanP0,
     gapP0P0a: meanP0a - meanP0,
-    gapP0aP2rt: meanP2rt - meanP0a,
+    gapP0aP2rt: ownMean((g) => g.p2rt) - ownMean((g) => g.p0a),
+    p2rtFailures: perQuery.filter((g) => g.p2rtFellBack).length,
+    attributable: own.length,
     p0aFailures: perQuery.filter((g) => g.p0aFellBack).length,
     comparable: usable.length,
   };

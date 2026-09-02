@@ -171,10 +171,20 @@ if (ab.entries.some((e) => Math.abs(e.costS) > 1)) {
 // scale for that is the headroom being competed for.
 console.log(`    conflict cost against the ${mins(ab.headroomS)} of headroom:   ${(materiality * 100).toFixed(0)}%`);
 console.log("");
-console.log("    Share is near-tautological under a matched reference — with the");
-console.log("    conflicts off the residual is zero, so the share is 100% whatever");
-console.log("    they do. The materiality line is the one carrying information.");
-console.log("    Its 20% threshold was ratified after P1M0 (PHASES.md, Gate 3).");
+console.log("    The criterion is 20% of headroom, ratified after P1M0.");
+if (conflictCaused < 0) {
+  console.log("");
+  console.log("    A NEGATIVE CONFLICT COST IS NOT A RESULT ABOUT THE CONFLICTS.");
+  console.log("    It means the subtraction is unsound. Switching every conflict off");
+  console.log("    makes this world HARDER: the lazy baseline matches stops within");
+  console.log("    120m, and 19 pairs of genuinely distinct quays here are closer");
+  console.log("    than that — the nearest 31m apart. With exact coordinates it fuses");
+  console.log("    34 quays into 19 stops; the declared conflicts push them apart and");
+  console.log("    leave 26. The conflict-free world is not a floor.");
+  console.log("");
+  console.log("    See docs/KNOWN-ISSUES.md #14 and #15. P0M8 owns both, and must");
+  console.log("    fix them before any conflict strengthening can be shown to work.");
+}
 console.log("");
 
 const g3 = share > 0.5 && materiality > 0.2;

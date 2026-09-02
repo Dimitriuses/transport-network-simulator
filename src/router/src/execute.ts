@@ -40,7 +40,14 @@ export interface Execution {
   readonly disruptedEncountered: readonly string[];
 }
 
-const MAX_REPLANS = 3;
+/**
+ * How many times a broken plan may be remade before the traveller gives up.
+ *
+ * Shared with the harness deliberately: the player gets exactly the budget the
+ * reference policy gets. A player allowed more attempts than P1 would be
+ * compared against a traveller held to a stricter rule than itself.
+ */
+export const MAX_REPLANS = 3;
 
 /**
  * Walk a plan through the real day, replanning when it breaks.

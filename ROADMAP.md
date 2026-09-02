@@ -46,7 +46,7 @@ Two milestones, in this order. The order is the point: strengthening conflicts w
 
 ---
 
-### P0M7 — `replan`
+### P0M7 — `replan` — **done, and it changed what P0M8 has to do**
 
 Issue the `replan` obligation the contract has specified since v0.3 and the harness has never sent (`docs/KNOWN-ISSUES.md` #1). Triggers, positions and response statuses are already fully specified in `PLAYER-CONTRACT.md` §5.5; this implements them.
 
@@ -54,13 +54,25 @@ Issue the `replan` obligation the contract has specified since v0.3 and the harn
 
 **Exit:** a traveller whose plan collapses mid-journey is asked again; `P2rt` and `P0a` both replan on the same cadence; and `npm run horizon` shows conflict cost at the harness's planning lead rising towards its short-lead value.
 
+**First two clauses met. The third cannot be evaluated**, and finding out why is what this milestone produced. Wiring replanning into the baselines exposed that conflict attribution itself is unsound: switching every conflict off makes the world *harder*, because the lazy matcher then over-merges quays that are 31 m apart (`KNOWN-ISSUES.md` #14), and `P0a` is a well-informed strategy rather than a bound (#15). Conflict cost by subtraction currently reads −1.01 min. See [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md).
+
 **The trap to avoid:** `replan` must not become a way for a player to be handed information it did not fetch. The obligation says a plan needs revisiting; it does not say why, and the information-set audit must still hold.
 
 ---
 
 ### P0M8 — Conflict potency
 
-Act on what P1M0 found. Strengthen the conflicts the probe shows can bite, place them on operators that carry enough traffic to express them, retire the ones inert at every setting, and add any the probe suggests are missing. Extend the ablation report to run against any world, not only the committed one.
+**First, fix the instrument.** P0M7 established that conflict cost cannot currently be attributed at all: `KNOWN-ISSUES.md` #14 (the conflict-free world is harder, not a floor) and #15 (`P0a` is not a bound) both have to be resolved before any amount of conflict strengthening can be shown to work. Tuning conflicts against an instrument that reports −1.01 min would be tuning against noise.
+
+Both are the same question — *what is a fair reference for attributing conflict cost when the lazy baseline's own matcher is the dominant source of error?* — and the plausible answers are worth deciding explicitly rather than by implementation:
+
+| Route | What it costs |
+|---|---|
+| raise the matcher threshold so it stops over-merging | changes what "lazy" means, and the threshold becomes a tuning knob inside the instrument |
+| attribute by removing *one* conflict from the declared world rather than all | leave-one-out attributed nothing at P0M6, for reasons `KNOWN-ISSUES.md` #7 still records |
+| pick a lazy strategy that is not coordinate-threshold matching | most honest, most work, and changes every recorded P2 number |
+
+Then act on what P1M0 found. Strengthen the conflicts the probe shows can bite, place them on operators that carry enough traffic to express them, retire the ones inert at every setting, and add any the probe suggests are missing. Extend the ablation report to run against any world, not only the committed one.
 
 Concretely, from `npm run probe`:
 

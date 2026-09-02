@@ -9,10 +9,30 @@
 
 import { createHash } from "node:crypto";
 import type { Server } from "node:http";
-import type { Itinerary, RunRecord, World } from "@tns/schema";
+import type {
+  Itinerary,
+  ObligationOutcome,
+  Leg,
+  ReplanPosition,
+  ReplanTrigger,
+  RunRecord,
+  World,
+} from "@tns/schema";
 import { renderSimTime, parseEpoch, CONTRACT_VERSION, SCORER_VERSION } from "@tns/schema";
-import { EventQueue, makeVirtualClock, generateDisruptions, DisruptionTable } from "@tns/core";
-import { buildIndex, route, executeReactively, type Access } from "@tns/router";
+import {
+  EventQueue,
+  makeVirtualClock,
+  generateDisruptions,
+  DisruptionTable,
+  type Disruption,
+} from "@tns/core";
+import {
+  buildIndex,
+  route,
+  executeReactively,
+  MAX_REPLANS,
+  type Access,
+} from "@tns/router";
 import { projectOperator } from "@tns/projections";
 import {
   startControlApi,
@@ -284,7 +304,24 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       const forgone = answer.itinerary === null;
       const simulated = forgone
         ? fallbackToReference(base.p1Exec)
-        : simulateItinerary(world, resolution, table, answer.itinerary, query);
+        : await drivePlan(
+            {
+              world,
+              resolution,
+              table,
+              scheduleIx,
+              disruptions,
+              destinations: accessFor(query.id, "destination"),
+              anchor,
+              playerBaseUrl: opts.playerBaseUrl,
+              clock,
+              log,
+            },
+            query,
+            ob.travellerRef,
+            ob.requestId,
+            answer.itinerary.legs,
+          );
 
       log.push({
         kind: "obligation",
@@ -544,15 +581,19 @@ async function post(baseUrl: string, path: string, body: unknown): Promise<void>
 }
 
 interface PlayerAnswer {
-  readonly outcome: "ok" | "no_route" | "declined" | "player_error" | "player_timeout";
+  readonly outcome: ObligationOutcome;
   readonly itinerary: Itinerary | null;
 }
 
-async function askPlayer(baseUrl: string, request: unknown): Promise<PlayerAnswer> {
+async function askPlayer(
+  baseUrl: string,
+  request: unknown,
+  endpoint: "plan" | "replan" = "plan",
+): Promise<PlayerAnswer> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), GUARD_WALL_S * 1000);
   try {
-    const res = await fetch(`${baseUrl}/v1/plan`, {
+    const res = await fetch(`${baseUrl}/v1/${endpoint}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(request),
@@ -571,6 +612,10 @@ async function askPlayer(baseUrl: string, request: unknown): Promise<PlayerAnswe
     }
     if (first.status === "no_route") return { outcome: "no_route", itinerary: null };
     if (first.status === "declined") return { outcome: "declined", itinerary: null };
+    // Replan-only. Both are real answers rather than refusals, and both are
+    // charged for what happens next (`PLAYER-CONTRACT.md` §5.5).
+    if (first.status === "continue") return { outcome: "continue", itinerary: null };
+    if (first.status === "abandon") return { outcome: "abandon", itinerary: null };
     return { outcome: "player_error", itinerary: null };
   } catch (err) {
     const aborted = err instanceof Error && err.name === "AbortError";
@@ -607,6 +652,35 @@ function fallbackToReference(p1: ReturnType<typeof executeReactively>): Simulate
 }
 
 /**
+ * Where a traveller has got to, so a broken plan can be resumed rather than
+ * simply abandoned.
+ */
+interface Progress {
+  cursorS: number;
+  atQuay: string | null;
+  waitS: number;
+  transitLegsTaken: number;
+}
+
+/**
+ * The plan broke somewhere a traveller could perceive it breaking.
+ *
+ * Carries the operator-scoped position (§7) and the untravelled remainder, so
+ * the harness can issue `/v1/replan` and resume from here.
+ */
+interface PlanBreak {
+  kind: "break";
+  trigger: ReplanTrigger;
+  position: ReplanPosition;
+  progress: Progress;
+  remaining: readonly Leg[];
+  /** The journey the traveller was relying on when it broke. */
+  journeyId: string;
+}
+
+type StepOutcome = (Simulated & { kind: "settled" }) | PlanBreak;
+
+/**
  * Walk a player's itinerary against the fixed trajectory.
  *
  * An itinerary the simulator cannot resolve is *not* a transport error. It is
@@ -618,23 +692,32 @@ function fallbackToReference(p1: ReturnType<typeof executeReactively>): Simulate
  * player's journey silently begins at whichever quay it chose to board — a free
  * teleport from the origin — and it can beat the oracle, which is impossible.
  * P0M1 found exactly that on its first run.
+ *
+ * **Two kinds of wrong, and only one of them earns a second chance.** A plan
+ * naming a trip that does not exist is malformed, and the traveller never sets
+ * out — there is nothing to perceive and nothing to replan around. A plan whose
+ * vehicle is cancelled, or whose connection is missed, breaks *in front of the
+ * traveller*, at a place and a time. That is a `replan` (§5.5), and until P0M7
+ * it was scored identically to the malformed case.
  */
-function simulateItinerary(
+function simulateFrom(
   world: World,
   resolution: MergedResolution,
   table: DisruptionTable,
-  itinerary: Itinerary | null,
+  legs: readonly Leg[] | null,
   query: { id: string; departAfterS: number },
-): Simulated {
-  const fail = (reason: string): Simulated => ({
+  start: Progress,
+): StepOutcome {
+  const fail = (reason: string): StepOutcome => ({
+    kind: "settled",
     arrived: false,
     journeyS: null,
-    waitS: 0,
-    transfers: 0,
+    waitS: start.waitS,
+    transfers: Math.max(0, start.transitLegsTaken - 1),
     failureReason: reason,
   });
 
-  if (!itinerary) return fail("no_itinerary");
+  if (!legs) return fail("no_itinerary");
 
   const journeyById = new Map(world.journeys.map((j) => [j.id, j]));
   const patternById = new Map(world.patterns.map((p) => [p.id, p]));
@@ -653,15 +736,28 @@ function simulateItinerary(
     return link ? Math.ceil(link.metres / walkSpeed) : null;
   };
 
-  const transitLegs = itinerary.legs.filter((l) => l.mode === "transit");
+  const transitLegs = legs.filter((l) => l.mode === "transit");
   if (transitLegs.length === 0) return fail("no_transit_legs");
 
-  let cursor = query.departAfterS;
-  let waitS = 0;
-  let atQuay: string | null = null;
+  let cursor = start.cursorS;
+  let waitS = start.waitS;
+  let taken = start.transitLegsTaken;
+  let atQuay: string | null = start.atQuay;
 
-  for (const leg of itinerary.legs) {
+  for (let i = 0; i < legs.length; i++) {
+    const leg = legs[i]!;
     if (leg.mode === "walk") continue; // charged by connectivity below
+
+    // Everything from this leg onward, for the replan payload.
+    const remaining = legs.slice(i);
+    const at = (trigger: ReplanTrigger, journeyId: string): PlanBreak => ({
+      kind: "break",
+      trigger,
+      position: { kind: "at_stop", operator: leg.operator, stop: leg.from_stop },
+      progress: { cursorS: cursor, atQuay, waitS, transitLegsTaken: taken },
+      remaining,
+      journeyId,
+    });
 
     // Identifiers are only meaningful *within* an operator: two of them number
     // their stops from 1, so `7` denotes a different place depending on who
@@ -698,21 +794,33 @@ function simulateItinerary(
       cursor += access;
     } else {
       const walk = walkBetween(atQuay, fromQuay);
-      if (walk === null) return fail(`transfer_unreachable:${atQuay}->${fromQuay}`);
+      // Mid-journey this is not a malformed plan — the traveller is standing
+      // somewhere real and cannot get to the next boarding point. They are
+      // stranded, which is something they can perceive and report.
+      if (walk === null) return at("stranded", journey.id);
       cursor += walk;
     }
+    atQuay = fromQuay;
 
     // What the world actually does, not what the timetable said.
-    if (table.isCancelled(journey.id)) return fail(`trip_cancelled:${leg.trip}`);
+    if (table.isCancelled(journey.id)) {
+      // They find out by standing on the platform and watching it not arrive.
+      // The wait is real and is charged (REFERENCE-POLICY.md §4.3).
+      const scheduled = journey.startS + pattern.stops[boardIdx]!.departOffsetS;
+      waitS += Math.max(0, scheduled - cursor);
+      cursor = Math.max(cursor, scheduled);
+      return at("vehicle_cancelled", journey.id);
+    }
     const delayS = table.actualDelayS(journey.id);
 
     const departS = journey.startS + delayS + pattern.stops[boardIdx]!.departOffsetS;
     const arriveS = journey.startS + delayS + pattern.stops[alightIdx]!.arriveOffsetS;
-    if (departS < cursor) return fail("missed_departure");
+    if (departS < cursor) return at("missed_connection", journey.id);
 
     waitS += departS - cursor;
     cursor = arriveS;
     atQuay = toQuay;
+    taken++;
   }
 
   const finalWalk = accessSeconds("destination", atQuay!);
@@ -720,10 +828,11 @@ function simulateItinerary(
   cursor += finalWalk;
 
   return {
+    kind: "settled",
     arrived: true,
     journeyS: cursor - query.departAfterS,
     waitS,
-    transfers: transitLegs.length - 1,
+    transfers: Math.max(0, taken - 1),
     failureReason: null,
   };
 }
@@ -745,4 +854,192 @@ export function hashLog(log: readonly RunRecord[]): string {
     record.kind === "obligation" ? { ...record, latencyMs: null } : record,
   );
   return createHash("sha256").update(JSON.stringify(deterministic)).digest("hex").slice(0, 16);
+}
+
+/**
+ * A traveller stranded mid-journey with no usable advice does what anyone in a
+ * city with no integration layer does: replans for themselves, from where they
+ * stand, on the published schedule (`REFERENCE-POLICY.md` §4.3 and §8).
+ *
+ * Time and waiting already spent are carried forward — they happened. This is
+ * the *cost* of the player's failed plan, not a fresh start.
+ */
+function resumeUnderReference(
+  world: World,
+  scheduleIx: ReturnType<typeof buildIndex>,
+  disruptions: readonly Disruption[],
+  destinations: readonly Access[],
+  brk: PlanBreak,
+  query: { id: string; departAfterS: number },
+  reason: string,
+): Simulated {
+  const spentS = brk.progress.cursorS - query.departAfterS;
+  const priorWaitS = brk.progress.waitS;
+  const priorLegs = brk.progress.transitLegsTaken;
+
+  if (brk.progress.atQuay === null) {
+    return {
+      arrived: false,
+      journeyS: null,
+      waitS: priorWaitS,
+      transfers: Math.max(0, priorLegs - 1),
+      failureReason: reason,
+    };
+  }
+
+  const exec = executeReactively(
+    world,
+    scheduleIx,
+    disruptions,
+    [{ quayId: brk.progress.atQuay, seconds: 0 }],
+    destinations,
+    brk.progress.cursorS,
+    "obvious",
+  );
+
+  return {
+    arrived: exec.arrived,
+    journeyS: exec.journeyS === null ? null : spentS + exec.journeyS,
+    waitS: priorWaitS + exec.waitS,
+    transfers: Math.max(0, priorLegs + exec.transfers - 1),
+    failureReason: exec.arrived ? reason : `${reason}_then_${exec.failureReason}`,
+  };
+}
+
+interface ReplanContext {
+  readonly world: World;
+  readonly resolution: MergedResolution;
+  readonly table: DisruptionTable;
+  readonly scheduleIx: ReturnType<typeof buildIndex>;
+  readonly disruptions: readonly Disruption[];
+  readonly destinations: readonly Access[];
+  readonly anchor: ReturnType<typeof parseEpoch>;
+  readonly playerBaseUrl: string;
+  readonly clock: ReturnType<typeof makeVirtualClock>;
+  readonly log: RunRecord[];
+}
+
+/**
+ * Walk a player's plan through the day, asking it again whenever the plan
+ * breaks in front of the traveller.
+ *
+ * Specification: `PLAYER-CONTRACT.md` §5.5.
+ *
+ * Until P0M7 this loop did not exist: a plan that met a cancelled vehicle
+ * simply failed. Two things were wrong with that. The obvious one is that half
+ * of what a live integration layer is *for* — noticing trouble and rerouting
+ * somebody around it — was unmeasurable. The less obvious one is that it
+ * suppressed the very thing Gate 3 measures: a player that only answers once,
+ * half an hour before departure, has almost nothing to reconcile, so it cannot
+ * be punished for reconciling badly (`KNOWN-ISSUES.md` #1).
+ */
+async function drivePlan(
+  ctx: ReplanContext,
+  query: { id: string; departAfterS: number },
+  travellerRef: string,
+  baseRequestId: string,
+  initialLegs: readonly Leg[],
+): Promise<Simulated> {
+  const settle = (s: Extract<StepOutcome, { kind: "settled" }>): Simulated => ({
+    arrived: s.arrived,
+    journeyS: s.journeyS,
+    waitS: s.waitS,
+    transfers: s.transfers,
+    failureReason: s.failureReason,
+  });
+  const giveUp = (brk: PlanBreak, reason: string): Simulated => ({
+    arrived: false,
+    journeyS: null,
+    waitS: brk.progress.waitS,
+    transfers: Math.max(0, brk.progress.transitLegsTaken - 1),
+    failureReason: reason,
+  });
+
+  let legs: readonly Leg[] = initialLegs;
+  let step = simulateFrom(ctx.world, ctx.resolution, ctx.table, legs, query, {
+    cursorS: query.departAfterS,
+    atQuay: null,
+    waitS: 0,
+    transitLegsTaken: 0,
+  });
+
+  for (let attempt = 1; step.kind === "break"; attempt++) {
+    // The same budget the reference policy gets. A player allowed more
+    // attempts than P1 would be compared against a traveller held to a
+    // stricter rule than itself.
+    if (attempt > MAX_REPLANS) return giveUp(step, "abandoned_after_replans");
+
+    const issuedAt = step.progress.cursorS;
+    const deadline = issuedAt + PLAN_DEADLINE_S;
+    const requestId = `${baseRequestId}-r${attempt}`;
+
+    ctx.clock.pause();
+    const startedMs = Date.now();
+    const answer = await askPlayer(
+      ctx.playerBaseUrl,
+      {
+        contract_version: CONTRACT_VERSION,
+        run_id: RUN_ID,
+        issued_at: renderSimTime(ctx.anchor, issuedAt),
+        deadline: renderSimTime(ctx.anchor, deadline),
+        guard_wall_s: GUARD_WALL_S,
+        requests: [
+          {
+            request_id: requestId,
+            traveller_ref: travellerRef,
+            // What the traveller perceives, never why. Naming the cause would
+            // hand over the answer to catalogue §2.1 D.
+            trigger: step.trigger,
+            position: step.position,
+            remaining_itinerary: { legs: step.remaining },
+          },
+        ],
+      },
+      "replan",
+    );
+    const latencyMs = Date.now() - startedMs;
+    ctx.clock.resume();
+
+    ctx.log.push({
+      kind: "obligation",
+      obligation: "replan",
+      requestId,
+      travellerRef,
+      issuedAt,
+      deadline,
+      outcome: answer.outcome,
+      latencyMs,
+      itinerary: answer.itinerary,
+      trigger: step.trigger,
+      attempt,
+    });
+
+    if (answer.outcome === "ok" && answer.itinerary) {
+      legs = answer.itinerary.legs;
+      step = simulateFrom(ctx.world, ctx.resolution, ctx.table, legs, query, step.progress);
+      continue;
+    }
+
+    // The player advised giving up, and is charged for it exactly as it would
+    // be charged for failing to route them. Advising abandonment to a traveller
+    // who could still have arrived is a real cost, which is what stops
+    // `abandon` becoming a cheap way out of a hard reroute.
+    if (answer.outcome === "abandon") return giveUp(step, "advised_abandon");
+
+    // `continue`, `no_route`, `declined`, an error or a timeout all leave the
+    // traveller standing where they are with no usable advice. `continue`
+    // reaches here because the leg it wants to continue onto is the one that
+    // just broke.
+    return resumeUnderReference(
+      ctx.world,
+      ctx.scheduleIx,
+      ctx.disruptions,
+      ctx.destinations,
+      step,
+      query,
+      `replan_${answer.outcome}`,
+    );
+  }
+
+  return settle(step);
 }

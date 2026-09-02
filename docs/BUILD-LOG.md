@@ -398,3 +398,45 @@ That makes `KNOWN-ISSUES.md` #1 — `replan`, specified since contract v0.3 and 
 A free access walk (P0M1), an imagined zero-cost transfer (P0M2), a service that never ran (P0M4), a bound that was not a bound (P0M6), a baseline handed the answer (P1M0), and now **a reference credited with foresight the world does not owe it**. The first five flattered a *player*; this one flattered the *ruler*, which is why it survived five milestones of hunting for the first kind.
 
 The generalisation worth keeping: *every* comparison here needs both sides checked for matched information, not only the side being scored.
+
+---
+
+## P0M7 — `replan`
+
+**Delivered: the obligation exists and is issued. Not delivered: the measurement it was pulled forward to unblock**, because wiring it into the baselines uncovered two defects in how conflict cost is attributed at all (`KNOWN-ISSUES.md` #14 and #15).
+
+### What was built
+
+`PLAYER-CONTRACT.md` §5.5 has specified `replan` since v0.3 and nothing ever sent one. Now:
+
+* **The harness issues it.** `simulateItinerary` became `simulateFrom`, which resumes rather than only failing. It distinguishes two kinds of wrong that were previously scored identically: a plan naming a trip that does not exist is *malformed* and the traveller never sets out; a plan whose vehicle is cancelled breaks **in front of the traveller**, at a place and a time, and earns a `replan`.
+* **Triggers describe perception, never cause.** `vehicle_cancelled` for a service that never arrives, `missed_connection` for a departure already gone, `stranded` for a transfer that cannot be made. A traveller knows their bus did not come; they do not know the operator stopped publishing cancellations. Naming the cause would hand over catalogue §2.1 D.
+* **Position is operator-scoped** (§7) — the same published stop reference the player itself used in the itinerary that broke, never a canonical quay.
+* **The destination is deliberately not re-sent.** The player was told where the traveller was going at `/v1/plan` and is expected to have kept it. The reference player now does, and a player that had not could not answer at all.
+* **The reference player answers**, resolving the operator-scoped position through its own merged model — which is exactly where identity and coordinate conflicts bite.
+* **`continue` and `abandon` are answers, not refusals.** `abandon` is charged exactly as failing to route is, so advising it to a traveller who could have arrived costs the same. Anything else — `no_route`, `declined`, an error, a timeout — leaves the traveller resuming under the reference policy **from where they stand**, not from the origin.
+* **One replan budget.** `MAX_REPLANS` moved out of the router and is now shared by P1, P2rt, P0a and the player. A player allowed more attempts than P1 would be compared against a traveller held to a stricter rule than itself.
+
+On the committed world the naive player now receives six `replan` obligations, all `vehicle_cancelled`, and answers all six.
+
+### The bug I wrote, for the seventh time
+
+Restarting the walk over a freshly-returned itinerary was written as `i = restart()`, where `restart()` set `i = -1` and returned `0`. The assignment won, the loop's own increment moved to `1`, and **the first leg of every replanned itinerary was skipped** — a free teleport along it. P2rt promptly beat an optimum, which is impossible.
+
+The pattern is now so consistent it is worth stating as a rule rather than an anecdote: *a baseline that suddenly beats its reference has been given something, and the something is almost always a movement nobody was charged for.*
+
+### Two findings that stop Gate 3 being measurable
+
+Fixing the teleport did not restore a sensible number, and chasing why produced the two results that matter more than the milestone.
+
+**1. A conflict-free world is harder, not easier (`KNOWN-ISSUES.md` #14).** The naive matcher fuses stops within 120 m, and this city has 19 pairs of genuinely distinct quays closer than that — the nearest 31 m apart. With every operator publishing exact coordinates the matcher collapses 34 canonical quays into **19** stops; the declared conflicts push them apart and leave **26**. So "the same world with every conflict switched off" is not a floor, and every instrument that attributes by subtracting it — ablation, the probe, Gate 3 — is subtracting a *harder* world. Conflict cost comes out at −1.01 min.
+
+This also retires the 0.00 min clean floor recorded at P1M0. It held only because a failing P2rt was handed P1's whole-journey outcome and P1 happened to match P0a there. Once the baselines could replan the rescue stopped firing, and the real shape showed.
+
+**2. P0a is a strategy, not a bound (`KNOWN-ISSUES.md` #15).** It plans once on what had been announced and replans only when its plan breaks. On `q15` it detours around an announced delay that turns out not to matter and arrives in 43.22 min, while the *lazy* integrator ignores the announcement and arrives in 36.40. A bound cannot lose to something with less information. P0a is already the better of its own plan and P1's outcome — P1 being achievable with no disruption knowledge at all — and that patch closes many cases but not this one.
+
+### What this milestone actually changed
+
+`replan` exists, is specified-conformant, and is exercised. `KNOWN-ISSUES.md` #1 is closed.
+
+The claim it was pulled forward to support — that conflict cost rises once the planner can see — **is not established, and cannot be until #14 and #15 are resolved.** The honest position is that P0M7 removed one confound and revealed two larger ones underneath it. Both belong to P0M8, and they are the same question: *what is a fair reference for attributing conflict cost in a city where the lazy baseline's own matcher is the dominant source of error?*

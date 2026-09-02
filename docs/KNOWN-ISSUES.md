@@ -8,7 +8,7 @@ Design questions that have never been settled live as **OPEN** markers inside th
 
 ---
 
-## 1. `replan` is specified but never issued — `open`
+## 1. `replan` is specified but never issued — `fixed at P0M7`
 
 `PLAYER-CONTRACT.md` §5.5 defines a `replan` obligation in full: triggers, positions, response statuses. The harness never sends one. A traveller whose plan collapses mid-journey is simply not asked.
 
@@ -27,7 +27,9 @@ Both columns move together, and the reason is one thing: **a planner that never 
 
 This makes `replan` a prerequisite for Gate 3 rather than a Phase 2 enrichment. It does not by itself close the gate - 0.46m is still only 15 % of headroom - but no amount of strengthening conflicts compensates for a player who only ever answers once.
 
-**Owner:** Phase 2 as scheduled, **but P0M8 must decide whether to pull it forward**, because Gate 3 is unlikely to pass honestly without it.
+**Fixed at P0M7.** The harness issues `/v1/replan` when a plan breaks in front of a traveller, the reference player answers it, and P1, P2rt and P0a all replan on the shared `MAX_REPLANS` budget. A traveller stranded with no usable advice resumes under the reference policy *from where they stand*, which is also now how a stuck baseline is charged.
+
+**What it did not do is raise conflict cost**, which was the reason it was pulled forward. Wiring it into the baselines instead uncovered #14 and #15, and those have to be resolved before the effect can be measured at all.
 
 ---
 
@@ -171,3 +173,44 @@ The correction is recorded in `PHASES.md`, `ROADMAP.md` and `README.md` with the
 **Phase 0 is reopened.** `PHASES.md` says not to begin Phase 1 on a failed Gate 3, so P0M7 (`replan`) and P0M8 (conflict potency) now sit ahead of it, and Phase 1's generation milestones are blocked behind their joint exit.
 
 **Owner:** P0M8, blocking. Nothing downstream of conflict generation should be built until it resolves.
+
+---
+
+## 14. Switching every conflict off produces a *harder* world, not a floor — `open`
+
+Ablation, the conflict-depth probe and Gate 3 all attribute conflict cost by subtraction: measure the declared world, measure the same world with every conflict switched off, take the difference. That assumes the conflict-free world is a floor. **It is not.**
+
+The naive baseline matches stops by coordinate proximity within 120 m. This city has **19 pairs of genuinely distinct quays closer together than that**, the nearest 31 m apart. So when every operator publishes exact coordinates, the matcher fuses places that are not the same place:
+
+| World | 34 canonical quays merge to |
+|---|---|
+| declared | 26 stops |
+| every conflict off | **19 stops** |
+
+The declared conflicts — coordinate offsets, precision truncation — push published stops apart and *prevent* the over-merging. Switching them off does not remove difficulty; it replaces one difficulty with a larger one.
+
+Consequences, in order of severity:
+
+* **Conflict cost by subtraction comes out negative.** Currently −1.01 min at the harness's planning lead.
+* **`KNOWN-ISSUES.md` #6 is a special case of this**, not a curiosity about `A-coordinate-precision`.
+* **The 0.00 min "clean floor" recorded at P1M0 was an artefact.** It held only because a failing P2rt was handed P1's whole-journey outcome, and P1 happened to match P0a on those queries. Once the baselines could replan, the rescue stopped firing and the real shape showed.
+
+**This does not mean the conflicts are worthless.** It means the instrument cannot currently say what they are worth. The conflict-depth probe's *within-world* sweeps are unaffected in shape — they compare variants against a common baseline, and the ordering and thresholds it found still stand — but its absolute figures inherit the same floor.
+
+**Owner:** P0M8, blocking Gate 3. The plausible routes: raise the matcher's threshold so it stops over-merging and measure against that; measure against the declared world with *one* conflict removed rather than all; or accept that a coordinate-threshold baseline cannot be a fair floor in a city with 31 m quay spacing and pick a different lazy strategy.
+
+---
+
+## 15. P0a is a strategy, not a bound — `open`
+
+Gate 3 divides by `P0a − P2rt`, described as the shortfall against "an optimum held to the same announcement horizon" (`REFERENCE-POLICY.md` §2.1). P0a is not an optimum. It plans once on what had been announced and replans only when its plan *breaks*, which is a well-informed strategy — and a strategy is not a bound.
+
+Measurably so: on `q15` P0a arrives in 43.22 min while the *lazy* integrator arrives in 36.40. P0a had detoured around a delay that was announced and turned out not to matter. A genuine optimum over announcement-limited strategies would have taken the faster route, because that route was available under strictly less information.
+
+P0a is already the better of its own plan and P1, for the same reason — P1 is achievable with no disruption knowledge at all, so any bound must dominate it. That patch closed the cases it could; `q15` shows it does not close them all.
+
+**Why it is not trivially fixable.** The true object is the optimum over *strategies* under partial information, which is a planning problem over belief states rather than a shortest path. Computing it exactly is a different piece of work from routing.
+
+`src/scoring/test/matched-reference.test.ts` pins the gap with a characterisation test that asserts a violation still exists, so the day P0a becomes a real bound the test fails and says so.
+
+**Owner:** P0M8, jointly with #14 — both are the same question: what is a fair reference for attributing conflict cost?

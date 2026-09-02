@@ -47,7 +47,12 @@ export type ObligationOutcome =
   | "no_route"
   | "declined"
   | "player_error"
-  | "player_timeout";
+  | "player_timeout"
+  // `replan` only (PLAYER-CONTRACT.md §5.5). Both are answers rather than
+  // refusals: the player is asserting the current plan is still best, or
+  // advising the traveller to give up. Each is charged for what follows.
+  | "continue"
+  | "abandon";
 
 export interface ObligationRecord {
   readonly kind: "obligation";
@@ -60,6 +65,10 @@ export interface ObligationRecord {
   /** Wall-clock latency. Diagnostic only; inert in `virtual` mode. */
   readonly latencyMs: number;
   readonly itinerary: Itinerary | null;
+  /** `replan` only: what the traveller could perceive going wrong. */
+  readonly trigger?: string;
+  /** `replan` only: which attempt this was, from 1. */
+  readonly attempt?: number;
 }
 
 /** What actually happened to a scored traveller, against the fixed trajectory. */

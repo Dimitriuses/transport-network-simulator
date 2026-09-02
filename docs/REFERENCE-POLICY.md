@@ -56,7 +56,9 @@ It exists because Phase 0's Gate 3 asks *what fraction of a lazy integrator's sh
 Two consequences worth stating plainly:
 
 * **Share stops being a test.** With conflicts switched off, `P0a − P2rt` is *zero* — a lazy integrator with nothing to misreconcile is optimal. So the conflict-caused share is 100 % by construction whatever the conflicts do. Gate 3 must therefore judge conflict cost against **headroom** (`P0 − P1`), not against its own shortfall.
-* **`P0a` inherits the missing `replan`.** It plans once and is charged for what follows, so at a 30-minute lead six of eighteen of its plans do not survive the day. It is an optimum among *single* plans, not among strategies. That is the same restriction `P2rt` is under, which is what keeps the comparison fair — but it means both are mostly blind, and a blind planner cannot be punished for reconciling badly (`KNOWN-ISSUES.md` #1).
+* **`P0a` replans, as of P0M7.** It plans on what had been announced, and when a plan breaks it routes onward from where the traveller is standing with whatever has been announced *by then*, on the same `MAX_REPLANS` budget everyone else gets. `P2rt` does the same with what it *believes*. No plans now fail outright at any planning lead.
+
+* **`P0a` is still not a bound, and this is the important caveat.** It plans once and replans only on breakage, which is a well-informed *strategy*. A strategy is not an optimum: on `q15` it detours around an announced delay that turns out not to matter, and a lazy integrator that ignored the announcement arrives sooner. It is already taken as the better of its own plan and P1's outcome — P1 being achievable with no disruption knowledge at all, so any bound must dominate it — and that does not close every case. See `KNOWN-ISSUES.md` #15 before quoting any number derived from it.
 
 **P2** is a deliberately lazy *player*: match stops across operators by coordinate proximity alone, plan on the merged graph, ignore realtime. Its purpose is calibration — the P0-to-P2 gap measures how much a world's declared conflicts actually cost someone who does the obvious thing badly. It never touches the world.
 

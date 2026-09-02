@@ -337,6 +337,14 @@ interface Held {
   /** `${operator}:${trip}` for every transit leg this traveller depends on. */
   trips: string[];
   warned: boolean;
+  /**
+   * Where this traveller is going.
+   *
+   * Kept because `/v1/replan` deliberately does not re-send it
+   * (`PLAYER-CONTRACT.md` §5.5). A player that forgot cannot reroute anybody,
+   * which is the point: tracking your travellers is part of the job.
+   */
+  destination: { lat: number; lon: number };
 }
 
 export function startPlayer(opts: PlayerOptions): Promise<Server> {
@@ -473,8 +481,8 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
           // it is "never looks".
           capabilities:
             mode === "null" || mode === "blind"
-              ? ["plan"]
-              : ["plan", "tick", "notify"],
+              ? ["plan", "replan"]
+              : ["plan", "replan", "tick", "notify"],
           ...(mode === "null" || mode === "blind"
             ? {}
             : { tick: { interval_sim_s: mode === "competent" ? 60 : 120 } }),
@@ -523,6 +531,81 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
           // can be matched back to somebody who needs telling.
           held.set(r.traveller_ref, {
             travellerRef: r.traveller_ref,
+            trips: (itinerary.legs as Record<string, unknown>[])
+              .filter((l) => l["mode"] === "transit")
+              .map((l) => `${String(l["operator"])}:${String(l["trip"])}`),
+            warned: false,
+            destination: r.destination,
+          });
+          return { request_id: r.request_id, status: "ok", itinerary };
+        });
+
+        return json(res, 200, { results });
+      }
+
+      // A plan this player handed out has broken in front of a traveller
+      // (`PLAYER-CONTRACT.md` §5.5). It is told where they are and what they
+      // saw — never why — and must route them onward from there.
+      //
+      // Two things make this harder than `/v1/plan`, and both are the point:
+      // the destination is not re-sent, so a player that did not track its
+      // travellers cannot answer at all; and the position arrives as an
+      // *operator-scoped* stop reference, so the player must resolve somebody
+      // else's identifier to a place using its own merged model. This player
+      // resolves it the lazy way — take the publisher's coordinates at face
+      // value — and is charged for whatever those coordinates get wrong.
+      if (req.method === "POST" && url.pathname === "/v1/replan") {
+        if (!model) return json(res, 503, { title: "not ready", status: 503 });
+        const body = JSON.parse(await readBody(req)) as {
+          issued_at: string;
+          requests: {
+            request_id: string;
+            traveller_ref: string;
+            trigger: string;
+            position: { kind: string; operator?: string; stop?: string };
+            remaining_itinerary: { legs: unknown[] } | null;
+          }[];
+        };
+
+        const atS = toSeconds(body.issued_at);
+
+        const results = body.requests.map((r) => {
+          if (mode === "null") {
+            return { request_id: r.request_id, status: "declined", itinerary: null };
+          }
+
+          const memory = held.get(r.traveller_ref);
+          if (!memory) {
+            // Never planned for this traveller, or forgot. Nothing honest to
+            // say, and guessing a destination would be worse than declining.
+            return { request_id: r.request_id, status: "declined", itinerary: null };
+          }
+
+          if (r.position.kind !== "at_stop" || !r.position.operator || !r.position.stop) {
+            return { request_id: r.request_id, status: "no_route", itinerary: null };
+          }
+
+          const here = model!.stopByKey.get(`${r.position.operator}:${r.position.stop}`);
+          if (!here) {
+            // The operator named a stop this player has no record of. That is
+            // a coverage gap in what it ingested, not a routing failure.
+            return { request_id: r.request_id, status: "no_route", itinerary: null };
+          }
+
+          const itinerary = cheat
+            ? cheat.plan({ lat: here.lat, lon: here.lon }, memory.destination, atS)
+            : competent
+              ? planCompetently(competent, { lat: here.lat, lon: here.lon }, memory.destination, atS)
+              : plan(model!, { lat: here.lat, lon: here.lon }, memory.destination, body.issued_at);
+
+          if (itinerary === null) {
+            return { request_id: r.request_id, status: "no_route", itinerary: null };
+          }
+
+          // The traveller is now relying on a different set of trips, so the
+          // warning bookkeeping has to follow them.
+          held.set(r.traveller_ref, {
+            ...memory,
             trips: (itinerary.legs as Record<string, unknown>[])
               .filter((l) => l["mode"] === "transit")
               .map((l) => `${String(l["operator"])}:${String(l["trip"])}`),

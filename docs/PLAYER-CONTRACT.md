@@ -213,6 +213,8 @@ Every obligation carries both budgets from `TIME-MODEL.md` §4:
 
 Issued when a traveller's plan has become unworkable. Same envelope and batching.
 
+*Implemented at P0M7. Specified since v0.3 and unissued until then, which made half of what an integration layer is for unmeasurable (`docs/KNOWN-ISSUES.md` #1).*
+
 ```json
 {
   "request_id": "req-000488",
@@ -230,6 +232,12 @@ Issued when a traveller's plan has become unworkable. Same envelope and batching
 `position.kind` ∈ `at_stop | aboard | walking`, with operator-scoped references (§7) or coordinates as appropriate.
 
 Response `status` ∈ `ok` (new itinerary) | `continue` (current plan still best) | `abandon` (advise giving up) | `no_route` | `declined`.
+
+**`continue` and `abandon` are answers, not refusals, and are charged for what follows.** Advising abandonment to a traveller who could still have arrived costs exactly what failing to route them costs — otherwise `abandon` would be a cheap exit from a hard reroute. Anything that is not a usable itinerary leaves the traveller resuming under the reference policy **from where they are standing**, not from their origin (`REFERENCE-POLICY.md` §4.3).
+
+**The destination is deliberately absent from the request.** The player was told where this traveller was going when it answered `/v1/plan`, and is expected to have kept it. Re-sending it would make a stateless player indistinguishable from one that tracks its travellers.
+
+**Replans are bounded.** A traveller gives up after `MAX_REPLANS` attempts — the same budget the reference policy gets, so no player is compared against a traveller held to a stricter rule than itself.
 
 ### 5.6 `POST /v1/tick` — new in v0.2
 

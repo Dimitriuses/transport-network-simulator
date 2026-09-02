@@ -17,6 +17,7 @@ export const SCORER_VERSION = "0.1.0";
 
 export * from "./contract/identity.ts";
 export * from "./contract/plan.ts";
+export * from "./contract/replan.ts";
 export * from "./simtime.ts";
 export type * from "./world.ts";
 export type * from "./runlog.ts";
