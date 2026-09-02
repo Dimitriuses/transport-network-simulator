@@ -25,7 +25,8 @@
     "gates": "node src/scoring/scripts/gates.ts",
     "ablate": "node src/scoring/scripts/gates.ts",
     "conformance": "node src/conformance/scripts/check.ts",
-    "probe": "node src/scoring/scripts/probe.ts"
+    "probe": "node src/scoring/scripts/probe.ts",
+    "horizon": "node src/scoring/scripts/horizon.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

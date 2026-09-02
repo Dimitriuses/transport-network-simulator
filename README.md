@@ -31,7 +31,7 @@ The world is now **live**: services run late and get cancelled, each operator's 
 
 Runs now produce a full scorecard — three families, a named profile, tier clearance, and a report of **where the capture went**. A player that plans with information no feed published is caught by the information-set audit even though its score looks perfect.
 
-Four solutions of different quality separate cleanly, and a player planning with information no feed published is caught by the information-set audit even though its score looks perfect. The third gate — that the *declared conflicts* are what makes the world hard — was recorded as passing at 61 % and has since been **corrected to 4 %, a fail**: the baseline it was measured against was handed the true disruption set and never read a published feed. Phase 1 opens on that correction rather than around it. See [`docs/PHASES.md`](docs/PHASES.md).
+Four solutions of different quality separate cleanly, and a player planning with information no feed published is caught by the information-set audit even though its score looks perfect. The third gate — that the *declared conflicts* are what makes the world hard — was recorded as passing at 61 % and **now fails**. P1M0 found the instrument wrong at both ends: the baseline had been handed the true disruption set and never read a published feed, and the reference it was divided by is granted foresight of disruptions before they are announced, which no player can have. Measured against a reference held to the same information, the conflicts cost **3 % of the headroom a player competes for**. Phase 1 opens on that correction rather than around it. See [`docs/PHASES.md`](docs/PHASES.md).
 
 ```
 npm run gates                  # the three Phase 0 proof gates

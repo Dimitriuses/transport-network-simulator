@@ -79,13 +79,13 @@ All three gates pass, or the design is revisited. **Do not begin Phase 1 on a fa
 
 *Measured 2026-09-01 with `npm run gates`.*
 
-> **Superseded on the Gate 3 row — see the correction below.** Gate 3 was recorded as passing at 61 %. It was measured with an instrument that could not perceive most of what it was measuring, and re-measuring with a corrected one puts it at **4 %, which is a fail**. The original numbers are kept because a result that is quietly rewritten cannot be challenged.
+> **Superseded on the Gate 3 row — see the correction below.** Gate 3 was recorded as passing at 61 %. Both the baseline it measured and the reference it divided by were wrong, in opposite directions. Corrected at P1M0, the gate **fails**: the declared conflicts cost 3 % of the headroom a player competes for. The original numbers are kept because a result that is quietly rewritten cannot be challenged.
 
 | Gate | Result |
 |---|---|
 | **1 — buildable** | PASS. A solution built only from the brief and the operator APIs captures **0.292** of the headroom, headline 0.546. |
 | **2 — headroom real and discriminating** | PASS. 3.14 min of headroom; four solutions of different quality produce four distinct scores spanning 0.56 of headline. |
-| **3 — conflicts are doing the work** | ~~PASS, 61 %~~ → **FAIL, 4 %.** Corrected at P1M0; see below. |
+| **3 — conflicts are doing the work** | ~~PASS, 61 %~~ → **FAIL.** Conflicts cost 3 % of headroom against a matched reference. Corrected at P1M0; see below. |
 
 ### Three things the measurement forced
 
@@ -93,7 +93,14 @@ All three gates pass, or the design is revisited. **Do not begin Phase 1 on a fa
 
 **The 61 % was wrong, and the way it was wrong is the important part.** That realtime-aware baseline was built by handing it `disruptionsForNaive(world, disruptions)` — the world's *true* disruption set. It never read a published feed. So every conflict that lives in a feed — staleness, silently dropped cancellations, delays published in the wrong unit, delays not published at all — cost it **exactly nothing by construction**, and ablation dutifully reported each at zero. The instrument was blind to a quarter of the catalogue and reported the blindness as an absence.
 
-Corrected at P1M0 by `believedDisruptions()`, which polls each operator's feed on a five-minute cadence and believes what it is told. Gate 3 then reads **4 %**, and fails. See [`BUILD-LOG.md`](BUILD-LOG.md) P1M0.
+Corrected at P1M0 by `believedDisruptions()`, which polls each operator's feed on a five-minute cadence and believes what it is told. Gate 3 then reads 4 %.
+
+**And the reference it divided by was wrong in the other direction.** That 4 % left 96 % attributed to "everything else", which was never diagnosed. It is not topology: **1.46 of those 2.26 minutes is trouble nobody had announced yet when the plan was made.** §2 of `REFERENCE-POLICY.md` grants P0 "full L1 + perfect realtime" and in the same row calls it "the achievable optimum" — two different objects, since no player can read the future. That foresight sat in the gate's denominator at twenty times the size of its numerator.
+
+Gate 3 now measures against **P0a** (`REFERENCE-POLICY.md` §2.1), an optimum held to the same announcement horizon as the baseline. Two things follow, and the second is the finding:
+
+* With conflicts switched off, `P0a − P2rt` is **exactly zero** — so the conflict-caused *share* is 100 % by construction and has stopped being a test. The gate now judges conflict cost against **headroom**.
+* That reads **3 %**, and the gate fails. Reproduce with `npm run gates` and `npm run horizon`.
 
 **Leave-one-out ablation attributes almost nothing, and that is a true fact about the world.** Remove the coordinate offset and a lazy integrator still trips over colliding identifiers; remove those and it still misreads the timestamps. The defects are individually unnecessary and collectively sufficient, so removing any one changes nothing. Leave-*one-in* — switch everything off and add one back — is what measures a defect's standalone contribution.
 

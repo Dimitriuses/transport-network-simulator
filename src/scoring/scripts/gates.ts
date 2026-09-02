@@ -134,20 +134,24 @@ console.log("");
 // ---- Gate 3 ---------------------------------------------------------------
 console.log("  GATE 3 — the conflicts are doing the work");
 const ab = ablate(world);
-console.log("    Measured on a lazy integrator that *does* handle realtime, so it");
-console.log("    differs from a careful one in matching quality alone. P2 as");
-console.log("    specified ignores realtime, which would guarantee it loses to a");
-console.log("    disrupted day whether or not any conflict existed — and that");
-console.log("    confounds precisely the question this gate asks.");
+console.log("    Measured on a lazy integrator that handles realtime, against an");
+console.log("    optimum held to the SAME announcement horizon. P0 is clairvoyant by");
+console.log("    design (REFERENCE-POLICY.md §2) — it routes around a cancellation");
+console.log("    announced after it planned, and no player can. Dividing by a gap");
+console.log("    containing that advantage measures the oracle's foresight as though");
+console.log("    it were the world's difficulty, and until P1M0 this gate did.");
 console.log("");
-console.log(`    its shortfall, as things are                 ${mins(ab.baselineGapS)}`);
+console.log(`    excluded — P0's unreachable foresight        ${mins(ab.clairvoyanceS)}`);
+console.log("");
+console.log(`    its shortfall, against a matched optimum     ${mins(ab.baselineGapS)}`);
 console.log(`    the same, with every conflict switched off   ${mins(ab.cleanGapS)}`);
 console.log("");
 
 const conflictCaused = ab.baselineGapS - ab.cleanGapS;
 const share = ab.baselineGapS === 0 ? 0 : conflictCaused / ab.baselineGapS;
+const materiality = ab.headroomS === 0 ? 0 : conflictCaused / ab.headroomS;
 
-console.log(`    caused by conflicts   ${mins(conflictCaused)}  (${(share * 100).toFixed(0)}%)`);
+console.log(`    caused by conflicts        ${mins(conflictCaused)}  (${(share * 100).toFixed(0)}% of that shortfall)`);
 console.log(`    caused by everything else  ${mins(ab.cleanGapS)}  (${((1 - share) * 100).toFixed(0)}%)`);
 console.log("");
 if (ab.entries.some((e) => Math.abs(e.costS) > 1)) {
@@ -158,8 +162,23 @@ if (ab.entries.some((e) => Math.abs(e.costS) > 1)) {
   console.log("");
 }
 
-const g3 = share > 0.5;
-console.log(`    ${g3 ? "PASS" : "FAIL"} — most lost capture must trace to declared conflicts`);
+// Share alone stopped being a test the moment the reference was matched.
+// Against an optimum with the same information, the only thing separating it
+// from a lazy integrator IS reconciliation — so switching the conflicts off
+// drives the residual to zero and the share to 100% whatever the conflicts do.
+// That is arithmetic, not evidence. The question the gate needs answered is
+// whether reconciliation costs enough to be worth a player's effort, and the
+// scale for that is the headroom being competed for.
+console.log(`    conflict cost against the ${mins(ab.headroomS)} of headroom:   ${(materiality * 100).toFixed(0)}%`);
+console.log("");
+console.log("    Share is near-tautological under a matched reference. The");
+console.log("    materiality line is the one carrying information, and its 20%");
+console.log("    threshold is PROVISIONAL — introduced at P1M0, not yet ratified.");
+console.log("    See docs/KNOWN-ISSUES.md #13.");
+console.log("");
+
+const g3 = share > 0.5 && materiality > 0.2;
+console.log(`    ${g3 ? "PASS" : "FAIL"} — conflicts must cause most of the shortfall, and enough of it to matter`);
 console.log("");
 
 // ---------------------------------------------------------------------------

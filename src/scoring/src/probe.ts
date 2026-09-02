@@ -149,7 +149,7 @@ export const NOISE_FLOOR_S = 10;
  */
 export function probeCatalogue(world: World, operatorId?: string): ProbeReport {
   const clean = cleanWorld(world);
-  const baseline = calibrate(clean).gapP0P2rt;
+  const baseline = calibrate(clean).gapP0aP2rt;
 
   const operators = (
     operatorId !== undefined ? [operatorId] : world.manifest.operators.map((o) => o.id)
@@ -164,7 +164,7 @@ export function probeCatalogue(world: World, operatorId?: string): ProbeReport {
     for (const op of operators) {
       for (const value of sweep.values) {
         const variant = withSetting(clean, op, sweep.group, sweep.key, value);
-        points.push({ operator: op, value, costS: calibrate(variant).gapP0P2rt - baseline });
+        points.push({ operator: op, value, costS: calibrate(variant).gapP0aP2rt - baseline });
       }
     }
 

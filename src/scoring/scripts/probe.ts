@@ -33,10 +33,11 @@ console.log("  each conflict alone, every operator in turn, against a conflict-f
 console.log("");
 console.log(`  conflict-free baseline shortfall   ${mins(report.baselineS)}`);
 console.log("");
-console.log("  That floor is not conflict cost. It is what a lazy integrator loses");
-console.log("  by planning half an hour out and being wrong about what happens");
-console.log("  next, on feeds that are entirely honest. Everything below is");
-console.log("  measured on top of it.");
+console.log("  Measured against P0a, an optimum on the same announcement horizon,");
+console.log("  so that floor should be zero: with nothing to misreconcile, a lazy");
+console.log("  integrator is optimal. A non-zero floor means something other than");
+console.log("  a declared conflict is costing it, and every figure below is");
+console.log("  inflated by however much that is.");
 console.log("");
 
 console.log("     conflict                      best   on         at");

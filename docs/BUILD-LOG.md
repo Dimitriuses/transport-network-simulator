@@ -306,7 +306,11 @@ The coincidence is worth naming so nobody reads it as a mistake: the *original* 
 
 `npm run probe` — every conflict alone, at each strength, on each operator in turn, against a conflict-free world.
 
-**The floor is 2.26 min, and it is not conflict cost.** A world with *no conflicts at all* still costs a lazy integrator that much, because it plans thirty minutes out, is told about trouble afterwards, and is never asked to replan. That term is roughly twenty times the conflict term, and it swamps everything measured without subtracting it.
+> **Re-measured against `P0a` after the reference was corrected, and every per-conflict figure came back identical.** Only the floor moved, 2.26m to 0.00m. The clairvoyance term was a constant present in both sides of the probe's subtraction, so it always cancelled — the probe was the one instrument in the project already immune to the bug, by construction rather than by foresight.
+
+**The floor is 0.00 min, and that is a check rather than a result.** Against `P0a` a conflict-free world costs a lazy integrator nothing, because with nothing to misreconcile it is optimal. Any non-zero floor would mean something other than a declared conflict was being attributed to the conflicts.
+
+*(Measured against clairvoyant P0 the floor was 2.26 min — a world with no conflicts at all still cost that much, because the reference knew about trouble before it was announced. Roughly twenty times the conflict term, and the reason Gate 3 read 4 %. The probe subtracted it away without knowing it was there.)*
 
 | Conflict | Best | On | At | Verdict |
 |---|---|---|---|---|
@@ -320,6 +324,8 @@ The coincidence is worth naming so nobody reads it as a mistake: the *original* 
 | `A-granularity`, `A-id-scheme`, `A-naming`, `A-coordinate-source`, `D-silent-cancellation` | 0.00m | — | — | **inert everywhere** |
 
 **Six of twelve can be made to bite. Six cannot, at any setting, on any operator.**
+
+The strongest single setting available anywhere in the catalogue is 2.13 min, against 3.14 min of headroom — so even the best conflict, pushed to its most extreme value on the operator that expresses it best, reaches about two thirds of headroom on its own. The catalogue is not incapable of producing a hard world. The committed world simply is not one.
 
 ### Four things the probe forced
 
@@ -340,3 +346,51 @@ The milestone's exit is *"we can name which conflicts are worth generating and r
 **Second clause: not met, and not meetable from here.** [`PLAYTEST-KIT.md`](PLAYTEST-KIT.md) makes it a session someone can run rather than an intention.
 
 **And Gate 3 now fails, which `PHASES.md` says must be allowed to stop the project rather than be tuned away.** P1M1 was already scoped to strengthen conflicts; it is now the milestone that decides whether Gate 3 can honestly be made to pass. That is a decision about the project, not a task inside it.
+
+### The reference was wrong too — P0a
+
+Correcting the baseline (above) left Gate 3 at 4 %, with 96 % attributed to "everything else". That residual was never diagnosed, only named, so `npm run horizon` was written to decompose it. It is not topology and not routing difficulty:
+
+**1.46 of the 2.26 minutes is trouble that had not been announced when the plan was made.** `REFERENCE-POLICY.md` §2 grants P0 "full L1 + perfect realtime", which includes disruptions *before they are published* — P0 planning at 09:00 routes around a cancellation announced at 09:20. The same table calls P0 "the achievable optimum". Those are two different objects, and the contradiction had been sitting in the spec since the document was written.
+
+For **normalisation** the clairvoyant reading is right: the reference must be fixed, seed-derived and unbeatable, and `SCORING.md` §10's invariant depends on it. For **attribution** it is ruinous, because the foresight term sits in the denominator Gate 3 divides by, and it is twenty times the numerator.
+
+**The fix, chosen by the project owner from three options:** keep P0 clairvoyant for the score; give Gate 3 an announcement-limited optimum. `P0a` (`REFERENCE-POLICY.md` §2.1) plans optimally over the canonical world knowing only what had been announced at its planning instant, then is charged for the day that happens. It and `P2rt` plan at the same moment on the same announcements, so the only thing between them is reconciliation.
+
+Implementing it forced something implicit to be named, and that implicitness is the source of this whole class of bug: **which id space a plan is written in.** `evaluateAgainstTruth` hard-coded the lazy integrator's `operator:trip` space. `PlanSpace` now states it, with `naivePlanSpace` and `canonicalPlanSpace` as the two answers.
+
+### The result
+
+```
+excluded — P0's unreachable foresight        2.26m
+its shortfall, against a matched optimum     0.10m
+the same, with every conflict switched off   0.00m
+caused by conflicts        0.10m  (100% of that shortfall)
+conflict cost against the 3.14m of headroom:   3%
+FAIL
+```
+
+**Gate 3 still fails, and the share is no longer why.** That `0.00m` is the load-bearing result and now carries a test: *with no conflicts, a lazy integrator on a matched horizon is exactly optimal.* Which means the conflict-caused share is **100 % by construction** — remove the conflicts and there is nothing else left to lose to. Share stopped being a test the moment the reference was matched, and a gate reading "100 % PASS" would have been the purest available form of tuning a gate until it passes.
+
+So the gate now judges **materiality**: conflict cost against the 3.14 min of headroom a player actually competes for. That reads **3 %**. The 20 % threshold is provisional, chosen because the gate needed one, and says so in its own output.
+
+### What this located
+
+`npm run horizon`, over the planning lead:
+
+| lead | P0 foresight | conflict cost | P0a plans that failed |
+|---|---|---|---|
+| 1800 s | 2.26m | 0.10m | 6/18 |
+| 900 s | 2.14m | 0.22m | 5/18 |
+| 300 s | 0.36m | 0.46m | 3/18 |
+| 0 s | 0.36m | 0.46m | 1/18 |
+
+Conflict cost more than quadruples as the lead shortens, and the failure column falls with it. One cause: **a planner that never replans is mostly blind, and a blind planner cannot be punished for reconciling badly.** At the harness's 30-minute lead, neither the optimum nor the lazy integrator knows enough for reconciliation quality to matter much.
+
+That makes `KNOWN-ISSUES.md` #1 — `replan`, specified since contract v0.3 and never issued — a **prerequisite for Gate 3** rather than a Phase 2 enrichment. It does not close the gate alone: 0.46m is still 15 % of headroom. Conflict strengthening and `replan` are now both necessary, and P1M1 owns the decision.
+
+### The pattern, for the sixth time
+
+A free access walk (P0M1), an imagined zero-cost transfer (P0M2), a service that never ran (P0M4), a bound that was not a bound (P0M6), a baseline handed the answer (P1M0), and now **a reference credited with foresight the world does not owe it**. The first five flattered a *player*; this one flattered the *ruler*, which is why it survived five milestones of hunting for the first kind.
+
+The generalisation worth keeping: *every* comparison here needs both sides checked for matched information, not only the side being scored.

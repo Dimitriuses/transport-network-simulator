@@ -14,7 +14,20 @@ Design questions that have never been settled live as **OPEN** markers inside th
 
 **Why it matters more than it looks.** It is why `blind` and `naive` score identically on Service (−0.023 each): realtime knowledge cannot affect a journey once it has begun, so polling can only ever improve the Information family. Half of what a live integration layer is *for* — noticing trouble and rerouting somebody around it — is currently unmeasurable.
 
-**Owner:** Phase 2, with closed loop, where a traveller reacting to an answer is the point. Worth pulling earlier if the Service family starts looking insensitive to anything but planning quality.
+**P1M0 promoted this from "half of what integration is for" to the binding constraint on Gate 3.** With a matched reference (`REFERENCE-POLICY.md` 2.1), conflict cost rises as the planning lead shortens:
+
+| plan lead | conflict cost | P0a plans that did not survive the day |
+|---|---|---|
+| 1800 s (the harness) | 0.10m | 6/18 |
+| 900 s | 0.22m | 5/18 |
+| 300 s | 0.46m | 3/18 |
+| 0 s | 0.46m | 1/18 |
+
+Both columns move together, and the reason is one thing: **a planner that never replans is mostly blind, and a blind planner cannot be punished for reconciling badly.** At a 30-minute lead neither the optimum nor the lazy integrator knows much, so reconciliation quality barely matters and the conflicts have no room to bite. Reproduce with `npm run horizon`.
+
+This makes `replan` a prerequisite for Gate 3 rather than a Phase 2 enrichment. It does not by itself close the gate - 0.46m is still only 15 % of headroom - but no amount of strengthening conflicts compensates for a player who only ever answers once.
+
+**Owner:** Phase 2 as scheduled, **but P1M1 must decide whether to pull it forward**, because Gate 3 is unlikely to pass honestly without it.
 
 ---
 
@@ -141,5 +154,18 @@ The correction is recorded in `PHASES.md`, `ROADMAP.md` and `README.md` with the
 **What it does not mean.** It is not evidence that the world is undramatic. The probe shows six conflicts that bite at achievable strengths; the committed world sets most of them below threshold. It is evidence that Phase 0 exited on a number it had not earned.
 
 **What it blocks.** `PHASES.md`: *"Do not begin Phase 1 on a failed Gate 3."* Phase 1 has begun, and P1M0 — the milestone whose stated purpose is to test what Phase 0 concluded — is what found it. Whether that counts as the process working or as grounds to stop is a judgement for the project owner, not something to settle by continuing.
+
+**Corrected instrument, P1M0.** Gate 3 now divides by `P0a - P2rt` (`REFERENCE-POLICY.md` 2.1) - an optimum held to the same announcement horizon - so P0's foresight is excluded rather than counted as difficulty. With that:
+
+| | old (vs clairvoyant P0) | new (vs matched P0a) |
+|---|---|---|
+| lazy integrator's shortfall | 2.37m | 0.10m |
+| the same, conflicts off | 2.26m | **0.00m** |
+| conflict-caused share | 4 % | 100 % |
+| conflict cost vs 3.14m headroom | - | **3 %** |
+
+**The gate still fails, and the share is no longer the reason.** Against a matched reference the share is 100 % by construction - remove the conflicts and a lazy integrator becomes optimal, so everything left is conflict-caused whatever the conflicts do. The informative number is the last row: the conflicts cost **3 % of the headroom a player competes for**.
+
+**A provisional threshold now exists and has not been ratified.** `gates.ts` requires conflict cost > 20 % of headroom. That number was chosen at P1M0 because the gate needed *some* materiality criterion once share went degenerate, and it is marked PROVISIONAL in the gate's own output. Ratifying or replacing it is a decision for the project owner.
 
 **Owner:** P1M1, blocking. Nothing downstream of conflict generation should be built until it resolves.

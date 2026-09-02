@@ -194,6 +194,10 @@ export interface QueryGaps {
   readonly p2FellBack: boolean;
   /** P2's outcome when it also handles realtime. */
   readonly p2rt: number | null;
+  /** The optimum available knowing only what had been announced at plan time. */
+  readonly p0a: number | null;
+  /** True when P0-announced produced no plan that survived the day. */
+  readonly p0aFellBack: boolean;
 }
 
 export interface Calibration {
@@ -233,11 +237,45 @@ export interface Calibration {
    * loses is attributable to reconciliation.
    */
   readonly gapP0P2rt: number;
+  /**
+   * The clairvoyance term: what P0 gains purely by knowing about disruptions
+   * before anyone announced them.
+   *
+   * Unreachable by any player, by construction. Reported so it can never again
+   * be silently counted as difficulty the conflicts were supposed to cause.
+   */
+  readonly gapP0P0a: number;
+  /**
+   * **The instrument Gate 3 is measured on.** A lazy integrator's shortfall
+   * against an optimum held to the *same* announcement horizon, so the two
+   * differ in reconciliation quality and nothing else.
+   *
+   * `gapP0P2rt` divides by a gap that also contains `gapP0P0a`, and at this
+   * world's 30-minute planning lead that term is the larger of the two. It made
+   * conflicts look like 4 % of the problem when measured against a matched
+   * reference they are roughly a third of it.
+   */
+  readonly gapP0aP2rt: number;
+  /** Queries where P0-announced had no plan survive, and fell back to P1. */
+  readonly p0aFailures: number;
   readonly comparable: number;
 }
 
 /** Mirrors the harness: travellers ask for a plan well before they set out. */
-const PLAN_LEAD_S = 1800;
+export const PLAN_LEAD_S = 1800;
+
+export interface CalibrateOptions {
+  /**
+   * How far ahead of departure the lazy baselines plan, in seconds.
+   *
+   * Exposed because it is not a detail — it is the single assumption that
+   * decides how much of a lazy integrator's shortfall is *information* it could
+   * not have had yet, as opposed to work it did badly. Setting it to 0 plans at
+   * the moment of departure, when everything announceable has been announced,
+   * and what remains is no longer an information gap.
+   */
+  readonly planLeadS?: number;
+}
 
 const accessFor = (w: World, queryId: string, endpoint: "origin" | "destination"): Access[] =>
   w.queryAccess
@@ -277,9 +315,54 @@ function journeyOf(
  * imaginary; reality charges for the difference. Measuring that difference is
  * what makes P2 informative once conflicts exist.
  */
+/**
+ * Which id space a plan's legs are written in.
+ *
+ * Two different planners are evaluated against the same truth here, and they do
+ * not speak the same identifiers. A lazy integrator plans on its merged model,
+ * where a journey is `${operator}:${published trip}`; an optimum plans on the
+ * canonical world, where a journey is a journey. Leaving that implicit is how
+ * an evaluator silently accepts a plan it cannot actually resolve and returns
+ * `null` for reasons that look like the plan failing.
+ */
+interface PlanSpace {
+  /** The canonical journey a plan's leg refers to. */
+  readonly canonicalJourneyId: (planJourneyId: string) => string | undefined;
+  /** The stop sequence the plan indexed into, for locating board and alight. */
+  readonly planStops: (planJourneyId: string) => readonly { readonly quayId: string }[] | undefined;
+}
+
+/** Plans written in a lazy integrator's merged id space. */
+function naivePlanSpace(world: World, naive: World): PlanSpace {
+  const patterns = new Map(naive.patterns.map((pt) => [pt.id, pt]));
+  const tripToJourney = new Map<string, string>();
+  for (const op of world.manifest.operators) {
+    for (const [trip, journey] of projectOperator(world, op.id, 0).resolution.tripToJourney) {
+      tripToJourney.set(`${op.id}:${trip}`, journey);
+    }
+  }
+  return {
+    canonicalJourneyId: (id) => tripToJourney.get(id),
+    planStops: (id) => patterns.get(id)?.stops,
+  };
+}
+
+/** Plans written in canonical world ids — what an optimum produces. */
+function canonicalPlanSpace(world: World): PlanSpace {
+  const journeys = new Map(world.journeys.map((j) => [j.id, j]));
+  const patterns = new Map(world.patterns.map((pt) => [pt.id, pt]));
+  return {
+    canonicalJourneyId: (id) => (journeys.has(id) ? id : undefined),
+    planStops: (id) => {
+      const j = journeys.get(id);
+      return j ? patterns.get(j.patternId)?.stops : undefined;
+    },
+  };
+}
+
 function evaluateAgainstTruth(
   world: World,
-  naive: World,
+  space: PlanSpace,
   legs: readonly { mode: string; fromQuay: string | null; toQuay: string | null; journeyId?: string }[],
   queryId: string,
   departAfterS: number,
@@ -296,18 +379,9 @@ function evaluateAgainstTruth(
   const delayOf = new Map(
     disruptions.filter((d) => d.kind === "delay").map((d) => [d.journeyId, d.delayS]),
   );
-  const naivePatterns = new Map(naive.patterns.map((p) => [p.id, p]));
   const realJourneys = new Map(world.journeys.map((j) => [j.id, j]));
   const realPatterns = new Map(world.patterns.map((p) => [p.id, p]));
   const walkSpeed = world.manifest.walkSpeedMps;
-
-  // naive journey/pattern ids are `${operator}:${published trip id}`.
-  const tripToJourney = new Map<string, string>();
-  for (const op of world.manifest.operators) {
-    for (const [trip, journey] of projectOperator(world, op.id, 0).resolution.tripToJourney) {
-      tripToJourney.set(`${op.id}:${trip}`, journey);
-    }
-  }
 
   const access = (endpoint: "origin" | "destination", quayId: string): number | null => {
     const row = world.queryAccess.find(
@@ -327,17 +401,17 @@ function evaluateAgainstTruth(
   for (const leg of legs) {
     if (leg.mode !== "transit" || !leg.journeyId) continue;
 
-    const realJourneyId = tripToJourney.get(leg.journeyId);
+    const realJourneyId = space.canonicalJourneyId(leg.journeyId);
     const journey = realJourneyId ? realJourneys.get(realJourneyId) : undefined;
-    const naivePattern = naivePatterns.get(leg.journeyId);
-    if (!journey || !naivePattern) return null;
+    const planStops = space.planStops(leg.journeyId);
+    if (!journey || !planStops) return null;
     const realPattern = realPatterns.get(journey.patternId);
     if (!realPattern) return null;
 
-    // Same trip, same stop order — so a position in the naive pattern is the
+    // Same trip, same stop order — so a position in the plan's pattern is the
     // same position in the real one.
-    const boardIdx = naivePattern.stops.findIndex((s) => s.quayId === leg.fromQuay);
-    const alightIdx = naivePattern.stops.findIndex((s) => s.quayId === leg.toQuay);
+    const boardIdx = planStops.findIndex((s) => s.quayId === leg.fromQuay);
+    const alightIdx = planStops.findIndex((s) => s.quayId === leg.toQuay);
     if (boardIdx < 0 || alightIdx <= boardIdx) return null;
 
     const realBoard = realPattern.stops[boardIdx];
@@ -369,7 +443,8 @@ function evaluateAgainstTruth(
 
 /** Map real journey ids onto the naive world's `operator:trip` ids. */
 
-export function calibrate(world: World): Calibration {
+export function calibrate(world: World, options: CalibrateOptions = {}): Calibration {
+  const planLeadS = options.planLeadS ?? PLAN_LEAD_S;
   // The day that actually happens, from the world seed.
   const disruptions = generateDisruptions(world.journeys, world.manifest.seed);
 
@@ -381,6 +456,21 @@ export function calibrate(world: World): Calibration {
 
   const naive = naiveMergedWorld(world);
   const naiveIx = buildIndex(naive);
+  const naiveSpace = naivePlanSpace(world, naive);
+  const canonicalSpace = canonicalPlanSpace(world);
+
+  // Both per-query planners rebuild an index from a disruption set. Many
+  // queries share a set, so cache on its identity rather than rebuilding.
+  const indexCache = new Map<string, ReturnType<typeof buildIndex>>();
+  const indexFor = (w: World, tag: string, ds: readonly Disruption[]) => {
+    const key = `${tag}|${ds.map((d) => `${d.journeyId}:${d.kind}:${d.delayS}`).join(",")}`;
+    let ix = indexCache.get(key);
+    if (!ix) {
+      ix = buildIndex(w, ds);
+      indexCache.set(key, ix);
+    }
+    return ix;
+  };
 
   // Belief is built by replaying polls in order, so every query's planning
   // instant is snapshotted from a single walk of the feeds rather than one
@@ -389,7 +479,7 @@ export function calibrate(world: World): Calibration {
   const beliefs = believedDisruptionsAt(
     world,
     disruptions,
-    world.queries.map((q) => q.departAfterS - PLAN_LEAD_S),
+    world.queries.map((q) => q.departAfterS - planLeadS),
   );
 
   const perQuery: QueryGaps[] = world.queries.map((q, qi) => {
@@ -405,7 +495,7 @@ export function calibrate(world: World): Calibration {
     const p2 = plan
       ? evaluateAgainstTruth(
           world,
-          naive,
+          naiveSpace,
           plan.legs.map((l) => ({
             mode: l.mode,
             fromQuay: l.fromQuay,
@@ -448,7 +538,7 @@ export function calibrate(world: World): Calibration {
     // made every catalogue D conflict cost it exactly nothing, because it was
     // never reading a feed to be misled by.
     const rtPlan = route(
-      buildIndex(naive, beliefs[qi]!),
+      indexFor(naive, "naive", beliefs[qi]!),
       accessFor(naive, q.id, "origin"),
       accessFor(naive, q.id, "destination"),
       q.departAfterS,
@@ -457,8 +547,42 @@ export function calibrate(world: World): Calibration {
     const p2rt = rtPlan
       ? evaluateAgainstTruth(
           world,
-          naive,
+          naiveSpace,
           rtPlan.legs.map((l) => ({
+            mode: l.mode,
+            fromQuay: l.fromQuay,
+            toQuay: l.toQuay,
+            ...(l.mode === "transit" ? { journeyId: l.journeyId } : {}),
+          })),
+          q.id,
+          q.departAfterS,
+          disruptions,
+        )
+      : null;
+
+    // P0-announced: the best a *perfect* integrator could have done knowing
+    // only what had been announced when it planned. Same world, same optimal
+    // router, same planning instant as P2rt — so the only thing separating them
+    // is reconciliation, which is precisely the question Gate 3 asks.
+    //
+    // P0 itself stays clairvoyant, because the score needs a fixed reference
+    // and REFERENCE-POLICY.md §2 defines one. But P0 knows about a cancellation
+    // before it is announced, and dividing by a gap containing that advantage
+    // measures the oracle's foresight as though it were the world's difficulty.
+    const planTau = q.departAfterS - planLeadS;
+    const announced = disruptions.filter((d) => d.announcedAtS <= planTau);
+    const aPlan = route(
+      indexFor(world, "canon", announced),
+      accessFor(world, q.id, "origin"),
+      accessFor(world, q.id, "destination"),
+      q.departAfterS,
+      "all",
+    );
+    const p0a = aPlan
+      ? evaluateAgainstTruth(
+          world,
+          canonicalSpace,
+          aPlan.legs.map((l) => ({
             mode: l.mode,
             fromQuay: l.fromQuay,
             toQuay: l.toQuay,
@@ -477,11 +601,16 @@ export function calibrate(world: World): Calibration {
       p2: fellBack ? p1 : p2,
       p2FellBack: fellBack,
       p2rt: p2rt ?? p1,
+      // Falls back exactly as P2rt does, so the two stay comparable. An
+      // unmatched fallback rule would flatter whichever side got the softer one.
+      p0a: p0a ?? p1,
+      p0aFellBack: p0a === null,
     };
   });
 
   const usable = perQuery.filter(
-    (g) => g.p0 !== null && g.p1 !== null && g.p2 !== null && g.p2rt !== null,
+    (g) =>
+      g.p0 !== null && g.p1 !== null && g.p2 !== null && g.p2rt !== null && g.p0a !== null,
   );
   const mean = (pick: (g: QueryGaps) => number | null): number =>
     usable.length === 0 ? 0 : usable.reduce((a, g) => a + pick(g)!, 0) / usable.length;
@@ -490,6 +619,7 @@ export function calibrate(world: World): Calibration {
   const meanP1 = mean((g) => g.p1);
   const meanP2 = mean((g) => g.p2);
   const meanP2rt = mean((g) => g.p2rt);
+  const meanP0a = mean((g) => g.p0a);
 
   return {
     perQuery,
@@ -502,6 +632,9 @@ export function calibrate(world: World): Calibration {
     conflictShare: meanP1 - meanP0 === 0 ? 0 : (meanP2 - meanP0) / (meanP1 - meanP0),
     p2Failures: perQuery.filter((g) => g.p2FellBack).length,
     gapP0P2rt: meanP2rt - meanP0,
+    gapP0P0a: meanP0a - meanP0,
+    gapP0aP2rt: meanP2rt - meanP0a,
+    p0aFailures: perQuery.filter((g) => g.p0aFellBack).length,
     comparable: usable.length,
   };
 }
@@ -572,6 +705,10 @@ export interface AblationReport {
   readonly entries: readonly AblationEntry[];
   readonly attributedS: number;
   readonly residualS: number;
+  /** Total headroom, P0-P1 — what conflict cost should be judged against. */
+  readonly headroomS: number;
+  /** P0's unreachable foresight advantage, excluded from the measurement. */
+  readonly clairvoyanceS: number;
 }
 
 /**
@@ -585,11 +722,17 @@ export interface AblationReport {
  * than by proxy.
  */
 export function ablate(world: World): AblationReport {
-  // Measured on the realtime-aware lazy integrator, so what is left when the
+  // Measured on the realtime-aware lazy integrator against an optimum held to
+  // the *same* announcement horizon (`gapP0aP2rt`), so what is left when the
   // conflicts are switched off is reconciliation cost and nothing else.
+  //
+  // Measuring against clairvoyant P0 instead — as this did until P1M0 — puts
+  // the oracle's foresight in the denominator. At a 30-minute planning lead
+  // that term is roughly twenty times the conflict term, so it reported
+  // conflicts at 4 % of a shortfall most of which no player could ever recover.
   const base = calibrate(world);
   const clean = withNoConflicts(world);
-  const cleanGap = calibrate(clean).gapP0P2rt;
+  const cleanGap = calibrate(clean).gapP0aP2rt;
 
   // **Leave-one-in, not leave-one-out.** Removing a single conflict attributes
   // almost nothing here, and that is a true fact about the world rather than a
@@ -622,15 +765,17 @@ export function ablate(world: World): AblationReport {
     });
     const only = { ...clean, manifest: { ...clean.manifest, operators } };
 
-    entries.push({ conflict, costS: calibrate(only).gapP0P2rt - cleanGap });
+    entries.push({ conflict, costS: calibrate(only).gapP0aP2rt - cleanGap });
   }
 
   entries.sort((a, b) => b.costS - a.costS);
   const attributed = entries.reduce((a, e) => a + Math.max(0, e.costS), 0);
 
   return {
-    baselineGapS: base.gapP0P2rt,
+    baselineGapS: base.gapP0aP2rt,
     cleanGapS: cleanGap,
+    headroomS: base.gapP0P1,
+    clairvoyanceS: base.gapP0P0a,
     entries,
     attributedS: attributed,
     residualS: base.gapP0P2 - attributed,

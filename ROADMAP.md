@@ -16,13 +16,17 @@ Milestones are numbered **`P<phase>M<milestone>`** — `P1M2` is the third miles
 |---|---|
 | 1 — buildable | PASS — a solution built only from the brief captures 0.292 |
 | 2 — discriminating | PASS — four solutions, four distinct scores, 0.56 of spread |
-| 3 — conflicts doing the work | ~~PASS — 61 %~~ **FAIL — 4 %.** Corrected at P1M0 with a baseline that actually reads the feeds; see `docs/PHASES.md`. |
+| 3 — conflicts doing the work | ~~PASS — 61 %~~ **FAIL.** Corrected at P1M0 on both sides: a baseline that reads feeds, and a reference not granted foresight. Conflicts cost 3 % of headroom. See `docs/PHASES.md`. |
 
 **But the gates validated the instruments, and the instruments are now saying the content needs work.** Two findings shape everything below:
 
 * **Of fifteen conflicts declared and audited as present, one does nearly all the work.** `C-coordinate-offset` accounts for the entire conflict-caused loss. The other fourteen are real, verified, and individually cost a solver nothing measurable. A generator that samples the catalogue uniformly would spend most of its effort on ornaments.
 
-* **P1M0 found this understated.** The conflict-depth probe says six of twelve settings can be made to bite at *some* strength on *some* operator, but the committed world places most of them below their threshold or on an operator that cannot express them. Worse, the 61 % above was measured with a baseline handed the true disruption set, so it never read a feed and could not perceive catalogue D at all. Corrected, Gate 3 reads 4 % and fails.
+* **P1M0 found this understated, and the instrument wrong at both ends.** The baseline was handed the true disruption set, so it never read a feed and could not perceive catalogue D at all. The reference was P0, which `REFERENCE-POLICY.md` §2 grants foresight of unannounced disruptions — worth 2.26 min against a 0.10 min conflict cost, sitting in the gate's denominator. Corrected, Gate 3 fails at 3 % of headroom.
+
+* **The conflict-depth probe says the catalogue is weak rather than shallow.** Six of twelve settings bite at *some* strength on *some* operator; the committed world places most below their threshold (`C-coordinate-offset` at 130 m against a 260 m threshold) or on an operator that cannot express them (`sudbahn` scores 0.00 on all twelve).
+
+* **`replan` is now a Gate 3 prerequisite, not a Phase 2 enrichment.** Conflict cost quadruples as the planning lead shortens (0.10m at 1800 s, 0.46m at 300 s), because a planner that never replans is mostly blind and a blind planner cannot be punished for reconciling badly. `npm run horizon`.
 * **Gate 1 was approximated, not tested.** The competent solution was written by someone who had seen the world. That measures whether the world is *solvable*, not whether it is *discoverable*, and no amount of internal work closes that gap.
 
 ---

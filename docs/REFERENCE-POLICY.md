@@ -36,6 +36,28 @@ Existing documents use "reference policy" and "naive baseline" loosely, sometime
 
 **P0** is defined in `TECHNICAL-RESEARCH.md` §7: RAPTOR over ground truth with perfect information. It is an upper bound, never a traveller.
 
+**P0 is clairvoyant, and the table above understates that.** "Full L1 + perfect realtime" includes disruptions *before they are announced*: P0 planning at 09:00 routes around a cancellation the world only publishes at 09:20. The row calls P0 "the achievable optimum", and those are two different objects — no player, however good, can reach a bound that reads the future. P0M1's invariant (`SCORING.md` §10, *no traveller may arrive sooner than perfect information allows*) is what makes this the right choice for **normalisation**: the reference must be fixed, seed-derived and unbeatable, and it is.
+
+It is the wrong choice for **attribution**, which is a different job:
+
+### 2.1 P0a — the announced optimum
+
+`P0a` is P0 held to an announcement horizon: optimal routing over the canonical world, knowing only the disruptions announced by the moment it plans, then charged for the day that actually happens.
+
+It exists because Phase 0's Gate 3 asks *what fraction of a lazy integrator's shortfall the declared conflicts cause*, and dividing by `P0 − P2rt` puts P0's foresight in the denominator. At the harness's 30-minute planning lead that foresight is **2.26 min against a 0.10 min conflict cost** — over twenty times larger — so the gate reported the oracle's clairvoyance as though it were the world's difficulty and concluded the conflicts were decorative.
+
+`P0a` and `P2rt` plan at the same instant on the same announcements, so **the only thing separating them is reconciliation quality**, which is exactly what the gate asks about.
+
+| | knows | used for |
+|---|---|---|
+| **P0** | the whole day, including the unannounced | score normalisation — a fixed, unbeatable reference |
+| **P0a** | what had been announced when it planned | attribution — Gate 3, ablation, the conflict-depth probe |
+
+Two consequences worth stating plainly:
+
+* **Share stops being a test.** With conflicts switched off, `P0a − P2rt` is *zero* — a lazy integrator with nothing to misreconcile is optimal. So the conflict-caused share is 100 % by construction whatever the conflicts do. Gate 3 must therefore judge conflict cost against **headroom** (`P0 − P1`), not against its own shortfall.
+* **`P0a` inherits the missing `replan`.** It plans once and is charged for what follows, so at a 30-minute lead six of eighteen of its plans do not survive the day. It is an optimum among *single* plans, not among strategies. That is the same restriction `P2rt` is under, which is what keeps the comparison fair — but it means both are mostly blind, and a blind planner cannot be punished for reconciling badly (`KNOWN-ISSUES.md` #1).
+
 **P2** is a deliberately lazy *player*: match stops across operators by coordinate proximity alone, plan on the merged graph, ignore realtime. Its purpose is calibration — the P0-to-P2 gap measures how much a world's declared conflicts actually cost someone who does the obvious thing badly. It never touches the world.
 
 **P1 is this document.**
