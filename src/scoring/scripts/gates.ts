@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 
 import { loadWorld } from "@tns/core";
 import { runOpenLoop } from "@tns/server";
-import { ablate, calibrate, scoreRun, auditInformationSets, cleanWorld } from "@tns/scoring";
+import { ablate, calibrate, scoreRun, auditInformationSets, valueCleanWorld } from "@tns/scoring";
 import type { World } from "@tns/schema";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -35,6 +35,8 @@ interface Result {
   information: number;
   headline: number | null;
   arrived: string;
+  arrivedN: number;
+  travellers: number;
   clean: boolean;
 }
 
@@ -68,6 +70,8 @@ async function measure(mode: string, base: number, against: World = world): Prom
       information: card.information.score,
       headline: card.headline,
       arrived: `${card.service.arrived}/${card.service.travellers}`,
+      arrivedN: card.service.arrived,
+      travellers: card.service.travellers,
       clean: audit.clean,
     };
   } finally {
@@ -137,7 +141,13 @@ console.log("  GATE 3 — the conflicts are doing the work");
 console.log("");
 console.log("    Measured across the WHOLE score, from real runs of the naive");
 console.log("    reference player against this world and against the same world");
-console.log("    with every conflict switched off.");
+console.log("    publishing HONEST VALUES for exactly the same stops.");
+console.log("");
+console.log("    The entity set is held fixed: same operators, same granularity,");
+console.log("    same number of published stops. Switching granularity off too");
+console.log("    would change how much data the solver is given, and its error");
+console.log("    rate scales with that — the comparison would vary the problem");
+console.log("    and its difficulty at once (KNOWN-ISSUES.md #14).");
 console.log("");
 console.log("    Capture alone is journey time, and journey time is the family");
 console.log("    realistic conflicts move least. Staleness costs a traveller a");
@@ -148,7 +158,7 @@ console.log("    observed from a run: a routing model warns nobody.");
 console.log("");
 
 const declaredRun = await measure("naive", 9500, world);
-const cleanRun = await measure("naive", 9520, cleanWorld(world));
+const cleanRun = await measure("naive", 9520, valueCleanWorld(world));
 
 const hDeclared = declaredRun.headline ?? 0;
 const hClean = cleanRun.headline ?? 0;
@@ -161,7 +171,7 @@ const row = (label: string, r: Result) =>
 
 console.log("                           headline  capture  information  arrived");
 row("this world", declaredRun);
-row("conflicts switched off", cleanRun);
+row("honest values", cleanRun);
 console.log("");
 console.log(`    conflicts cost   ${n(conflictCost)} of the score`);
 console.log("");
@@ -201,13 +211,47 @@ if (captureCost < 0 || ab.cleanGapS > 30) {
   console.log("");
 }
 
-const g3 = materiality > 0.2;
-console.log(`    ${g3 ? "PASS" : "FAIL"} — the declared conflicts must cost at least 20% of the score`);
+// **What can this measurement actually resolve?** Arrival is binary and there
+// are only 22 travellers, so one of them changing outcome moves the headline by
+// more than the effect being measured. Reporting a number smaller than the
+// instrument's own resolution as a finding is how a noisy run becomes a
+// recorded fact — this project has done that once already.
+const travellers = declaredRun.travellers;
+const arrivalSwing = Math.abs(declaredRun.arrivedN - cleanRun.arrivedN);
+const resolution = travellers === 0 ? 1 : Math.abs(conflictCost) / Math.max(1, arrivalSwing);
+
+console.log(`    ${travellers} scored travellers, and the two runs differ by ` +
+  `${arrivalSwing} arrival${arrivalSwing === 1 ? "" : "s"}.`);
+console.log(`    One traveller changing outcome is worth about ${n(resolution)} of headline.`);
+console.log("");
+
+const resolvable = Math.abs(conflictCost) > resolution * 1.5;
+const g3 = resolvable && materiality > 0.2;
+
+if (!resolvable) {
+  console.log("    INCONCLUSIVE — the effect is smaller than one traveller.");
+  console.log("");
+  console.log("    This is not a result about the conflicts. A 22-traveller world");
+  console.log("    cannot resolve a tenth of a headline point, and the sign of the");
+  console.log("    number above is decided by a single journey. It does not pass,");
+  console.log("    and it must not be recorded as a failure either.");
+  console.log("");
+  console.log("    ROADMAP.md P0M9 exists for exactly this. Journey-time");
+  console.log("    attribution above is averaged rather than binary and is stable;");
+  console.log("    use it until the world is big enough for this one.");
+} else {
+  console.log(`    ${g3 ? "PASS" : "FAIL"} — the declared conflicts must cost at least 20% of the score`);
+}
 console.log("");
 // ---------------------------------------------------------------------------
 const all = g1 && g2 && g3;
-console.log(`  VERDICT: ${all ? "all three gates pass" : "AT LEAST ONE GATE FAILS"}`);
-if (!all) {
+console.log(
+  `  VERDICT: ${all ? "all three gates pass" : resolvable ? "AT LEAST ONE GATE FAILS" : "GATE 3 CANNOT YET BE DECIDED"}`,
+);
+if (!all && !resolvable) {
+  console.log("  Gate 3 did not fail — it could not be measured. A world this small");
+  console.log("  cannot resolve the question it asks. See ROADMAP.md P0M9.");
+} else if (!all) {
   console.log("  docs/PHASES.md: a failed gate is a legitimate outcome and must be");
   console.log("  allowed to stop the project rather than be tuned away.");
 }

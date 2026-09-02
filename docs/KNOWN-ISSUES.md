@@ -33,7 +33,7 @@ This makes `replan` a prerequisite for Gate 3 rather than a Phase 2 enrichment. 
 
 ---
 
-## 2. The committed world sets its conflicts below the strength at which they bite — `open`
+## 2. The committed world sets its conflicts below the strength at which they bite — `largely a measurement artefact; corrected at P0M8`
 
 Ablation at P0M6 attributed the entire conflict-caused shortfall to `C-coordinate-offset` and reported the other fourteen at nothing. P1M0's conflict-depth probe (`npm run probe`) re-measured that properly and split it into three separate problems.
 
@@ -41,13 +41,17 @@ Ablation at P0M6 attributed the entire conflict-caused shortfall to `C-coordinat
 
 **b. Six of twelve conflicts do bite; the world sets them too weak.** `C-coordinate-offset` costs nothing until 260 m and the world uses 130. `D-staleness` costs nothing until 900 s and the world uses 90 and 300. This is a much better problem than "the catalogue is one deep": the settings are wrong, not the design.
 
+**Superseded at P0M8.** With the matcher threshold derived from the world instead of fixed at 120 m, **8 of 12 conflicts bite, at plausible settings.** `C-coordinate-offset` costs 0.55 min at **60 m** — it needed 260 m before — and `D-staleness` bites at the 300 s the world already publishes. Two catalogue A conflicts that had been inert everywhere now register. The catalogue was never one conflict deep; the instrument could not see past its own matcher. Four remain inert, and only two of those interestingly so — see below.
+
 **c. Six are inert at every setting on every operator** — `A-granularity`, `A-id-scheme`, `A-naming`, `A-coordinate-source`, `A-coordinate-precision`, `D-silent-cancellation`. Nearly all of catalogue A, which `CORECONCEPT.md` presents as the heart of the challenge.
 
 **The reason (c) matters more than it looks.** They are inert because the lazy merger matches on *geometry* and never needs identifiers to agree, so corrupting identifiers costs it nothing. A conflict only costs something if the solver's method depends on the thing being corrupted — which makes difficulty a property of the (world, solver) pair rather than of the world. P2's merge strategy is therefore part of the measuring instrument, and that is not yet written down anywhere in the specification.
 
 **Also found:** conflict placement matters more than conflict choice. `sudbahn` scores 0.00 on all twelve at every strength, because it is not on enough critical paths for anything done to it to reach a traveller.
 
-**Owner:** P0M8, which must now decide whether Gate 3 can honestly be made to pass.
+**What is left of this issue** is `A-id-scheme` and `A-naming` at exactly zero, for the reason in the next paragraph, plus `A-coordinate-precision` and `D-silent-cancellation` under the noise floor.
+
+**Owner:** P0M10, which owns the identity fork.
 
 ---
 
@@ -61,11 +65,13 @@ No internal work can close this. The gate output says so in its own text so the 
 
 ---
 
-## 4. Gap estimates are noisy at this world size — `open`
+## 4. Gap estimates are noisy at this world size — `open, and now blocking`
 
 22 scored queries means each is about 4.5 % of the score, and a single traveller changing outcome moves a gap noticeably. Fine for detecting the large effects Phase 0 was looking for; not fine for P1M4's claim that two generated worlds match "within tolerance".
 
-**Owner:** P1M2, which must generate a query set large enough for the gaps to be stable across seeds.
+**Promoted at P0M8 from a caveat to a blocker.** It is no longer only about P1M4's "within tolerance" claim. Gate 3's run-based measurement resolves ~0.1 of headline per traveller and is trying to measure ~0.1, so its answer is decided by a single journey; and the conflict-depth probe returns 0.90 / −0.44 / 0.01 for offsets of 30 / 60 / 130 m, which is scatter rather than a curve. Realistic-magnitude conflicts cannot be calibrated at this size.
+
+**Owner:** P0M9, pulled ahead of Phase 1 for that reason.
 
 ---
 
@@ -188,28 +194,28 @@ Worse, that threshold silently decided which conflicts were visible at all. A ma
 
 `naiveMatchThresholdM()` now derives the threshold from the world's own geometry: the largest value that never fuses two distinct quays. The conflict-free world reconstructs exactly, the floor falls from 1.13 min to 0.23 (the five-minute poll cadence), and conflict cost on journey time becomes **positive and monotonic** — 0.59 min at the harness's planning lead, 0.95 at short leads, **19 % of headroom against a 20 % threshold.**
 
-### Density — **open, and the reason P0M8 is not finished**
+### Density, and what it turned out to be — **resolved as a diagnosis; the gate is now sample-limited**
 
-Gate 3 now measures across the whole score from real runs (P0M8), and it *still* reports a negative conflict cost: the naive player scores 0.316 on this world and 0.218 with every conflict switched off.
+Gate 3 measures across the whole score from real runs (P0M8), and it reports the naive player scoring **0.316** on this world and **0.218** with honest values.
 
-Switching conflicts off does not remove difficulty from a lazy solver. It removes **scatter**, and scatter was hiding opportunities the solver is bad at:
+The first suspicion was density. Switching conflicts off puts more stops within the player's 200 m transfer radius — 21 pairs against 11 — and a player that treats any such pair as an interchange has more chances to be wrong. Holding the entity set fixed (`valueCleanWorld`, granularity left as declared) was expected to remove that. **It changed nothing: 0.218 either way.**
 
-| | published stops | stop pairs within the player's 200 m transfer radius |
-|---|---|---|
-| declared | 33 | **11** |
-| conflicts off | 34 | **21** |
+Because the inversion is not a density effect. Comparing failure modes across the two runs:
 
-Accurate coordinates at fine granularity put twice as many apparent interchanges in front of a player that takes optimistic transfers. Accuracy hurts it.
+| | arrived | replans | failure modes |
+|---|---|---|---|
+| declared | 15/22 | 6 | identical but for one traveller |
+| honest values | 14/22 | 6 | one extra forgone-and-abandoned |
 
-Stated generally, and this is the part that matters beyond this world: **a lazy solver's error rate scales with the density of the data it is given, so any attribution that varies data quality also varies the opportunity set.** Subtraction cannot separate the two.
+**One traveller.** The entire 0.098 headline swing is a single journey changing outcome. Arrival is binary and there are 22 of them, so the instrument's resolution is ~0.1 headline per traveller and the effect it is trying to measure is ~0.1. The sign of the answer is decided by one journey.
 
-**Routes out**, none yet chosen:
+So the run-based gate is not wrong and is not measuring a confound. **It cannot resolve its own question at this world size**, which is `KNOWN-ISSUES.md` #4 arriving somewhere it actually blocks. `npm run gates` now computes and prints this resolution and returns **INCONCLUSIVE** rather than a verdict — a number smaller than the instrument's own resolution must not be recorded as a finding, which this project has already done once.
 
-* switch off only *value-level* conflicts and hold granularity and stop count constant, so the opportunity set does not move;
-* attribute one conflict at a time from the declared world — leave-one-out, which attributed nothing at P0M6 for the reasons #7 records;
-* make the baseline sound enough that density stops hurting it. Charging the walk its own coordinates imply (rather than a flat 120 s for anything within 200 m, which assumed 1.67 m/s) was done at P0M8 and was **not** sufficient — it still treats any pair within 200 m as an interchange.
+Journey-time attribution is unaffected: it averages a continuous quantity rather than counting binary arrivals, and reads a stable **+0.59 min, 19 % of headroom**.
 
-**Owner:** P0M8, blocking Gate 3.
+**What remains open** is therefore only the sample size, and that is P0M9's whole job. The density observation stands as a real property of the naive player (it is bad at transfers, and accurate data offers it more transfers to be bad at) but it is not what inverted the gate.
+
+**Owner:** P0M9 — a world big enough for a binary measurement to mean something. Nothing further can be decided about Gate 3 until then.
 
 ## 15. P0a is a strategy, not a bound — `open`
 

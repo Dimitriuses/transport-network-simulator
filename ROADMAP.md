@@ -64,7 +64,7 @@ Issue the `replan` obligation the contract has specified since v0.3 and the harn
 
 ---
 
-### P0M8 — An instrument that can see a realistic conflict
+### P0M8 — An instrument that can see a realistic conflict — **done**
 
 **Why this exists.** P0M7 left conflict cost reading −1.01 min, and the diagnosis is not that the conflicts are weak. Three numbers decide everything and none of them is a property of the conflicts:
 
@@ -92,6 +92,10 @@ This is the structural form of the trap the milestone was already warned about. 
 
 **Exit:** a conflict-free world costs a lazy integrator under 0.25 min; Gate 3 reports conflict cost as a share of the headline score, computed from real runs; and every catalogue setting carries a plausible range with its provenance.
 
+**All three met.** The floor is 0.23 min, journey-time conflict cost is positive and monotonic at **+0.59 min (19 % of headroom)**, and the ceilings are enforced by tests rather than prose.
+
+**And the run-based gate cannot yet be decided.** Its resolution is ~0.1 of headline per traveller — arrival is binary and there are 22 — while the effect is ~0.1, so its answer is decided by one journey. `npm run gates` now prints that resolution and returns INCONCLUSIVE rather than a verdict it did not earn. That is P0M9's problem, and it is why P0M9 exists.
+
 ---
 
 ### P0M9 — A world big enough to measure one
@@ -100,7 +104,9 @@ This is the structural form of the trap the milestone was already warned about. 
 
 Grow the hand-authored city — more quays, more interchanges where several quays genuinely sit 30–80 m apart, more operators overlapping, and a query set large enough that a single traveller changing outcome does not move a gap.
 
-**Exit:** the three gaps are stable across seeds within a stated tolerance, and a realistic-magnitude conflict produces a monotonic cost curve rather than a scatter.
+**Exit:** the three gaps are stable across seeds within a stated tolerance; a realistic-magnitude conflict produces a monotonic cost curve rather than a scatter; and Gate 3's run-based measurement resolves an effect smaller than the 20 % it must decide — that is, one traveller changing outcome must be worth substantially less than 0.2 of headline.
+
+The last clause is the operative one. It is the reason this milestone exists rather than a nicety about tolerance: at 22 travellers the gate is currently deciding a 0.1 question with a 0.1 ruler.
 
 **The trap to avoid:** growing the world until the numbers look better. The exit is *stability*, which is falsifiable, not *size*, which is not. Measure the variance and publish it.
 

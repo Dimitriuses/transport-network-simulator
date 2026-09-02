@@ -29,15 +29,16 @@ const mins = (s: number): string => `${(s / 60).toFixed(2)}m`;
 
 console.log("");
 console.log(`  CONFLICT-DEPTH PROBE — seed ${world.manifest.seed}, tier ${world.manifest.tier}`);
-console.log("  each conflict alone, every operator in turn, against a conflict-free world");
+console.log("  each conflict alone, every operator in turn, against the same world");
+console.log("  publishing honest values for exactly the same stops");
 console.log("");
-console.log(`  conflict-free baseline shortfall   ${mins(report.baselineS)}`);
+console.log(`  honest-values baseline shortfall   ${mins(report.baselineS)}`);
 console.log("");
-console.log("  Measured against P0a, an optimum on the same announcement horizon,");
-console.log("  so that floor should be zero: with nothing to misreconcile, a lazy");
-console.log("  integrator is optimal. A non-zero floor means something other than");
-console.log("  a declared conflict is costing it, and every figure below is");
-console.log("  inflated by however much that is.");
+console.log("  Measured against P0a, an optimum on the same announcement horizon.");
+console.log("  The floor is what a lazy integrator loses on honest data — its own");
+console.log("  five-minute polling cadence, not a conflict. The entity set is held");
+console.log("  at the declared world's, so a sweep varies the conflict and nothing");
+console.log("  else (KNOWN-ISSUES.md #14).");
 console.log("");
 
 console.log("     conflict                      best   on         at");
@@ -50,6 +51,9 @@ for (const r of report.results) {
 }
 console.log("");
 console.log(`  * = costs more than the ${NOISE_FLOOR_S}s noise floor somewhere`);
+console.log("  ! = stronger than two real operators would ever disagree by, so");
+console.log("      diagnostic only — a conflict may not be generated there, and");
+console.log("      Gate 3 may not be passed by going there.");
 console.log("");
 
 console.log("  Where a conflict bites, how it grows with strength:");

@@ -478,21 +478,75 @@ Capture is journey time, and journey time is the family realistic conflicts move
 
 The headline already runs from 0 (no better than a city with no integration layer) to 1 (perfect), so a difference in it *is* a share of what a player competes for. No separate headroom division is needed, and none was invented — that is where the old gate hid the oracle's foresight.
 
-### What it found: density, not difficulty
+### What it found: not density, but a sample too small to ask the question
 
-The run-based gate still reports a negative conflict cost. The naive player scores **0.316** on this world and **0.218** with every conflict off.
+The run-based gate reported the naive player scoring **0.316** on this world and **0.218** with honest values — conflicts apparently *helping*, again.
 
-| | published stops | pairs within the player's 200 m transfer radius |
+The first suspicion was density. Switching conflicts off puts 21 stop pairs inside the player's 200 m transfer radius against the declared world's 11, and a player treating any such pair as an interchange has twice as many chances to be wrong. On that reading the fix was to hold the entity set fixed, which the project owner chose: switch off only value-level conflicts, leave granularity as declared. `valueCleanWorld` does that, and ablation, the probe and the gate now all attribute from it.
+
+**It changed nothing — 0.218 either way.** So the diagnosis was wrong, and comparing failure modes said why:
+
+| | arrived | replans issued | failure modes |
+|---|---|---|---|
+| declared | 15/22 | 6 | identical but for one traveller |
+| honest values | 14/22 | 6 | one extra forgone-and-abandoned |
+
+**One traveller.** The whole 0.098 headline swing is a single journey changing outcome. Arrival is binary and there are 22 of them, so the instrument resolves about 0.1 of headline per traveller while the effect it is chasing is about 0.1. The sign of the answer is decided by one journey.
+
+The run-based gate is therefore neither wrong nor measuring a confound. **It cannot resolve its own question at this world size.** `npm run gates` now computes that resolution, prints it, and returns **INCONCLUSIVE** rather than a verdict:
+
+```
+22 scored travellers, and the two runs differ by 1 arrival.
+One traveller changing outcome is worth about 0.098 of headline.
+
+INCONCLUSIVE — the effect is smaller than one traveller.
+```
+
+That distinction is the point. A number smaller than the instrument's own resolution must not be recorded as a finding, and this project has already done that once — the 61 % Gate 3 pass that stood for four milestones.
+
+Journey-time attribution is untouched by this, because it averages a continuous quantity rather than counting binary arrivals: **+0.59 min, 19 % of headroom, stable.**
+
+The density observation survives as a true property of the naive reference player — it is bad at transfers, and accurate data offers it more transfers to be bad at — but it is not what inverted the gate. `KNOWN-ISSUES.md` #4 is promoted from a caveat to a blocker and reassigned to P0M9.
+
+### Realism as an enforced budget — done
+
+`SWEEPS` now carries, per setting, the strongest value two real operators could differ by and **the cause that produces it**:
+
+| Setting | Ceiling | Because |
 |---|---|---|
-| declared | 33 | **11** |
-| conflicts off | 34 | **21** |
+| `C-coordinate-offset` | 150 m | station centroid published for a specific quay at a large interchange; kerb pole vs platform centre is 5–30 m, geocoding from an address 10–100 m |
+| `A-coordinate-precision` | 3 dp | ~110 m, rare but real; 2 dp is ~1.1 km and no feed ships it |
+| `D-staleness` | 900 s | a five-minute rebuild behind a cache; half an hour is an outage, not a cadence |
 
-Switching conflicts off does not remove difficulty from a lazy solver — it removes *scatter*, and scatter was hiding opportunities the solver is bad at. Accurate coordinates at fine granularity put twice as many apparent interchanges in front of a player that takes optimistic transfers.
+The probe still *tests* beyond the ceiling, because knowing where a conflict would bite is diagnostic — but it now picks its best setting from the plausible ones only, marks the rest `!`, and says they may not be generated there.
 
-Generally: **a lazy solver's error rate scales with the density of the data it is given, so any attribution that varies data quality also varies the opportunity set, and subtraction cannot separate the two.** That is a sharper statement of the same trap as the fixed threshold, and it is not yet solved.
+Three tests enforce it: every declared setting in the committed world is plausible, every ceiling names its provenance, and at least one swept value lies beyond a ceiling — so the constraint cannot quietly become decorative.
 
-One contributing bug was fixed on the way and is worth keeping separately from the diagnosis, because it did **not** resolve the inversion: the player charged a flat 120 s for any transfer within 200 m — 1.67 m/s, faster than anybody walks — so it attempted transfers it could not make. It now charges the walk its own coordinates imply. It still treats any pair within 200 m as an interchange, which is the remaining optimism.
+This matters more than any single number. Every failing-gate pressure in this project has pointed the same way — make the conflict bigger — and `C-coordinate-offset` costs 27 minutes at 500 m. The route was always open. It is now closed in code rather than in prose.
+
+### Re-probing the catalogue: it was never as weak as it looked
+
+With the derived threshold and the value-level floor, `npm run probe` reports **8 of 12 conflicts biting, up from 6 — and now at settings that could actually occur.**
+
+| Conflict | Best plausible | On | At |
+|---|---|---|---|
+| `C-latlon-order` | 7.88m | nordline | `lon_lat` |
+| `B-time-encoding` | 4.36m | nordline | `epoch_ms` |
+| `C-delay-unit` | 0.67m | nordline | `minutes` |
+| `D-staleness` | 0.67m | nordline | 900 s |
+| `D-no-delays` | 0.67m | nordline | not published |
+| `C-coordinate-offset` | 0.55m | ostline | **60 m** |
+| `A-granularity` | 0.43m | nordline | `site` |
+| `A-coordinate-source` | 0.43m | nordline | `site` |
+
+The sixth row is the vindication. `C-coordinate-offset` needed **260 m** to cost anything before P0M8 and now bites at **60 m** — kerbside pole against platform centre, the most ordinary disagreement in transit data. `D-staleness` bites at 300 s, which is what the committed world already publishes. Two catalogue A conflicts that had been inert everywhere now register.
+
+**The catalogue was never one conflict deep. The instrument could not see past its own 120 m matcher.** `KNOWN-ISSUES.md` #2 has been describing a measurement artefact since P0M6.
+
+Four remain inert: `A-coordinate-precision` (0.10m, under the noise floor), `D-silent-cancellation` (0.01m), and `A-id-scheme` and `A-naming` at exactly zero. The last two are pure-identifier conflicts and cost nothing because the lazy merger matches on geometry and never needs identifiers to agree — the P0M10 fork, unchanged.
+
+And the scatter has not gone: `C-coordinate-offset` on ostline reads 0.10 / 0.55 / 0.55 / **−0.09** / 3.30 across 30 / 60 / 130 / 260 / 500 m. Non-monotonic in the middle, which is P0M9 again.
 
 ### Where this leaves the milestone
 
-Two of three parts done. The realism budget (part C) and the density confound are outstanding, and the density confound blocks the gate. `KNOWN-ISSUES.md` #14 names the three routes out and none has been chosen, because the choice changes what "the conflicts are doing the work" means and belongs to the project owner.
+All three parts done. Gate 3 does not pass, and now says honestly that it cannot yet be decided rather than reporting a failure it did not measure. **P0M9 is next and is a hard prerequisite:** neither the run-based gate nor the conflict-depth probe can resolve a realistic conflict at 22 travellers and 34 quays.

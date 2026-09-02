@@ -912,9 +912,30 @@ const CONFLICT_SETTINGS: Record<string, [string, string, unknown]> = {
 };
 
 /** A copy of the world with *every* declared conflict switched off. */
+/**
+ * Conflicts that change *which entities exist* rather than their values.
+ *
+ * Held constant when attributing. A lazy solver's error rate scales with how
+ * much data it is given, so a comparison that changes the number of published
+ * stops varies the opportunity set and the difficulty at once and cannot
+ * attribute to either (`KNOWN-ISSUES.md` #14). Switching every conflict off,
+ * granularity included, made this world's naive player score *better* — the
+ * conflict-free world offered it 21 apparent interchanges within its transfer
+ * radius against the declared world's 11, and it is bad at transfers.
+ *
+ * Value-level conflicts are not held constant, and must not be: a coordinate
+ * offset moves stops and so changes which pairs look like interchanges, but
+ * that is precisely how a geometric conflict acts on a geometric solver.
+ * Holding it constant would hold the conflict constant.
+ */
+export const STRUCTURAL_CONFLICTS: ReadonlySet<string> = new Set(["A-granularity"]);
+
 function withNoConflicts(world: World): World {
   let out = world;
-  for (const c of world.manifest.activeConflicts) out = without(out, c) ?? out;
+  for (const c of world.manifest.activeConflicts) {
+    if (STRUCTURAL_CONFLICTS.has(c.split(":")[0] ?? "")) continue;
+    out = without(out, c) ?? out;
+  }
   return out;
 }
 
@@ -982,6 +1003,10 @@ export function ablate(world: World): AblationReport {
   // that term is roughly twenty times the conflict term, so it reported
   // conflicts at 4 % of a shortfall most of which no player could ever recover.
   const base = calibrate(world);
+  // Value-level conflicts off, entity set left as declared. Switching
+  // granularity off as well changes how many stops exist, and a lazy solver
+  // given more stops finds more apparent interchanges to get wrong — which
+  // varies the opportunity set and the difficulty together (KNOWN-ISSUES.md #14).
   const clean = withNoConflicts(world);
   const cleanGap = calibrate(clean).gapP0aP2rt;
 
