@@ -98,7 +98,7 @@ This is the structural form of the trap the milestone was already warned about. 
 
 ---
 
-### P0M9 — A world big enough to measure one
+### P0M9 — A world big enough to measure one — **done, with one clause carried forward**
 
 **You cannot calibrate realistic-magnitude conflicts on 22 queries and 34 quays.** `KNOWN-ISSUES.md` #4 has said the gap estimates are noisy at this size since P0M6 and assigned the fix to network generation, which is Phase 1 work sitting behind a gate that cannot pass without it. P0M8's threshold sweep is the evidence that the wait is no longer affordable: the non-monotonic 0.90 / −0.44 / 0.01 sequence is not a weak signal, it is no signal.
 
@@ -108,13 +108,27 @@ Grow the hand-authored city — more quays, more interchanges where several quay
 
 The last clause is the operative one. It is the reason this milestone exists rather than a nicety about tolerance: at 22 travellers the gate is currently deciding a 0.1 question with a 0.1 ruler.
 
+**Where it landed.** The city grew to 38 sites, 50 quays, 10 lines and 132 scored queries. One traveller is now worth **0.001** of headline against the 0.2 the gate decides, and journey-time conflict cost rose from 19 % to **42 %** of headroom. The last clause is met by a factor of two hundred.
+
+**The first clause is not met, and is now measured rather than feared.** Across six seeds, with only the disruptions changing, `P0−P1` headroom has a standard deviation of **31 % of its mean** (1.51m to 4.28m) and conflict cost **36 %**. Resolution and repeatability turned out to be different problems: 132 travellers stopped one journey flipping the answer, and did not stop the *day* deciding it.
+
+**The monotonicity clause is met.** The conflict-depth probe now averages over seeds and judges each step against the spread. `C-coordinate-offset` runs −0.01 → 0.10 → 0.55 min across 30 → 60 → 130 m on nordline, monotonic and entirely inside its plausible band; before the world grew the same sweep gave 0.10 / 0.55 / 0.55 / −0.09 / 3.30. Nine of twelve conflicts now bite at plausible settings, up from six before P0M8.
+
+**Carried into P0M10:** difficulty must be reported as a mean over seeds with its spread, not as a single calibration. Comparing conflict settings on one seed each would be comparing draws from overlapping distributions. `npm run probe` and `npm run stability` both do this; `npm run gates` does not yet, and its Gate 3 number is still a single draw.
+
 **The trap to avoid:** growing the world until the numbers look better. The exit is *stability*, which is falsifiable, not *size*, which is not. Measure the variance and publish it.
 
 ---
 
 ### P0M10 — Conflict potency
 
-The milestone P0M8 used to be, now executable. Strengthen the conflicts the probe shows can bite *within their declared realistic range*, place them on operators carrying enough traffic to express them, retire the ones inert at every plausible setting, and add any the probe suggests are missing.
+The milestone P0M8 used to be, now executable — with three things P0M9 established that change how it must be done.
+
+**Report over seeds, never one calibration.** Headroom's standard deviation is 31 % of its mean and conflict cost's is 36 %. A single run is a draw, not a measurement, and two settings compared one seed each are two overlapping distributions.
+
+**Gate 3 still reports a single draw.** `npm run gates` has not been made seed-averaging, so its headline conflict-cost figure carries the same 36 % uncertainty the probe now reports explicitly. That should be fixed before the gate is used to decide anything.
+
+**Gate 1 currently measures the reference solution, not the world** (`KNOWN-ISSUES.md` #17). The competent solution went from +0.292 capture on the 34-quay world to −0.296 on this one, and fourteen of its twenty-two failures are `replan_no_route`. Deciding whether to strengthen it, or to accept that Gate 1 needs a solution written by somebody who has not seen the world, comes before reading anything into Gate 1. Strengthen the conflicts the probe shows can bite *within their declared realistic range*, place them on operators carrying enough traffic to express them, retire the ones inert at every plausible setting, and add any the probe suggests are missing.
 
 From `npm run probe`, re-run once the instrument and the world are fixed:
 

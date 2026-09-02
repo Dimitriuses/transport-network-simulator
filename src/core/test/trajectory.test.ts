@@ -53,5 +53,9 @@ test("GOLDEN: the committed world's trajectory is unchanged", { skip }, () => {
   // If this fails, either the world changed or the engine did. Both are
   // legitimate — but both invalidate every score computed before the change,
   // so the new value must be pasted in deliberately, never automatically.
-  assert.equal(trajectoryFingerprint(disruptions), "681b1b84a5823ae4");
+  // Re-pinned at P0M9, deliberately. The city grew from 7 lines to 10 and from
+  // 34 quays to 50, so there are 1102 journeys where there were fewer and 286
+  // disruptions drawn from them. Every score recorded before that change is
+  // against a different world and is not comparable.
+  assert.equal(trajectoryFingerprint(disruptions), "a845cd476a2cc0da");
 });

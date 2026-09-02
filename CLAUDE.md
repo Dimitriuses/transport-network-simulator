@@ -10,7 +10,7 @@ A simulation game about integration engineering. A generated city, several indep
 
 P0M0–P0M6 delivered one hand-built Tier-2 world end to end and were recorded as passing all three proof gates. P1M0 then found Gate 3 had been measured with an instrument wrong at both ends — a baseline handed the true disruption set so it never read a feed, and a reference granted foresight of unannounced disruptions. Corrected, **Gate 3 fails**: the declared conflicts cost 3 % of headroom against a ratified 20 % threshold.
 
-`docs/PHASES.md` says not to begin Phase 1 on a failed Gate 3, so Phase 0 now runs **P0M7 (`replan`, done)**, **P0M8 (an instrument that can see a realistic conflict, done)**, **P0M9 (a world big enough to measure one, next)** and **P0M10 (conflict potency)**. Phase 1's generation milestones are blocked behind their joint exit. See [`ROADMAP.md`](ROADMAP.md).
+`docs/PHASES.md` says not to begin Phase 1 on a failed Gate 3, so Phase 0 now runs **P0M7 (`replan`, done)**, **P0M8 (an instrument that can see a realistic conflict, done)**, **P0M9 (a world big enough to measure one, done)** and **P0M10 (conflict potency)**. Phase 1's generation milestones are blocked behind their joint exit. See [`ROADMAP.md`](ROADMAP.md).
 
 **The constraint that shapes all of it:** a conflict must stay realistic. Two operators can disagree about where a stop is; at 500 m apart that is a broken map, not a disagreement, and it teaches something other than integration. Every route to a passing gate that runs through "make the conflict bigger" is closed.
 
@@ -20,7 +20,11 @@ The single most important open item is **Gate 3**, and every attempt to measure 
 
 **Conflict strengths have enforced ceilings.** Each catalogue setting in `SWEEPS` carries the strongest value two real operators could differ by and the cause that produces it — a coordinate offset past ~150 m is a broken map rather than a disagreement. Tests enforce it. Every failing-gate pressure in this project has pointed at "make the conflict bigger"; that route is closed deliberately.
 
-`npm run demo` runs the whole loop; `npm run calibrate` reports the three-gap difficulty calibration; `npm run audit` checks every declared conflict is actually present; `npm run world:build` regenerates the world bundle (content-hashed, and CI checks it). `npm run gates` runs the three proof gates; `npm run probe` sweeps each conflict's strength on each operator; `npm run horizon` separates what a lazy integrator loses to conflicts from what it loses to not knowing yet.
+`npm run demo` runs the whole loop; `npm run calibrate` reports the three-gap difficulty calibration; `npm run audit` checks every declared conflict is actually present; `npm run world:build` regenerates the world bundle (content-hashed, and CI checks it). `npm run gates` runs the three proof gates; `npm run probe` sweeps each conflict's strength on each operator; `npm run horizon` separates what a lazy integrator loses to conflicts from what it loses to not knowing yet; `npm run stability` recalibrates across seeds and reports the spread.
+
+**The world is 38 sites, 50 quays, 10 lines and 132 scored queries as of P0M9, and every instrument is about six times slower for it.** Run the probe in the background.
+
+**Never quote a single calibration as a world's difficulty.** `npm run probe` and `npm run stability` average over seeds and report the spread; `npm run gates` does not yet. Across seeds, with only the disruptions changing, headroom has a standard deviation of 31 % of its mean and conflict cost 36 %. One run is a draw from that distribution, not a measurement of the city.
 
 **When you add a measurement, check both sides of the comparison for matched information — and for a matched opportunity set.** Seven times now this project has credited something with an advantage the world does not owe it: five flattering a player, once flattering the reference, once a skipped leg in a replanned itinerary. `docs/BUILD-LOG.md` lists them. The generalisation that keeps recurring: *a baseline that suddenly beats its reference has been given something, and it is almost always a movement nobody was charged for.*
 

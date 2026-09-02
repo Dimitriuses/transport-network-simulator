@@ -182,8 +182,24 @@ export function startControlApi(
           docs_url: `${operatorBaseUrls.get(op.id) ?? ""}/docs`,
           auth: { scheme: "none" },
         })),
-        obligations: ["plan", "tick", "notify"],
-        limits: { min_tick_interval_sim_s: 5 },
+        obligations: ["plan", "replan", "tick", "notify"],
+        // Rules of the world, not facts about the operators. A traveller will
+        // not walk further than `max_walk_m` to reach their first stop or from
+        // their last, and walks at `walk_speed_mps` — and the simulator
+        // *enforces* both when it charges an itinerary.
+        //
+        // Published here because until P0M9 it did not publish them at all,
+        // and a rule the world enforces but never states is not a conflict to
+        // be discovered, it is an unfair world. The reference player searched
+        // 500 m for a boarding point while the simulator refused anything past
+        // 400 m, so it planned journeys that were rejected as
+        // `origin_unreachable` — 49 of 132 travellers once the city grew, at
+        // which point declining every obligation outscored trying.
+        limits: {
+          min_tick_interval_sim_s: 5,
+          max_walk_m: world.manifest.maxWalkM,
+          walk_speed_mps: world.manifest.walkSpeedMps,
+        },
       });
     }
 

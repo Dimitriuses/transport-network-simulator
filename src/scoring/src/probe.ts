@@ -190,8 +190,17 @@ export interface ProbePoint {
   readonly value: unknown;
   /** False when this setting is stronger than any real disagreement. */
   readonly plausible: boolean;
-  /** Seconds of extra shortfall over the conflict-free baseline. */
+  /** Mean seconds of extra shortfall over the honest-values baseline. */
   readonly costS: number;
+  /**
+   * Spread of that cost across seeds.
+   *
+   * Reported because P0M9 measured what a single calibration is worth: with
+   * only the disruptions changing, conflict cost has a standard deviation of
+   * 36 % of its own mean. A point whose sd is comparable to the difference
+   * between it and its neighbour is not evidence of a curve.
+   */
+  readonly sdS: number;
 }
 
 export interface ProbeResult {
@@ -205,9 +214,16 @@ export interface ProbeResult {
   readonly inert: boolean;
 }
 
+export interface ProbeOptions {
+  readonly operator?: string;
+  /** How many disruption seeds to average each measurement over. */
+  readonly seeds?: number;
+}
+
 export interface ProbeReport {
-  /** The conflict-free world's own shortfall — the term that dominates. */
+  /** The honest-values world's own shortfall, averaged over seeds. */
   readonly baselineS: number;
+  readonly seeds: number;
   readonly results: readonly ProbeResult[];
   readonly inertCount: number;
 }
@@ -241,14 +257,32 @@ export function isPlausible(sweep: Sweep, value: unknown): boolean {
  * conflict — the same mistake, one level up, as measuring feed defects with a
  * baseline that never reads a feed.
  */
-export function probeCatalogue(world: World, operatorId?: string): ProbeReport {
+export function probeCatalogue(world: World, options: ProbeOptions = {}): ProbeReport {
+  const seeds = Math.max(1, options.seeds ?? 1);
+  // Fixed offsets, so a re-run compares like with like.
+  const seedList = Array.from({ length: seeds }, (_, i) => world.manifest.seed + i * 7919);
+
+  // **Every measurement is a mean over seeds, not a single calibration.**
+  // P0M9 measured the alternative: with only the disruptions changing,
+  // conflict cost varies by 36 % of its own mean, which is larger than most of
+  // the differences this sweep is trying to resolve. One run per setting would
+  // produce a curve made of noise.
+  const gapsFor = (w: World): { mean: number; sd: number } => {
+    const xs = seedList.map(
+      (seed) => calibrate({ ...w, manifest: { ...w.manifest, seed } }).gapP0aP2rt,
+    );
+    const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
+    const sd = Math.sqrt(xs.reduce((a, b) => a + (b - mean) * (b - mean), 0) / xs.length);
+    return { mean, sd };
+  };
+
   // The entity set is held at the declared world's, so a sweep varies the
   // conflict and nothing else (`KNOWN-ISSUES.md` #14).
   const clean = valueCleanWorld(world);
-  const baseline = calibrate(clean).gapP0aP2rt;
+  const base = gapsFor(clean);
 
   const operators = (
-    operatorId !== undefined ? [operatorId] : world.manifest.operators.map((o) => o.id)
+    options.operator !== undefined ? [options.operator] : world.manifest.operators.map((o) => o.id)
   )
     .slice()
     .sort();
@@ -260,11 +294,14 @@ export function probeCatalogue(world: World, operatorId?: string): ProbeReport {
     for (const op of operators) {
       for (const value of sweep.values) {
         const variant = withSetting(clean, op, sweep.group, sweep.key, value);
+        const g = gapsFor(variant);
         points.push({
           operator: op,
           value,
           plausible: isPlausible(sweep, value),
-          costS: calibrate(variant).gapP0aP2rt - baseline,
+          costS: g.mean - base.mean,
+          // Combined spread of the two means being differenced.
+          sdS: Math.sqrt(g.sd * g.sd + base.sd * base.sd),
         });
       }
     }
@@ -288,7 +325,8 @@ export function probeCatalogue(world: World, operatorId?: string): ProbeReport {
 
   results.sort((a, b) => b.bestCostS - a.bestCostS);
   return {
-    baselineS: baseline,
+    baselineS: base.mean,
+    seeds,
     results,
     inertCount: results.filter((r) => r.inert).length,
   };

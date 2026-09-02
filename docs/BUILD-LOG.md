@@ -550,3 +550,133 @@ And the scatter has not gone: `C-coordinate-offset` on ostline reads 0.10 / 0.55
 ### Where this leaves the milestone
 
 All three parts done. Gate 3 does not pass, and now says honestly that it cannot yet be decided rather than reporting a failure it did not measure. **P0M9 is next and is a hard prerequisite:** neither the run-based gate nor the conflict-depth probe can resolve a realistic conflict at 22 travellers and 34 quays.
+
+---
+
+## P0M9 — A world big enough to measure one *(in progress)*
+
+**The problem, stated as a number.** At 22 scored travellers, one journey changing outcome was worth about **0.098 of the headline score**, and Gate 3 has to decide whether conflicts cost **0.2** of it. The gate was reading a 0.1 signal with a 0.1 ruler, and P0M8 made it say so — `INCONCLUSIVE` rather than a verdict it had not earned. `KNOWN-ISSUES.md` #4 had recorded the risk since P0M6 and assigned it to Phase 1; it turned out to block the gate that Phase 1 is waiting on.
+
+### The city grew
+
+| | before | after |
+|---|---|---|
+| sites | 27 | **38** |
+| quays | 34 | **50** |
+| lines | 7 | **10** |
+| scored queries | 22 | **132** |
+
+Two new arms (a north-west/south-east diameter), one orbital that never touches Central, four extended termini, a second stand at Market Hall, two more undeclared tram interchanges, a third platform at Central, and a third Sudbahn line.
+
+The additions are not filler. The orbital is the only bus link between the western and southern arms, so journeys between them either wait for it or cross the city — a choice rather than a single path. The third Central platform deepens the Site-granularity conflict: Sudbahn publishes all three as one stop, so a player boarding "Central Square" is told nothing about which of them its train leaves from. The second stand at Market Hall means Central is no longer the only place where a transfer costs a walk.
+
+**Nothing was placed closer than the existing minimum.** The closest pair of distinct quays is still `q-central-b`/`t-central` at 30.9 m, so `naiveMatchThresholdM()` returns what it did before and P0M8's instrument calibration is unchanged. That was checked rather than assumed — a new quay 20 m from an old one would have silently narrowed the matcher and moved every conflict's biting point.
+
+### The query set is generated, and inspectable
+
+The 22 hand-picked queries are kept verbatim as `SEED_QUERIES`, because each encodes a structure worth exercising — a direct run, a free transfer at stand A, a walk across Central, a journey that is only fast if you know the tram chord exists — and a generated set would cover them only by luck.
+
+The other 110 are systematic: every ordered pair of Sites at least 1500 m apart and reachable on foot from some quay, taken in a fixed order at a fixed stride, with departures spread across the working day on a stride chosen not to clump on a headway boundary. Coverage is 37 of 38 sites as an origin, 34 as a destination, and 10–16 departures in every hour from 07:00 to 17:00.
+
+Systematic rather than seeded-random on purpose: a seeded sample would be reproducible too, but this set can be derived by hand from the city, and no generator has to be trusted.
+
+**Selection uses only `+ - * / sqrt`.** Not haversine. `math.sin` and `math.cos` differ in their last bits between platform libms, so a pair sitting on the 1500 m cut-off would be included on one machine and excluded on another — changing the query set, and therefore every score, for a reason nobody would ever find. The same trap cost a day at P0M2 and is why `content_hash.py` exists.
+
+### A new instrument: `npm run stability`
+
+The other half of the exit is that the gaps describe the *city* rather than the particular day it drew. The seed changes only which services run late and which never run at all, so `stability` recalibrates across several seeds and reports the mean, standard deviation and spread of each gap, plus conflict cost.
+
+It reports rather than asserts. A tolerance nobody has measured is a guess, and this is the evidence for choosing one.
+
+### What the bigger world measured
+
+**The operative exit clause is met by a factor of two hundred.**
+
+| | 22 travellers | 132 travellers |
+|---|---|---|
+| one traveller changing outcome is worth | 0.098 of headline | **0.001** |
+| the question Gate 3 must decide | 0.2 | 0.2 |
+
+**And journey-time conflict cost more than doubled**, from 0.59 min (19 % of headroom) to **1.41 min (42 %)** — above the ratified 20 % threshold. Bigger is not automatically harder; more origin-destination pairs simply give the declared conflicts more journeys on which they can matter. `B-time-encoding:sudbahn` alone accounts for 0.96 min.
+
+### And it broke two gates, which is the more useful result
+
+The first run on the grown world had `null` — a player that declines every obligation — arriving **120/132**, while `naive` arrived 83 and `competent` fell from +0.292 capture to −0.296. Declining beat trying.
+
+**Cause: the world enforced a walking limit it never published.** `MAX_WALK_M` is 400 m and the simulator refuses any longer access walk, charging the traveller as not arriving. The brief never said so, and the reference player searched 500 m. At 22 travellers that cost three of them and looked like noise; at 132 it cost 49.
+
+A rule the world enforces but never states is not a conflict to be discovered — catalogue §2.1 is about operators disagreeing with *each other*, and this was the simulator disagreeing with everyone in secret. The brief now publishes `limits.max_walk_m` and `limits.walk_speed_mps`, along with the `replan` obligation P0M7 added and never advertised. Naive arrivals went 83 → 112 and capture −0.799 → −0.266. (`KNOWN-ISSUES.md` #16.)
+
+### The competent solution did not survive the move
+
+It stayed at −0.296 after the brief fix, and is now the *worst* of the four solutions on capture. Fourteen of its twenty-two failures are `replan_no_route`: stranded by a cancelled service, it declines to name an onward route and the traveller is abandoned. It refuses to board services it believes cancelled — right — and has nothing to offer instead — not right.
+
+A coordinate-frame bug was found and fixed along the way: `/v1/replan` resolved the traveller's operator-scoped position through the *naive* model regardless of which solution was playing, so a player that had corrected an operator's systematic offset was handed a position displaced by the very offset it had worked out. **Fixing it changed no outcome**, which is worth recording as plainly as if it had — the diagnosis was wrong and the number said so.
+
+The real finding is larger than a bug. The competent solution was written against a 34-quay city where Central was almost the only interchange, and it does not transfer to a 50-quay one. That is the first direct evidence on the question `ROADMAP.md` P1M4 exists to ask — *does a solution built for one world perform comparably on another* — and for the only solution we have, the answer is no.
+
+It also means **Gate 1 currently measures the reference solution rather than the world**: it asks whether a competent solution can be built and reports whether *this* one still works. Recorded as `KNOWN-ISSUES.md` #17 and left for P0M10 rather than patched until the gate goes green, which is what `PHASES.md` forbids.
+
+### Stability across seeds: not met, and now quantified
+
+`npm run stability` recalibrates across six seeds. Only the disruptions change — same city, same timetable, same conflicts.
+
+| measure | mean | sd | spread | sd as % of mean |
+|---|---|---|---|---|
+| P0−P1 headroom | 2.99m | 0.92m | 2.77m | **31 %** |
+| P0−P2 | 2.79m | 0.79m | 2.20m | 28 % |
+| P1−P2 | 0.20m | 0.21m | 0.57m | **107 %** |
+| conflict cost | 1.10m | 0.39m | 1.02m | **36 %** |
+
+Headroom ranges from 1.51m to 4.28m depending only on which services happen not to run that day, and conflict cost from 0.52m to 1.54m. **132 travellers fixed the resolution of a single measurement and did not make the measurement repeatable.**
+
+The two are different problems and it took separating them to see it. Resolution is about whether one traveller can flip the answer — fixed, 0.001 of headline. Repeatability is about whether the answer describes the city or the day, and the day still dominates. The 42 % conflict-cost figure from the committed seed is a draw from a distribution whose standard deviation is 36 % of its own mean.
+
+So the headline number quoted anywhere from this world means little on its own. **Difficulty has to be reported as a mean over seeds with its spread**, not as a single calibration, and P0M10 cannot compare conflict settings by running one seed each.
+
+Two routes, and the second is almost certainly right:
+
+* **More queries.** Variance falls as 1/√n, so halving the spread needs four times the travellers — 528, at four times the runtime of something already six times slower than it was.
+* **Average over seeds.** Report a world's difficulty as the mean over *k* seeds and publish the spread as the tolerance. Statistically honest, cheaper, and it makes the tolerance an output rather than a guess. It also matches what `P1M4` will need: "two worlds are equally hard" is a claim about distributions, and it was never going to be settled by two single runs.
+
+### Re-pinned deliberately
+
+`trajectoryFingerprint` moved from `681b1b84a5823ae4` to `a845cd476a2cc0da`: 1102 journeys now, 286 disruptions drawn from them. The golden test says the new value must be pasted in deliberately and never automatically, and this is that. **Every score recorded before P0M9 is against a different world and is not comparable to one after it.**
+
+### Monotonicity: met, on a probe that now averages over seeds
+
+A single-seed sweep would have produced a curve made of noise — the stability run had just shown conflict cost varying by 36 % of its own mean across seeds, which is larger than most of the differences the sweep is trying to resolve. So `probeCatalogue` now takes `seeds` (default 5), every point is a mean, and the combined spread is reported beside it as `value=cost±sd`.
+
+**Monotonicity is judged against that spread rather than by eye.** A step counts as a rise or a fall only if it exceeds the seed-to-seed noise at either end; otherwise the verdict is *flat within noise*, which is a different and more honest answer than *monotonic*. And only settings with a numeric strength are judged at all: `lon_lat` is not weaker than `epoch_ms`, and ordering categorical values would invent a scale nobody declared.
+
+Five seeds, 132 queries:
+
+| conflict | operator | verdict |
+|---|---|---|
+| `C-coordinate-offset` | nordline | **MONOTONIC** |
+| `C-coordinate-offset` | ostline | **MONOTONIC** |
+| `A-coordinate-precision` | nordline | **MONOTONIC** |
+| `D-staleness` | all three | flat within noise |
+| `C-coordinate-offset` | sudbahn | flat within noise |
+
+`C-coordinate-offset` on nordline runs **−0.01 → 0.10 → 0.55 min across 30 → 60 → 130 m**, entirely inside the plausible band. On the pre-P0M9 world the same sweep gave 0.10 / 0.55 / 0.55 / **−0.09** / 3.30 — a scatter with a negative step in the middle. **The exit clause is met.**
+
+`D-staleness` on nordline reads 0.02 / 0.16 / 0.31 / 0.34, which looks like a curve and is not called one: its steps are inside the spread. That is the check working rather than failing.
+
+### The catalogue on the bigger world
+
+**9 of 12 conflicts bite, at plausible settings** — up from 8 before the world grew and 6 before P0M8 fixed the matcher.
+
+| conflict | best plausible | on |
+|---|---|---|
+| `C-latlon-order` | 11.71m | nordline |
+| `B-time-encoding` | 7.14m | nordline |
+| `A-coordinate-precision` | 0.61m | nordline |
+| `C-coordinate-offset` | 0.55m (at 130 m) | nordline |
+| `C-delay-unit` / `D-no-delays` | 0.34m | nordline |
+| `D-staleness` | 0.31m (at 900 s) | nordline |
+| `A-granularity` / `A-coordinate-source` | 0.22m | nordline |
+
+Three remain inert: `D-silent-cancellation`, `A-id-scheme`, `A-naming`. The last two are pure-identifier conflicts and cost exactly nothing because the lazy merger matches on geometry and never needs identifiers to agree — the fork P0M10 owns, unchanged since P1M0 first found it.
+
+**A reporting bug found and fixed.** The per-point line never rendered the `!` marker for implausible settings or the `±` spread: an earlier edit had matched nothing and failed silently, so two successive changes to that line were both no-ops. The measurements and the plausible-only selection of each conflict's best setting were always correct — `C-coordinate-offset` is reported at 130 m, not at the 500 m that costs 38 min — but the output was quieter than intended about which columns nobody may generate. Worth recording because it is the same failure mode as a bad measurement: a change that silently does nothing looks exactly like a change that works.

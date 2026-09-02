@@ -65,13 +65,25 @@ No internal work can close this. The gate output says so in its own text so the 
 
 ---
 
-## 4. Gap estimates are noisy at this world size — `open, and now blocking`
+## 4. Gap estimates are noisy at this world size — `fixed at P0M9`
 
 22 scored queries means each is about 4.5 % of the score, and a single traveller changing outcome moves a gap noticeably. Fine for detecting the large effects Phase 0 was looking for; not fine for P1M4's claim that two generated worlds match "within tolerance".
 
 **Promoted at P0M8 from a caveat to a blocker.** It is no longer only about P1M4's "within tolerance" claim. Gate 3's run-based measurement resolves ~0.1 of headline per traveller and is trying to measure ~0.1, so its answer is decided by a single journey; and the conflict-depth probe returns 0.90 / −0.44 / 0.01 for offsets of 30 / 60 / 130 m, which is scatter rather than a curve. Realistic-magnitude conflicts cannot be calibrated at this size.
 
-**Owner:** P0M9, pulled ahead of Phase 1 for that reason.
+**Fixed at P0M9.** The city grew from 27 sites, 34 quays and 7 lines to 38, 50 and 10, and the scored query set from 22 to 132 — the 22 hand-picked ones kept verbatim, plus 110 generated systematically from every Site pair at least 1500 m apart.
+
+| | before | after |
+|---|---|---|
+| scored travellers | 22 | **132** |
+| one traveller worth | 0.098 of headline | **0.001** |
+| the question Gate 3 must decide | 0.2 of headline | 0.2 |
+
+The instrument now resolves the effect it is measuring by a factor of two hundred rather than reading a 0.1 signal with a 0.1 ruler.
+
+**Journey-time conflict cost rose with it**, from 0.59 min (19 % of headroom) to **1.41 min (42 %)** — above the ratified 20 % threshold. Bigger is not automatically harder; more origin-destination pairs simply give the declared conflicts more journeys on which they can matter.
+
+**Cost:** every instrument is roughly six times slower. `npm run gates` is minutes rather than seconds and the conflict-depth probe is best run in the background.
 
 ---
 
@@ -230,3 +242,27 @@ P0a is already the better of its own plan and P1, for the same reason — P1 is 
 `src/scoring/test/matched-reference.test.ts` pins the gap with a characterisation test that asserts a violation still exists, so the day P0a becomes a real bound the test fails and says so.
 
 **Owner:** P0M8, jointly with #14 — both are the same question: what is a fair reference for attributing conflict cost?
+
+---
+
+## 16. The world enforced a walking limit it never published — `fixed at P0M9`
+
+`MAX_WALK_M` is 400 m. The simulator refuses any itinerary whose access walk exceeds it, charging the traveller as not having arrived. The brief never mentioned it, and the reference player searched 500 m for a boarding point.
+
+At 22 travellers this cost three of them and looked like noise. At 132 it cost **49**, and declining every obligation outscored attempting them — `null` arrived 120/132 while `naive` arrived 83/132.
+
+**A rule the world enforces but never states is not a conflict to be discovered.** Catalogue §2.1 is about operators disagreeing with each other; this was the simulator disagreeing with everyone in secret. The brief now publishes `limits.max_walk_m` and `limits.walk_speed_mps` alongside the `replan` obligation P0M7 added but never advertised, and the reference player uses them instead of guessing. Naive arrivals went from 83 to 112.
+
+---
+
+## 17. The competent solution does not survive a bigger city — `open`
+
+Written against a 34-quay world it captured **+0.292**. On the 50-quay, 132-query world of P0M9 it captures **−0.296** — worse than not integrating at all, and worse than the naive solution beside it.
+
+Fourteen of its twenty-two failures are `replan_no_route`: stranded by a cancelled service, it declines to name an onward route and the traveller is abandoned. It refuses to board services it believes are cancelled, which is right, and then has nothing to offer instead, which is not. Its transfer floor and its offset correction were both calibrated against a network where Central was almost the only interchange.
+
+**This is not a defect in the world, and it should not be fixed by making the world smaller.** It is the first direct evidence on the question `ROADMAP.md` P1M4 exists to ask — *does a solution built for one world perform comparably on another* — and the answer, for the only solution we have, is no. A solution that overfits its city is exactly what the assessment use case cannot tolerate.
+
+It also means **Gate 1 currently measures the reference solution rather than the world.** The gate asks whether a competent solution can be built; what it reports is whether *this* one still works.
+
+**Owner:** P0M10. The choice is between strengthening the competent solution — which is legitimate engineering, since a stranded traveller with no advice is a real failure — and accepting that Gate 1 needs a solution written against this world, which is really `KNOWN-ISSUES.md` #3 and needs a person.

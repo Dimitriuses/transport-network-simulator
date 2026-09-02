@@ -157,6 +157,15 @@ function roughMetres(aLat: number, aLon: number, bLat: number, bLon: number): nu
   return Math.sqrt(dLat * dLat + dLon * dLon);
 }
 
+/**
+ * What the world allows, taken from the brief rather than guessed.
+ *
+ * The defaults are only what applies before the brief has been read; they are
+ * not a fallback worth relying on. Planning a walk the world will refuse gets
+ * the traveller `origin_unreachable`, which is scored as not arriving at all.
+ */
+const limits = { maxWalkM: 400, walkSpeedMps: 1.3 };
+
 function nearbyStops(model: Model, lat: number, lon: number, maxM: number): Stop[] {
   return model.stops
     .map((s) => ({ s, d: roughMetres(lat, lon, s.lat, s.lon) }))
@@ -178,8 +187,12 @@ function plan(
   departAfter: string,
 ): { legs: Leg[] } | null {
   const departS = toSeconds(departAfter) % 86400;
-  const originStops = nearbyStops(model, origin.lat, origin.lon, 500);
-  const destStops = new Set(nearbyStops(model, destination.lat, destination.lon, 500).map((s) => s.stop_id));
+  // Exactly the world's limit, not a round number near it. Searching wider
+  // finds boarding points the simulator will not let the traveller reach.
+  const originStops = nearbyStops(model, origin.lat, origin.lon, limits.maxWalkM);
+  const destStops = new Set(
+    nearbyStops(model, destination.lat, destination.lon, limits.maxWalkM).map((s) => s.stop_id),
+  );
   if (originStops.length === 0 || destStops.size === 0) return null;
 
   interface Label {
@@ -193,7 +206,7 @@ function plan(
   // stop at the departure instant would be a free teleport, and would produce
   // itineraries that beat a perfectly-informed planner — which is impossible.
   for (const s of originStops) {
-    const walkS = Math.ceil(roughMetres(origin.lat, origin.lon, s.lat, s.lon) / 1.3);
+    const walkS = Math.ceil(roughMetres(origin.lat, origin.lon, s.lat, s.lon) / limits.walkSpeedMps);
     best.set(s.stop_id, { arriveS: departS + walkS, leg: null, prev: null });
   }
 
@@ -257,7 +270,7 @@ function plan(
         // and the part conflicts are supposed to punish.
         const walkS = Math.max(
           60,
-          Math.ceil(roughMetres(here.lat, here.lon, other.lat, other.lon) / 1.3),
+          Math.ceil(roughMetres(here.lat, here.lon, other.lat, other.lon) / limits.walkSpeedMps),
         );
         const arriveS = from.arriveS + walkS;
         const existing = best.get(other.stop_id);
@@ -295,7 +308,7 @@ function plan(
     const stop = model.stopByKey.get(id);
     if (!label || !label.leg || !stop) continue;
     const walkS = Math.ceil(
-      roughMetres(destination.lat, destination.lon, stop.lat, stop.lon) / 1.3,
+      roughMetres(destination.lat, destination.lon, stop.lat, stop.lon) / limits.walkSpeedMps,
     );
     const total = label.arriveS + walkS;
     if (total < bestArrival) {
@@ -391,9 +404,12 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
   // milestone has no ticks to re-poll on.
   const ingest = async (): Promise<void> => {
     const brief = (await (await fetch(`${opts.controlUrl}/v1/brief`)).json()) as {
+      limits?: { max_walk_m?: number; walk_speed_mps?: number };
       operators: { id: string; base_url: string }[];
     };
     operators = brief.operators;
+    if (brief.limits?.max_walk_m) limits.maxWalkM = brief.limits.max_walk_m;
+    if (brief.limits?.walk_speed_mps) limits.walkSpeedMps = brief.limits.walk_speed_mps;
 
     const timetables: Timetable[] = [];
     for (const op of brief.operators) {
@@ -602,7 +618,24 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
             return { request_id: r.request_id, status: "no_route", itinerary: null };
           }
 
-          const here = model!.stopByKey.get(`${r.position.operator}:${r.position.stop}`);
+          // **Resolve the position in the player's own coordinate frame.**
+          //
+          // The simulator names the stop the way its operator publishes it,
+          // which is the only reference it may use (§7). Turning that into a
+          // place is the player's job, and a player that has corrected an
+          // operator's systematic offset must resolve it through the corrected
+          // model — otherwise it plans onward from a point displaced by the
+          // very offset it worked out.
+          //
+          // Doing this through the naive model regardless was a bug introduced
+          // with `/v1/replan` at P0M7. It was invisible at 22 travellers and
+          // cost the competent solution 14 of its 22 failures at 132: it
+          // answered `no_route` from a position it had been handed in the
+          // wrong frame, and the traveller was stranded.
+          const key = `${r.position.operator}:${r.position.stop}`;
+          const corrected = competent?.byKey.get(key);
+          const published = model!.stopByKey.get(key);
+          const here = corrected ?? published;
           if (!here) {
             // The operator named a stop this player has no record of. That is
             // a coverage gap in what it ingested, not a routing failure.
