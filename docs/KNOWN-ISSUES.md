@@ -176,30 +176,40 @@ The correction is recorded in `PHASES.md`, `ROADMAP.md` and `README.md` with the
 
 ---
 
-## 14. Switching every conflict off produces a *harder* world, not a floor — `open`
+## 14. Switching every conflict off produces a *denser* world, not a floor — `partly fixed at P0M8`
 
-Ablation, the conflict-depth probe and Gate 3 all attribute conflict cost by subtraction: measure the declared world, measure the same world with every conflict switched off, take the difference. That assumes the conflict-free world is a floor. **It is not.**
+Ablation, the conflict-depth probe and Gate 3 all attribute conflict cost by subtraction: measure the declared world, measure the same world with every conflict off, take the difference. That assumes the conflict-free world is a floor. It is not, and there turned out to be two separate reasons.
 
-The naive baseline matches stops by coordinate proximity within 120 m. This city has **19 pairs of genuinely distinct quays closer together than that**, the nearest 31 m apart. So when every operator publishes exact coordinates, the matcher fuses places that are not the same place:
+### The matcher's fixed threshold — **fixed**
 
-| World | 34 canonical quays merge to |
-|---|---|
-| declared | 26 stops |
-| every conflict off | **19 stops** |
+The lazy baseline fused stops within a hard-coded 120 m. This city has **19 pairs of genuinely distinct quays closer than that**, the nearest 31 m apart, so the matcher collapsed 34 canonical quays into 19 stops before any conflict was applied.
 
-The declared conflicts — coordinate offsets, precision truncation — push published stops apart and *prevent* the over-merging. Switching them off does not remove difficulty; it replaces one difficulty with a larger one.
+Worse, that threshold silently decided which conflicts were visible at all. A matcher that cannot separate quays 31 m apart cannot notice a 60 m coordinate offset, so the offset had to be pushed past **260 m** to cost anything — past the point where it stops describing two operators disagreeing and starts describing a broken map. *"How strong must this conflict be"* was really *"how far past 120 m"*.
 
-Consequences, in order of severity:
+`naiveMatchThresholdM()` now derives the threshold from the world's own geometry: the largest value that never fuses two distinct quays. The conflict-free world reconstructs exactly, the floor falls from 1.13 min to 0.23 (the five-minute poll cadence), and conflict cost on journey time becomes **positive and monotonic** — 0.59 min at the harness's planning lead, 0.95 at short leads, **19 % of headroom against a 20 % threshold.**
 
-* **Conflict cost by subtraction comes out negative.** Currently −1.01 min at the harness's planning lead.
-* **`KNOWN-ISSUES.md` #6 is a special case of this**, not a curiosity about `A-coordinate-precision`.
-* **The 0.00 min "clean floor" recorded at P1M0 was an artefact.** It held only because a failing P2rt was handed P1's whole-journey outcome, and P1 happened to match P0a on those queries. Once the baselines could replan, the rescue stopped firing and the real shape showed.
+### Density — **open, and the reason P0M8 is not finished**
 
-**This does not mean the conflicts are worthless.** It means the instrument cannot currently say what they are worth. The conflict-depth probe's *within-world* sweeps are unaffected in shape — they compare variants against a common baseline, and the ordering and thresholds it found still stand — but its absolute figures inherit the same floor.
+Gate 3 now measures across the whole score from real runs (P0M8), and it *still* reports a negative conflict cost: the naive player scores 0.316 on this world and 0.218 with every conflict switched off.
 
-**Owner:** P0M8, blocking Gate 3. The plausible routes: raise the matcher's threshold so it stops over-merging and measure against that; measure against the declared world with *one* conflict removed rather than all; or accept that a coordinate-threshold baseline cannot be a fair floor in a city with 31 m quay spacing and pick a different lazy strategy.
+Switching conflicts off does not remove difficulty from a lazy solver. It removes **scatter**, and scatter was hiding opportunities the solver is bad at:
 
----
+| | published stops | stop pairs within the player's 200 m transfer radius |
+|---|---|---|
+| declared | 33 | **11** |
+| conflicts off | 34 | **21** |
+
+Accurate coordinates at fine granularity put twice as many apparent interchanges in front of a player that takes optimistic transfers. Accuracy hurts it.
+
+Stated generally, and this is the part that matters beyond this world: **a lazy solver's error rate scales with the density of the data it is given, so any attribution that varies data quality also varies the opportunity set.** Subtraction cannot separate the two.
+
+**Routes out**, none yet chosen:
+
+* switch off only *value-level* conflicts and hold granularity and stop count constant, so the opportunity set does not move;
+* attribute one conflict at a time from the declared world — leave-one-out, which attributed nothing at P0M6 for the reasons #7 records;
+* make the baseline sound enough that density stops hurting it. Charging the walk its own coordinates imply (rather than a flat 120 s for anything within 200 m, which assumed 1.67 m/s) was done at P0M8 and was **not** sufficient — it still treats any pair within 200 m as an interchange.
+
+**Owner:** P0M8, blocking Gate 3.
 
 ## 15. P0a is a strategy, not a bound — `open`
 

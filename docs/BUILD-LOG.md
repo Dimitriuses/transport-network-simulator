@@ -440,3 +440,59 @@ This also retires the 0.00 min clean floor recorded at P1M0. It held only becaus
 `replan` exists, is specified-conformant, and is exercised. `KNOWN-ISSUES.md` #1 is closed.
 
 The claim it was pulled forward to support — that conflict cost rises once the planner can see — **is not established, and cannot be until #14 and #15 are resolved.** The honest position is that P0M7 removed one confound and revealed two larger ones underneath it. Both belong to P0M8, and they are the same question: *what is a fair reference for attributing conflict cost in a city where the lazy baseline's own matcher is the dominant source of error?*
+
+---
+
+## P0M8 — An instrument that can see a realistic conflict *(in progress)*
+
+**Scoped by a constraint from the project owner:** a conflict must stay realistic. Two operators can disagree about where a stop is; at 500 m apart that is not a disagreement, it is a broken map, and it teaches something other than integration. Every route to a passing gate that runs through *"make the conflict bigger"* is closed by construction.
+
+That constraint turned out to be the diagnosis, not just a rule. Three numbers, none of them a property of the conflicts:
+
+| | |
+|---|---|
+| the lazy matcher fused stops within | 120 m |
+| `C-coordinate-offset` first cost anything at | 260 m |
+| a real disagreement about one stop's position tops out around | 150 m |
+
+The realistic band and the biting band did not overlap, and the reason was the first row.
+
+### Threshold derived from the world, not guessed — **done**
+
+A baseline used for attribution must be exactly right when there is nothing to reconcile, or whatever it loses to its own crudeness is charged to the conflicts. `naiveMatchThresholdM()` now returns the largest threshold that never fuses two distinct quays.
+
+| | before (120 m) | after (derived, 30 m) |
+|---|---|---|
+| conflict-free world merges 34 quays to | 19 stops | **34 — exact** |
+| conflict-free floor | 1.13m | **0.23m** (the poll cadence) |
+| conflict cost, journey time | **−1.01m** | **+0.59m** |
+| as a share of headroom | — | **19 %** |
+
+Conflict cost is now positive, monotonic in planning lead — 0.59 min at 1800 s, 0.95 at 300 s — and produced at the world's *declared, realistic* settings. `KNOWN-ISSUES.md` #14's first half is closed. The gate reads 19 % against a ratified 20 % threshold and **fails by one point**, which is left alone.
+
+A sweep first tested whether a tighter matcher alone would make realistic offsets bite. It does not, and the reason is worth recording: at a 60 m threshold a 30 m offset costs 0.90 min, a 60 m offset costs **−0.44**, and a 130 m offset costs 0.01. Merge outcomes are discrete, so across 22 queries the result is decided by which stops happen to flip. **The only magnitudes that produced a clean monotonic signal were the unrealistic ones.** That is what put P0M9 — a world big enough to measure one — ahead of any conflict tuning.
+
+### Gate 3 over the whole score — **done, and it found the next problem**
+
+Capture is journey time, and journey time is the family realistic conflicts move least. Staleness costs a traveller a third of a minute of travel; its real damage is that nobody warned them, which lands entirely in the Information family and was invisible to the gate. Information is only observable from a **run** — a routing model warns nobody — so Gate 3 now compares scorecards from real runs of the naive reference player against this world and against the same world with every conflict switched off.
+
+The headline already runs from 0 (no better than a city with no integration layer) to 1 (perfect), so a difference in it *is* a share of what a player competes for. No separate headroom division is needed, and none was invented — that is where the old gate hid the oracle's foresight.
+
+### What it found: density, not difficulty
+
+The run-based gate still reports a negative conflict cost. The naive player scores **0.316** on this world and **0.218** with every conflict off.
+
+| | published stops | pairs within the player's 200 m transfer radius |
+|---|---|---|
+| declared | 33 | **11** |
+| conflicts off | 34 | **21** |
+
+Switching conflicts off does not remove difficulty from a lazy solver — it removes *scatter*, and scatter was hiding opportunities the solver is bad at. Accurate coordinates at fine granularity put twice as many apparent interchanges in front of a player that takes optimistic transfers.
+
+Generally: **a lazy solver's error rate scales with the density of the data it is given, so any attribution that varies data quality also varies the opportunity set, and subtraction cannot separate the two.** That is a sharper statement of the same trap as the fixed threshold, and it is not yet solved.
+
+One contributing bug was fixed on the way and is worth keeping separately from the diagnosis, because it did **not** resolve the inversion: the player charged a flat 120 s for any transfer within 200 m — 1.67 m/s, faster than anybody walks — so it attempted transfers it could not make. It now charges the walk its own coordinates imply. It still treats any pair within 200 m as an interchange, which is the remaining optimism.
+
+### Where this leaves the milestone
+
+Two of three parts done. The realism budget (part C) and the density confound are outstanding, and the density confound blocks the gate. `KNOWN-ISSUES.md` #14 names the three routes out and none has been chosen, because the choice changes what "the conflicts are doing the work" means and belongs to the project owner.

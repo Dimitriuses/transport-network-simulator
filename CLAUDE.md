@@ -10,15 +10,19 @@ A simulation game about integration engineering. A generated city, several indep
 
 P0M0–P0M6 delivered one hand-built Tier-2 world end to end and were recorded as passing all three proof gates. P1M0 then found Gate 3 had been measured with an instrument wrong at both ends — a baseline handed the true disruption set so it never read a feed, and a reference granted foresight of unannounced disruptions. Corrected, **Gate 3 fails**: the declared conflicts cost 3 % of headroom against a ratified 20 % threshold.
 
-`docs/PHASES.md` says not to begin Phase 1 on a failed Gate 3, so the next work is **P0M7 (`replan`)** then **P0M8 (conflict potency)**, and Phase 1's generation milestones are blocked behind their joint exit. See [`ROADMAP.md`](ROADMAP.md).
+`docs/PHASES.md` says not to begin Phase 1 on a failed Gate 3, so Phase 0 now runs **P0M7 (`replan`, done)**, **P0M8 (an instrument that can see a realistic conflict, in progress)**, **P0M9 (a world big enough to measure one)** and **P0M10 (conflict potency)**. Phase 1's generation milestones are blocked behind their joint exit. See [`ROADMAP.md`](ROADMAP.md).
+
+**The constraint that shapes all of it:** a conflict must stay realistic. Two operators can disagree about where a stop is; at 500 m apart that is a broken map, not a disagreement, and it teaches something other than integration. Every route to a passing gate that runs through "make the conflict bigger" is closed.
 
 Milestones are numbered `P<phase>M<milestone>`. [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md) records what each completed milestone delivered and, more usefully, what it corrected. [`docs/KNOWN-ISSUES.md`](docs/KNOWN-ISSUES.md) lists defects we know about — check it before reporting one, and add to it rather than leaving a problem undocumented.
 
-The single most important open item is **Gate 3**. P1M0 measured the catalogue properly (`npm run probe`): six of twelve settings bite at some strength on some operator, but the committed world places most below their threshold or on an operator that cannot express them, and nearly all of catalogue A is inert because the lazy merger matches on geometry and never needs identifiers to agree. The catalogue is weak rather than shallow, which is the better problem — but the gate fails until P0M8 fixes it, and `replan` (P0M7) has to come first because a planner that never replans is mostly blind, and a blind planner cannot be punished for reconciling badly.
+The single most important open item is **Gate 3**, and every attempt to measure it has found the instrument wrong before finding anything about the conflicts. Journey-time attribution is now sound — conflict cost is positive, monotonic and 19 % of headroom against a ratified 20 % threshold — but the run-based gate still inverts, because switching conflicts off makes the world **denser** rather than easier and a lazy solver's error rate scales with density (`docs/KNOWN-ISSUES.md` #14).
 
 `npm run demo` runs the whole loop; `npm run calibrate` reports the three-gap difficulty calibration; `npm run audit` checks every declared conflict is actually present; `npm run world:build` regenerates the world bundle (content-hashed, and CI checks it). `npm run gates` runs the three proof gates; `npm run probe` sweeps each conflict's strength on each operator; `npm run horizon` separates what a lazy integrator loses to conflicts from what it loses to not knowing yet.
 
-**When you add a measurement, check both sides of the comparison for matched information.** Six times now this project has credited something with an advantage the world does not owe it — five flattering a player, once flattering the reference. `docs/BUILD-LOG.md` lists them.
+**When you add a measurement, check both sides of the comparison for matched information — and for a matched opportunity set.** Seven times now this project has credited something with an advantage the world does not owe it: five flattering a player, once flattering the reference, once a skipped leg in a replanned itinerary. `docs/BUILD-LOG.md` lists them. The generalisation that keeps recurring: *a baseline that suddenly beats its reference has been given something, and it is almost always a movement nobody was charged for.*
+
+**And the corollary found at P0M8:** varying data quality also varies how much data there is. A comparison that changes both cannot attribute to either.
 
 Run `npm run check` before proposing changes: lint, typecheck, contract-drift and tests. The Python side is `cd tools && uv run ruff check . && uv run pytest`.
 

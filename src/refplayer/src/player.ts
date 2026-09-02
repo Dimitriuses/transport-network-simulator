@@ -242,7 +242,24 @@ function plan(
       if (!here) continue;
       for (const other of nearbyStops(model, here.lat, here.lon, 200)) {
         if (other.stop_id === stopId) continue;
-        const arriveS = from.arriveS + 120;
+        // Charge the walk this player's own coordinates imply, not a flat two
+        // minutes. The flat cost assumed 200 m in 120 s — 1.67 m/s, which is
+        // faster than anybody walks — so it attempted transfers it could not
+        // make and missed the connections beyond them.
+        //
+        // That is not a lazy *strategy*, it is wrong arithmetic, and it was
+        // wrong in a direction that got rewarded when the data was bad: an
+        // accurate world offers more near-misses to attempt, so switching every
+        // conflict off made this player score *better* and Gate 3 report a
+        // negative conflict cost (P0M8; KNOWN-ISSUES.md #14).
+        //
+        // It still trusts the coordinates it was given, which is the lazy part
+        // and the part conflicts are supposed to punish.
+        const walkS = Math.max(
+          60,
+          Math.ceil(roughMetres(here.lat, here.lon, other.lat, other.lon) / 1.3),
+        );
+        const arriveS = from.arriveS + walkS;
         const existing = best.get(other.stop_id);
         if (existing && existing.arriveS <= arriveS) continue;
         best.set(other.stop_id, {

@@ -15,7 +15,8 @@ import { fileURLToPath } from "node:url";
 
 import { loadWorld } from "@tns/core";
 import { runOpenLoop } from "@tns/server";
-import { ablate, calibrate, scoreRun, auditInformationSets } from "@tns/scoring";
+import { ablate, calibrate, scoreRun, auditInformationSets, cleanWorld } from "@tns/scoring";
+import type { World } from "@tns/schema";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..", "..");
@@ -37,7 +38,7 @@ interface Result {
   clean: boolean;
 }
 
-async function measure(mode: string, base: number): Promise<Result> {
+async function measure(mode: string, base: number, against: World = world): Promise<Result> {
   const player = spawn(
     process.execPath,
     [join(repoRoot, "src", "refplayer", "scripts", "serve.ts")],
@@ -54,13 +55,13 @@ async function measure(mode: string, base: number): Promise<Result> {
   );
   try {
     const log = await runOpenLoop({
-      world,
+      world: against,
       playerBaseUrl: `http://127.0.0.1:${base + 900}`,
       operatorPort: base,
       controlPort: base + 9,
     });
-    const card = scoreRun(log, { tier: world.manifest.tier });
-    const audit = auditInformationSets(world, log);
+    const card = scoreRun(log, { tier: against.manifest.tier });
+    const audit = auditInformationSets(against, log);
     return {
       mode,
       capture: card.service.capture,
@@ -133,64 +134,76 @@ console.log("");
 
 // ---- Gate 3 ---------------------------------------------------------------
 console.log("  GATE 3 — the conflicts are doing the work");
+console.log("");
+console.log("    Measured across the WHOLE score, from real runs of the naive");
+console.log("    reference player against this world and against the same world");
+console.log("    with every conflict switched off.");
+console.log("");
+console.log("    Capture alone is journey time, and journey time is the family");
+console.log("    realistic conflicts move least. Staleness costs a traveller a");
+console.log("    third of a minute of travel — its real damage is that nobody");
+console.log("    warned them, which lands entirely in the Information family and");
+console.log("    was invisible to this gate until P0M8. Information can only be");
+console.log("    observed from a run: a routing model warns nobody.");
+console.log("");
+
+const declaredRun = await measure("naive", 9500, world);
+const cleanRun = await measure("naive", 9520, cleanWorld(world));
+
+const hDeclared = declaredRun.headline ?? 0;
+const hClean = cleanRun.headline ?? 0;
+const conflictCost = hClean - hDeclared;
+
+const row = (label: string, r: Result) =>
+  console.log(
+    `    ${label.padEnd(22)} ${n(r.headline)}   ${n(r.capture)}   ${n(r.information)}   ${r.arrived}`,
+  );
+
+console.log("                           headline  capture  information  arrived");
+row("this world", declaredRun);
+row("conflicts switched off", cleanRun);
+console.log("");
+console.log(`    conflicts cost   ${n(conflictCost)} of the score`);
+console.log("");
+
+// The headline already runs 0 (no better than a city with no integration
+// layer) to 1 (perfect), so a difference in it *is* a share of what a player
+// competes for. No separate headroom division is needed, and none should be
+// invented — that was where the old gate hid the oracle's foresight.
+const materiality = conflictCost;
+
+// Retained as a diagnostic, on journey time alone, so the two are comparable
+// against every number recorded before P0M8.
 const ab = ablate(world);
-console.log("    Measured on a lazy integrator that handles realtime, against an");
-console.log("    optimum held to the SAME announcement horizon. P0 is clairvoyant by");
-console.log("    design (REFERENCE-POLICY.md §2) — it routes around a cancellation");
-console.log("    announced after it planned, and no player can. Dividing by a gap");
-console.log("    containing that advantage measures the oracle's foresight as though");
-console.log("    it were the world's difficulty, and until P1M0 this gate did.");
-console.log("");
-console.log(`    excluded — P0's unreachable foresight        ${mins(ab.clairvoyanceS)}`);
-console.log("");
-console.log(`    its shortfall, against a matched optimum     ${mins(ab.baselineGapS)}`);
-console.log(`    the same, with every conflict switched off   ${mins(ab.cleanGapS)}`);
+const captureCost = ab.baselineGapS - ab.cleanGapS;
+console.log(`    for comparison, on journey time alone:`);
+console.log(`      excluded — P0's unreachable foresight      ${mins(ab.clairvoyanceS)}`);
+console.log(`      lazy shortfall vs a matched optimum        ${mins(ab.baselineGapS)}`);
+console.log(`      the same, conflicts off                    ${mins(ab.cleanGapS)}`);
+console.log(`      caused by conflicts                        ${mins(captureCost)}` +
+  ` (${((captureCost / ab.headroomS) * 100).toFixed(0)}% of ${mins(ab.headroomS)} headroom)`);
 console.log("");
 
-const conflictCaused = ab.baselineGapS - ab.cleanGapS;
-const share = ab.baselineGapS === 0 ? 0 : conflictCaused / ab.baselineGapS;
-const materiality = ab.headroomS === 0 ? 0 : conflictCaused / ab.headroomS;
-
-console.log(`    caused by conflicts        ${mins(conflictCaused)}  (${(share * 100).toFixed(0)}% of that shortfall)`);
-console.log(`    caused by everything else  ${mins(ab.cleanGapS)}  (${((1 - share) * 100).toFixed(0)}%)`);
-console.log("");
 if (ab.entries.some((e) => Math.abs(e.costS) > 1)) {
-  console.log("    per-conflict, each acting alone:");
+  console.log("    per-conflict on journey time, each acting alone:");
   for (const e of ab.entries.filter((x) => Math.abs(x.costS) > 1).slice(0, 8)) {
     console.log(`      ${mins(e.costS).padStart(7)}  ${e.conflict}`);
   }
+  console.log("      (leave-one-in: these over-sum, and the overlap is the");
+  console.log("       redundancy itself — KNOWN-ISSUES.md #7)");
   console.log("");
 }
 
-// Share alone stopped being a test the moment the reference was matched.
-// Against an optimum with the same information, the only thing separating it
-// from a lazy integrator IS reconciliation — so switching the conflicts off
-// drives the residual to zero and the share to 100% whatever the conflicts do.
-// That is arithmetic, not evidence. The question the gate needs answered is
-// whether reconciliation costs enough to be worth a player's effort, and the
-// scale for that is the headroom being competed for.
-console.log(`    conflict cost against the ${mins(ab.headroomS)} of headroom:   ${(materiality * 100).toFixed(0)}%`);
-console.log("");
-console.log("    The criterion is 20% of headroom, ratified after P1M0.");
-if (conflictCaused < 0) {
+if (captureCost < 0 || ab.cleanGapS > 30) {
+  console.log("    WARNING: the conflict-free world is not behaving as a floor.");
+  console.log("    Conflict attribution by subtraction is unsound when it does");
+  console.log("    not. See docs/KNOWN-ISSUES.md #14.");
   console.log("");
-  console.log("    A NEGATIVE CONFLICT COST IS NOT A RESULT ABOUT THE CONFLICTS.");
-  console.log("    It means the subtraction is unsound. Switching every conflict off");
-  console.log("    makes this world HARDER: the lazy baseline matches stops within");
-  console.log("    120m, and 19 pairs of genuinely distinct quays here are closer");
-  console.log("    than that — the nearest 31m apart. With exact coordinates it fuses");
-  console.log("    34 quays into 19 stops; the declared conflicts push them apart and");
-  console.log("    leave 26. The conflict-free world is not a floor.");
-  console.log("");
-  console.log("    See docs/KNOWN-ISSUES.md #14 and #15. P0M8 owns both, and must");
-  console.log("    fix them before any conflict strengthening can be shown to work.");
 }
-console.log("");
 
-const g3 = share > 0.5 && materiality > 0.2;
-console.log(`    ${g3 ? "PASS" : "FAIL"} — conflicts must cause most of the shortfall, and enough of it to matter`);
+const g3 = materiality > 0.2;
+console.log(`    ${g3 ? "PASS" : "FAIL"} — the declared conflicts must cost at least 20% of the score`);
 console.log("");
-
 // ---------------------------------------------------------------------------
 const all = g1 && g2 && g3;
 console.log(`  VERDICT: ${all ? "all three gates pass" : "AT LEAST ONE GATE FAILS"}`);

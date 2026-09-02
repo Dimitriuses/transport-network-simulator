@@ -19,34 +19,66 @@ import { fileURLToPath } from "node:url";
 
 import { loadWorld } from "@tns/core";
 import { calibrate, cleanWorld, naiveMergedWorld } from "../src/index.ts";
+import { projectOperator } from "@tns/projections";
+import type { World } from "@tns/schema";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const worldPath = join(resolve(here, "..", "..", ".."), "worlds", "m1.world.db");
 const skip = existsSync(worldPath) ? false : "no world bundle; run: npm run world:build";
 
-test("switching every conflict off does not produce an easier world", { skip }, () => {
-  // Written at P1M0 asserting the opposite — that a conflict-free world costs a
-  // lazy integrator nothing — and it passed. It was measuring an artefact.
+test("the lazy baseline reconstructs a conflict-free world exactly", { skip }, () => {
+  // The property that makes attribution by subtraction sound, and it did not
+  // hold until P0M8.
   //
-  // P0M7 disproved it. The naive baseline matches stops by coordinate
-  // proximity within 120 m, and this city has 19 pairs of genuinely distinct
-  // quays closer together than that, the nearest 31 m apart. When every
-  // operator publishes exact coordinates, the matcher fuses them: 34 canonical
-  // quays collapse to 19 stops. The declared conflicts — offsets, truncation —
-  // push stops apart and *prevent* that over-merging, leaving 26.
-  //
-  // So "the same world with every conflict switched off" is not a floor. It is
-  // a different and harder world, and subtracting it attributes a negative cost
-  // to the conflicts. See KNOWN-ISSUES.md #14.
+  // The matcher used to fuse stops within a fixed 120 m. This city has 19 pairs
+  // of genuinely distinct quays closer than that — the nearest 31 m apart — so
+  // it collapsed 34 canonical quays into 19 stops *before any conflict was
+  // applied*, and a conflict-free world came out harder than the declared one.
+  // The threshold is now derived from the world's own geometry instead.
   const world = loadWorld(worldPath);
-  const declared = naiveMergedWorld(world).quays.length;
-  const clean = naiveMergedWorld(cleanWorld(world)).quays.length;
+  const merged = naiveMergedWorld(cleanWorld(world)).quays.length;
+
+  assert.equal(
+    merged,
+    world.quays.length,
+    `with every conflict off the matcher produced ${merged} stops for ` +
+      `${world.quays.length} canonical quays. It must reconstruct the world exactly, or ` +
+      `whatever it loses to its own crudeness is charged to the conflicts (KNOWN-ISSUES.md #14).`,
+  );
+});
+
+test("a conflict-free world is denser, not easier", { skip }, () => {
+  // Why P0M8 is not finished. Switching every conflict off does not remove
+  // difficulty from a *lazy* solver, it removes scatter — and scatter was
+  // hiding opportunities the solver is bad at. Every operator publishing exact
+  // coordinates at fine granularity puts twice as many stop pairs inside the
+  // reference player's 200 m transfer radius, and it takes optimistic transfers
+  // it cannot make.
+  //
+  // So a run-based Gate 3 still reports a negative conflict cost, for a reason
+  // that has nothing to do with the conflicts. See KNOWN-ISSUES.md #14.
+  const world = loadWorld(worldPath);
+  const pairsWithin = (w: World): number => {
+    const pts: { lat: number; lon: number }[] = [];
+    for (const op of w.manifest.operators) {
+      for (const st of projectOperator(w, op.id, 0).timetable.stops) pts.push(st);
+    }
+    let n = 0;
+    for (let i = 0; i < pts.length; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        const dy = (pts[i]!.lat - pts[j]!.lat) * 111_320;
+        const dx = (pts[i]!.lon - pts[j]!.lon) * 111_320 * 0.64;
+        if (Math.sqrt(dx * dx + dy * dy) <= 200) n++;
+      }
+    }
+    return n;
+  };
 
   assert.ok(
-    clean < declared,
-    `the conflict-free world merged to ${clean} stops and the declared one to ${declared}. ` +
-      `If that ordering has reversed, the over-merging described in KNOWN-ISSUES.md #14 is ` +
-      `fixed and ablation-by-subtraction may be sound again — re-check Gate 3.`,
+    pairsWithin(cleanWorld(world)) > pairsWithin(world),
+    "a conflict-free world no longer offers more apparent interchanges than the declared " +
+      "one. If that has changed, the density confound in KNOWN-ISSUES.md #14 may be gone " +
+      "and a run-based Gate 3 can be trusted again.",
   );
 });
 

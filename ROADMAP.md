@@ -38,11 +38,15 @@ P0M0–P0M6 delivered one hand-built Tier-2 world end to end and were recorded a
 
 # Phase 0, reopened — making Gate 3 pass
 
-**Goal:** a world whose declared conflicts account for at least 20 % of the headroom a player competes for, measured honestly.
+**Goal:** a world whose declared conflicts account for at least 20 % of what a player competes for — at *realistic* conflict strengths, measured with an instrument that can see them.
 
-**Exit:** `npm run gates` reports three passes, with Gate 3 measured against `P0a` and no gate's criterion weakened to achieve it.
+**Exit:** `npm run gates` reports three passes, with Gate 3 measured over the headline score and no gate's criterion weakened to achieve it.
 
-Two milestones, in this order. The order is the point: strengthening conflicts while the planner is still blind means tuning against a suppressed signal, and the likely result is conflicts cranked to absurd strengths to move a number that was never conflict-limited.
+Four milestones, in this order, and the order carries most of the argument.
+
+P0M7 came first because strengthening conflicts while the planner was still blind meant tuning against a suppressed signal. It did its job and then produced a larger finding: the instrument cannot resolve a realistic conflict at all. So P0M8 fixes the instrument, P0M9 grows the world until the instrument has enough signal to read, and only then does P0M10 touch a conflict.
+
+**The constraint that shapes all three** is that a conflict must stay realistic. Two operators can disagree about where a stop is; at 500 m apart that is not a disagreement, it is a broken map, and it teaches something other than integration. Every route to a passing gate that runs through "make the conflict bigger" is closed by construction.
 
 ---
 
@@ -60,35 +64,64 @@ Issue the `replan` obligation the contract has specified since v0.3 and the harn
 
 ---
 
-### P0M8 — Conflict potency
+### P0M8 — An instrument that can see a realistic conflict
 
-**First, fix the instrument.** P0M7 established that conflict cost cannot currently be attributed at all: `KNOWN-ISSUES.md` #14 (the conflict-free world is harder, not a floor) and #15 (`P0a` is not a bound) both have to be resolved before any amount of conflict strengthening can be shown to work. Tuning conflicts against an instrument that reports −1.01 min would be tuning against noise.
+**Why this exists.** P0M7 left conflict cost reading −1.01 min, and the diagnosis is not that the conflicts are weak. Three numbers decide everything and none of them is a property of the conflicts:
 
-Both are the same question — *what is a fair reference for attributing conflict cost when the lazy baseline's own matcher is the dominant source of error?* — and the plausible answers are worth deciding explicitly rather than by implementation:
-
-| Route | What it costs |
+| | |
 |---|---|
-| raise the matcher threshold so it stops over-merging | changes what "lazy" means, and the threshold becomes a tuning knob inside the instrument |
-| attribute by removing *one* conflict from the declared world rather than all | leave-one-out attributed nothing at P0M6, for reasons `KNOWN-ISSUES.md` #7 still records |
-| pick a lazy strategy that is not coordinate-threshold matching | most honest, most work, and changes every recorded P2 number |
+| the lazy matcher fuses stops within | **120 m** |
+| `C-coordinate-offset` first costs anything at | **260 m** |
+| a real disagreement about one stop's position tops out around | **150 m** |
 
-Then act on what P1M0 found. Strengthen the conflicts the probe shows can bite, place them on operators that carry enough traffic to express them, retire the ones inert at every setting, and add any the probe suggests are missing. Extend the ablation report to run against any world, not only the committed one.
+A matcher that cannot tell apart two quays 31 m apart cannot notice a 60 m offset. So "how strong must this conflict be" was always "how far past 120 m", which is a fact about the instrument. And past ~150 m a coordinate offset stops describing a disagreement between two operators and starts describing a broken map — a different lesson, and not the one this project teaches.
 
-Concretely, from `npm run probe`:
+Sweeping the matcher threshold does not rescue it. At 60 m, a 30 m offset costs 0.90 min, a 60 m offset costs **−0.44**, and a 130 m offset costs 0.01. Merge outcomes are discrete — a pair of stops either fuses or it does not — so across 22 queries the result is decided by which stops happen to flip, not by conflict strength. **The only magnitudes that produce a clean monotonic signal are the unrealistic ones.**
+
+Three consequences, and they are this milestone:
+
+**A. Tighten the matcher so a conflict-free world costs nothing.** At a 20–30 m threshold the clean world reconstructs exactly — 34 merged stops for 34 canonical quays — and the floor falls from 1.13 min to 0.23, which is just the five-minute poll cadence. That retires `KNOWN-ISSUES.md` #14 and makes subtraction sound again. It does *not* on its own make realistic offsets bite.
+
+**B. Gate 3 attributes across the whole headline score, not capture alone.** Service capture is journey time, and journey time is the family realistic conflicts move least. `D-staleness` costs 0.31 min of travel — but staleness's real damage is that somebody is *not warned*, which lands entirely in the Information family and is invisible to the gate as currently written. Catalogue D may already be earning its place somewhere nobody is looking.
+
+This changes how the gate is computed, not just its arithmetic. Information is only observable from a **run** — a routing model warns nobody — so Gate 3 must compare scorecards from actual runs of the naive reference player against the world and against the world with conflicts off. That is slower than `calibrate()` and worth it.
+
+**C. Realism becomes a budget, not a warning.** Every catalogue setting gets a documented plausible range and the real-world cause that produces it — kerbside pole versus platform centre at 5–30 m, station centroid versus a specific quay at 20–150 m, geocoding from a street address at 10–100 m, staleness after a stop physically moved at 10–200 m. Nothing may be generated outside its range.
+
+This is the structural form of the trap the milestone was already warned about. A note saying "do not make conflicts absurd" loses to a failing gate; a declared range that the audit enforces does not.
+
+**Exit:** a conflict-free world costs a lazy integrator under 0.25 min; Gate 3 reports conflict cost as a share of the headline score, computed from real runs; and every catalogue setting carries a plausible range with its provenance.
+
+---
+
+### P0M9 — A world big enough to measure one
+
+**You cannot calibrate realistic-magnitude conflicts on 22 queries and 34 quays.** `KNOWN-ISSUES.md` #4 has said the gap estimates are noisy at this size since P0M6 and assigned the fix to network generation, which is Phase 1 work sitting behind a gate that cannot pass without it. P0M8's threshold sweep is the evidence that the wait is no longer affordable: the non-monotonic 0.90 / −0.44 / 0.01 sequence is not a weak signal, it is no signal.
+
+Grow the hand-authored city — more quays, more interchanges where several quays genuinely sit 30–80 m apart, more operators overlapping, and a query set large enough that a single traveller changing outcome does not move a gap.
+
+**Exit:** the three gaps are stable across seeds within a stated tolerance, and a realistic-magnitude conflict produces a monotonic cost curve rather than a scatter.
+
+**The trap to avoid:** growing the world until the numbers look better. The exit is *stability*, which is falsifiable, not *size*, which is not. Measure the variance and publish it.
+
+---
+
+### P0M10 — Conflict potency
+
+The milestone P0M8 used to be, now executable. Strengthen the conflicts the probe shows can bite *within their declared realistic range*, place them on operators carrying enough traffic to express them, retire the ones inert at every plausible setting, and add any the probe suggests are missing.
+
+From `npm run probe`, re-run once the instrument and the world are fixed:
 
 | Finding | Action |
 |---|---|
-| `C-coordinate-offset` inert below 260 m; world uses 130 m | raise, or accept it as a Tier-2 setting and stop declaring it as load-bearing |
-| `D-staleness` inert below 900 s; world uses 90 and 300 s | raise |
 | `sudbahn` expresses nothing at any strength | weight conflict placement by carried traffic |
 | `A-granularity`, `A-id-scheme`, `A-naming`, `A-coordinate-source`, `D-silent-cancellation` inert everywhere | make the lazy merger depend on identity, or retire them from the load-bearing catalogue |
 
 That last row is a genuine fork and should be decided explicitly rather than by implementation. Catalogue A is what `CORECONCEPT.md` presents as the heart of the challenge, and it currently costs nothing because `P2` matches on geometry alone. Either the baseline is too narrow to represent a real lazy integrator, or identity reconciliation is not load-bearing in this design. Those call for opposite responses.
 
-**Exit:** Gate 3 passes at ≥ 20 % of headroom, at least five conflicts each independently account for a meaningful share, and the defect audit still confirms every declared conflict is present.
+**Exit:** Gate 3 passes — conflicts account for at least 20 % of the headline score's headroom, no single conflict supplies more than half of it, every setting sits inside its declared realistic range, and the defect audit still confirms every declared conflict is present.
 
-**The trap to avoid:** it is much easier to make one conflict enormous than to make five matter. A world whose difficulty rests on a single defect is memorisable and teaches one lesson. The 20 % threshold can be met by a single 500 m coordinate offset, and that would satisfy the gate while defeating its purpose.
-
+**The honest alternative.** If realistic conflicts cannot reach 20 % even with a sound instrument and a big enough world, the response is the one this roadmap has committed to from the start: **narrow the claim rather than pad the catalogue.** That would not end the project. It would move its centre of gravity from journey-time capture to the Information family and to the engineering effort of getting there — which is arguably where an integration challenge belongs anyway, and would itself be a finding worth publishing.
 ---
 
 # Phase 1 — Generation

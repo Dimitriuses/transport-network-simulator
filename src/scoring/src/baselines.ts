@@ -31,7 +31,48 @@ import type { Disruption } from "@tns/core";
 import { believedDisruptionsAt, NAIVE_POLL_CADENCE_S } from "./belief.ts";
 
 /** How close two published stops must be for a lazy matcher to fuse them. */
-export const NAIVE_MATCH_THRESHOLD_M = 120;
+/**
+ * The widest a lazy integrator's coordinate matcher can be without fusing two
+ * places the world says are different.
+ *
+ * Derived from the world rather than fixed, and that is the whole point. The
+ * old constant was 120 m, chosen as a plausible-looking guess. This city has 19
+ * pairs of genuinely distinct quays closer together than that — the nearest 31 m
+ * apart — so the matcher fused 34 canonical quays into 19 stops *before any
+ * conflict was applied*, and a conflict-free world came out harder than the
+ * declared one (`KNOWN-ISSUES.md` #14).
+ *
+ * Worse, it decided which conflicts were visible at all. A matcher that cannot
+ * separate quays 31 m apart cannot notice a 60 m coordinate offset, so the
+ * offset had to be pushed past 260 m before it cost anything — well past the
+ * point where it stops describing two operators disagreeing and starts
+ * describing a broken map. "How strong must this conflict be" was really "how
+ * far past 120 m", which is a fact about the instrument.
+ *
+ * A baseline used for attribution must be **exactly right when there is nothing
+ * to reconcile**, or whatever it loses to its own crudeness is charged to the
+ * conflicts. So: the largest threshold that never merges two distinct quays.
+ *
+ * This is calibration of the instrument, not of the world. It uses canonical
+ * geometry, which no player may see — legitimate here because P2 is a ruler
+ * rather than a competitor, and stated plainly so nobody mistakes it for a
+ * strategy a player could adopt.
+ */
+export function naiveMatchThresholdM(world: World): number {
+  let closest = Infinity;
+  for (let i = 0; i < world.quays.length; i++) {
+    for (let j = i + 1; j < world.quays.length; j++) {
+      const a = world.quays[i]!;
+      const b = world.quays[j]!;
+      closest = Math.min(closest, roughMetres(a.lat, a.lon, b.lat, b.lon));
+    }
+  }
+  if (!Number.isFinite(closest)) return 30;
+  // Strictly below the closest genuine pair, and never absurd in either
+  // direction. A world whose quays sit metres apart cannot be reconciled by
+  // geometry at all, and that is a finding rather than a threshold to tune.
+  return Math.max(5, Math.min(120, Math.floor(closest) - 1));
+}
 
 /**
  * How a lazy integrator reads a published timestamp.
@@ -71,7 +112,8 @@ function roughMetres(aLat: number, aLon: number, bLat: number, bLon: number): nu
  * outcome comes from the *model* the lazy player built, not from a different
  * search. That is the whole point: it isolates the cost of bad reconciliation.
  */
-export function naiveMergedWorld(world: World): World {
+export function naiveMergedWorld(world: World, thresholdM?: number): World {
+  const threshold = thresholdM ?? naiveMatchThresholdM(world);
   const anchor = parseEpoch(world.manifest.worldEpochIso);
   const timetables: Timetable[] = world.manifest.operators.map(
     (op) => projectOperator(world, op.id, 0).timetable,
@@ -96,7 +138,7 @@ export function naiveMergedWorld(world: World): World {
     for (let j = i + 1; j < keys.length; j++) {
       const a = coords[i]!;
       const b = coords[j]!;
-      if (roughMetres(a.lat, a.lon, b.lat, b.lon) <= NAIVE_MATCH_THRESHOLD_M) {
+      if (roughMetres(a.lat, a.lon, b.lat, b.lon) <= threshold) {
         parent[find(i)] = find(j);
       }
     }
@@ -295,6 +337,17 @@ export interface CalibrateOptions {
    * and what remains is no longer an information gap.
    */
   readonly planLeadS?: number;
+  /**
+   * How close two published stops must be before the lazy baseline calls them
+   * the same place.
+   *
+   * Injectable because it is not a detail of the baseline — it decides which
+   * conflict magnitudes are visible at all. A matcher fusing at 120 m cannot
+   * notice a 60 m coordinate offset, so the offset has to be pushed past 260 m
+   * before it costs anything, which is well past the point where it stops
+   * describing a real disagreement and starts describing a broken map.
+   */
+  readonly matchThresholdM?: number;
 }
 
 const accessFor = (w: World, queryId: string, endpoint: "origin" | "destination"): Access[] =>
@@ -557,7 +610,7 @@ export function calibrate(world: World, options: CalibrateOptions = {}): Calibra
   // What P1 and P2 plan on: the published schedule, which does not know.
   const scheduleIx = buildIndex(world);
 
-  const naive = naiveMergedWorld(world);
+  const naive = naiveMergedWorld(world, options.matchThresholdM);
   const naiveIx = buildIndex(naive);
   const naiveSpace = naivePlanSpace(world, naive);
   const canonicalSpace = canonicalPlanSpace(world);
