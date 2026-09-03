@@ -34,10 +34,43 @@ export function buildCompetentModel(
   timetables: readonly Timetable[],
   worldOffsetS: number,
 ): CompetentModel {
-  // The operator with the most stops is the reference frame. Any of them would
-  // do; what matters is measuring the others *against* one rather than trusting
-  // all of them equally.
-  const reference = [...timetables].sort((a, b) => b.stops.length - a.stops.length)[0]!;
+  // **The reference frame is the one the others agree with, not the biggest.**
+  //
+  // This used to pick the operator with the most stops, on the reasoning that
+  // any of them would do so long as the others were measured against one. That
+  // is true only while the biggest feed is not itself the displaced one. When
+  // P0M10 moved the coordinate offset onto the operator running half the city,
+  // this solution corrected every other operator *towards* a frame that was
+  // 130 m out — and its positions were then wrong for operators that had
+  // published perfectly good coordinates. Measured: 62 m of error on Ostline,
+  // which has no offset at all.
+  //
+  // Nothing here can know which feed is right. But a displaced feed disagrees
+  // with *everyone*, while a good one disagrees only with the displaced. So
+  // score each candidate by how much correcting it implies for all the others
+  // and take the least: with one operator out of three displaced, that picks
+  // one of the two that agree.
+  //
+  // Ties are broken by stop count and then by id, because a reference frame
+  // chosen by map iteration order is a reproducibility bug waiting to happen.
+  const referenceCost = (candidate: Timetable): number =>
+    timetables
+      .filter((t) => t.operator !== candidate.operator)
+      .reduce((total, t) => {
+        const { dLat, dLon } = estimateOffset(t, candidate);
+        const dy = dLat * 111_320;
+        const dx = dLon * 111_320 * 0.64;
+        return total + Math.sqrt(dx * dx + dy * dy);
+      }, 0);
+
+  const reference = [...timetables]
+    .map((t) => ({ t, cost: referenceCost(t) }))
+    .sort(
+      (a, b) =>
+        a.cost - b.cost ||
+        b.t.stops.length - a.t.stops.length ||
+        (a.t.operator < b.t.operator ? -1 : 1),
+    )[0]!.t;
 
   const stops: MatchedStop[] = [];
   const byKey = new Map<string, MatchedStop>();

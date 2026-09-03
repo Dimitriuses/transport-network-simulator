@@ -110,7 +110,6 @@ for (const r of results) {
 console.log("");
 
 const competent = results.find((r) => r.mode === "competent")!;
-const nul = results.find((r) => r.mode === "null")!;
 
 // ---- Gate 1 ---------------------------------------------------------------
 console.log("  GATE 1 — buildable");
@@ -128,12 +127,30 @@ console.log("");
 // ---- Gate 2 ---------------------------------------------------------------
 console.log("  GATE 2 — headroom real and discriminating");
 const cal = calibrate(world);
-const spread = (competent.headline ?? 0) - (nul.headline ?? 0);
-const g2 = cal.gapP0P1 > 60 && spread > 0.2 && new Set(results.map((r) => n(r.headline))).size >= 3;
+// **Separation and ordering are different questions, and this used to conflate
+// them.** The spread was `competent - null`, which measures separation only if
+// the competent solution is in fact the best. At P0M10 it was not — a bug in
+// the replan handler had it answering `no_route` to every replan — and Gate 2
+// reported a spread of 0.005 for a set of solutions actually spanning 0.299.
+//
+// A gate that fails for the wrong reason is worse than one that fails: it
+// sends you looking at the world when the fault is in the solution.
+const scores = results.map((r) => r.headline ?? 0);
+const spread = Math.max(...scores) - Math.min(...scores);
+const distinct = new Set(results.map((r) => n(r.headline))).size;
+const bestIsCompetent = (competent.headline ?? 0) >= Math.max(...scores) - 1e-9;
+const g2 = cal.gapP0P1 > 60 && spread > 0.2 && distinct >= 3;
 console.log(`    P0-P1 headroom            ${mins(cal.gapP0P1)}`);
-console.log(`    spread, worst to best     ${n(spread)} of headline`);
-console.log(`    distinct headline scores  ${new Set(results.map((r) => n(r.headline))).size} of ${results.length}`);
+console.log(`    spread, best to worst     ${n(spread)} of headline`);
+console.log(`    distinct headline scores  ${distinct} of ${results.length}`);
 console.log(`    ${g2 ? "PASS" : "FAIL"} — solutions of different quality must separate visibly`);
+if (!bestIsCompetent) {
+  console.log("");
+  console.log("    NOTE: the competent solution is not the best-scoring one here.");
+  console.log("    Solutions do separate; they are in the wrong order. That is a");
+  console.log("    fact about the reference solution, and it belongs to Gate 1 —");
+  console.log("    see docs/KNOWN-ISSUES.md #17.");
+}
 console.log("");
 
 // ---- Gate 3 ---------------------------------------------------------------
@@ -157,23 +174,85 @@ console.log("    was invisible to this gate until P0M8. Information can only be"
 console.log("    observed from a run: a routing model warns nobody.");
 console.log("");
 
-const declaredRun = await measure("naive", 9500, world);
-const cleanRun = await measure("naive", 9520, valueCleanWorld(world));
+// **Averaged over seeds, not a single draw.** P0M9 measured what one run is
+// worth: with only the disruptions changing, conflict cost varies by 36 % of
+// its own mean. The gate has to decide a 20 % question, so a single pair of
+// runs would be comparing two draws from overlapping distributions.
+const GATE3_SEEDS = Number(process.env["TNS_GATE3_SEEDS"] ?? 5);
+const reseed = (w: World, seed: number): World => ({
+  ...w,
+  manifest: { ...w.manifest, seed },
+});
+
+const declaredRuns: Result[] = [];
+const cleanRuns: Result[] = [];
+for (let i = 0; i < GATE3_SEEDS; i++) {
+  const seed = world.manifest.seed + i * 7919;
+  declaredRuns.push(await measure("naive", 9500 + i * 40, reseed(world, seed)));
+  cleanRuns.push(await measure("naive", 9520 + i * 40, reseed(valueCleanWorld(world), seed)));
+}
+
+const avg = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+const sd = (xs: readonly number[]) => {
+  const m = avg(xs);
+  return Math.sqrt(avg(xs.map((x) => (x - m) * (x - m))));
+};
+const headlines = (rs: readonly Result[]) => rs.map((r) => r.headline ?? 0);
+
+const summarise = (rs: readonly Result[]): Result => ({
+  mode: rs[0]!.mode,
+  capture: avg(rs.map((r) => r.capture ?? 0)),
+  information: avg(rs.map((r) => r.information)),
+  headline: avg(headlines(rs)),
+  arrived: `${(avg(rs.map((r) => r.arrivedN))).toFixed(0)}/${rs[0]!.travellers}`,
+  arrivedN: avg(rs.map((r) => r.arrivedN)),
+  travellers: rs[0]!.travellers,
+  clean: rs.every((r) => r.clean),
+});
+
+const declaredRun = summarise(declaredRuns);
+const cleanRun = summarise(cleanRuns);
 
 const hDeclared = declaredRun.headline ?? 0;
 const hClean = cleanRun.headline ?? 0;
-const conflictCost = hClean - hDeclared;
+const conflictCost = hClean - hDeclared; // = mean(diffs), by construction
+// **The standard error of the difference of two means**, not the spread of
+// individual runs.
+//
+// Getting this wrong is easy and was got wrong first: comparing the effect to
+// the run-to-run standard deviation asks "could one run land here by chance",
+// when the quantity on the table is an average of several. Averaging is the
+// whole point of taking more than one seed, and the uncertainty of a mean
+// shrinks as 1/sqrt(n) while the spread of single runs does not shrink at all.
+//
+// The consequence of the mistake was a gate that could never resolve anything
+// however many seeds it was given.
+// **Paired by seed.** The two worlds are run on the same disruption draws, so
+// the difference can be taken run by run and the day cancels out of it.
+//
+// Differencing two independent means instead throws that away and carries the
+// full seed-to-seed variation in the answer — which is why going from 5 seeds
+// to 12 moved the standard error from 0.076 to 0.081 rather than shrinking it:
+// the extra seeds were spent re-measuring a variance the design need never
+// have had.
+const diffs = declaredRuns.map((d, i) => (cleanRuns[i]!.headline ?? 0) - (d.headline ?? 0));
+const costSe = sd(diffs) / Math.sqrt(Math.max(1, diffs.length));
 
 const row = (label: string, r: Result) =>
   console.log(
     `    ${label.padEnd(22)} ${n(r.headline)}   ${n(r.capture)}   ${n(r.information)}   ${r.arrived}`,
   );
 
+console.log(`    Mean of ${GATE3_SEEDS} seeds per world.`);
+console.log("");
 console.log("                           headline  capture  information  arrived");
 row("this world", declaredRun);
 row("honest values", cleanRun);
 console.log("");
-console.log(`    conflicts cost   ${n(conflictCost)} of the score`);
+console.log(
+  `    conflicts cost   ${n(conflictCost)} of the score  ` +
+    `(standard error ${n(costSe)}, ${(Math.abs(conflictCost) / Math.max(1e-9, costSe)).toFixed(1)}σ)`,
+);
 console.log("");
 
 // The headline already runs 0 (no better than a city with no integration
@@ -184,7 +263,7 @@ const materiality = conflictCost;
 
 // Retained as a diagnostic, on journey time alone, so the two are comparable
 // against every number recorded before P0M8.
-const ab = ablate(world);
+const ab = ablate(world, GATE3_SEEDS);
 const captureCost = ab.baselineGapS - ab.cleanGapS;
 console.log(`    for comparison, on journey time alone:`);
 console.log(`      excluded — P0's unreachable foresight      ${mins(ab.clairvoyanceS)}`);
@@ -216,29 +295,38 @@ if (captureCost < 0 || ab.cleanGapS > 30) {
 // more than the effect being measured. Reporting a number smaller than the
 // instrument's own resolution as a finding is how a noisy run becomes a
 // recorded fact — this project has done that once already.
-const travellers = declaredRun.travellers;
-const arrivalSwing = Math.abs(declaredRun.arrivedN - cleanRun.arrivedN);
-const resolution = travellers === 0 ? 1 : Math.abs(conflictCost) / Math.max(1, arrivalSwing);
-
-console.log(`    ${travellers} scored travellers, and the two runs differ by ` +
-  `${arrivalSwing} arrival${arrivalSwing === 1 ? "" : "s"}.`);
-console.log(`    One traveller changing outcome is worth about ${n(resolution)} of headline.`);
+console.log(
+  `    ${declaredRun.travellers} scored travellers per run, ${GATE3_SEEDS} seeds per world. ` +
+    `Individual runs`,
+);
+console.log(
+  `    scatter by ${n(sd(headlines(declaredRuns)))}, but the same-seed difference`,
+);
+console.log(
+  `    only by ${n(sd(diffs))} — so the mean difference carries ${n(costSe)}.`,
+);
 console.log("");
 
-const resolvable = Math.abs(conflictCost) > resolution * 1.5;
+// Two standard errors, which is the ordinary bar for claiming an effect is
+// there at all. Reporting a 1-sigma difference as a finding is how a noisy run
+// becomes a recorded fact — this project has done that once already, and the
+// 61 % Gate 3 pass stood for four milestones because of it.
+const SIGMA = 2;
+const resolvable = Math.abs(conflictCost) > SIGMA * costSe;
 const g3 = resolvable && materiality > 0.2;
 
 if (!resolvable) {
-  console.log("    INCONCLUSIVE — the effect is smaller than one traveller.");
+  const needed = Math.ceil(
+    GATE3_SEEDS * (SIGMA * costSe / Math.max(1e-9, Math.abs(conflictCost))) ** 2,
+  );
+  console.log(`    INCONCLUSIVE — the effect is under ${SIGMA} standard errors.`);
   console.log("");
-  console.log("    This is not a result about the conflicts. A 22-traveller world");
-  console.log("    cannot resolve a tenth of a headline point, and the sign of the");
-  console.log("    number above is decided by a single journey. It does not pass,");
-  console.log("    and it must not be recorded as a failure either.");
+  console.log("    Not a result about the conflicts, and not a failure. The");
+  console.log("    difference is not yet separable from the variation between");
+  console.log("    seeds of the same world.");
   console.log("");
-  console.log("    ROADMAP.md P0M9 exists for exactly this. Journey-time");
-  console.log("    attribution above is averaged rather than binary and is stable;");
-  console.log("    use it until the world is big enough for this one.");
+  console.log(`    At this effect size, roughly ${needed} seeds would settle it:`);
+  console.log(`      TNS_GATE3_SEEDS=${needed} npm run gates`);
 } else {
   console.log(`    ${g3 ? "PASS" : "FAIL"} — the declared conflicts must cost at least 20% of the score`);
 }

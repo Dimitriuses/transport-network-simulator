@@ -82,9 +82,14 @@ for (const r of report.results) {
 }
 console.log("");
 
+const cosmetic = report.inertCount - report.inertSemanticCount;
 console.log(
-  `  ${report.results.length - report.inertCount} of ${report.results.length} conflicts can be made to bite. ` +
-    `${report.inertCount} are inert at every setting, on every operator.`,
+  `  ${report.results.length - report.inertCount} of ${report.results.length} conflicts can be made to bite.`,
+);
+console.log(
+  `  ${report.inertSemanticCount} semantic conflict${report.inertSemanticCount === 1 ? "" : "s"} ` +
+    `inert at every setting on every operator` +
+    (cosmetic > 0 ? `, plus ${cosmetic} cosmetic, where zero is the expected result.` : "."),
 );
 console.log("");
 
@@ -121,7 +126,7 @@ for (const r of report.results) {
 }
 console.log("");
 
-if (report.inertCount > report.results.length / 2) {
+if (report.inertSemanticCount > report.results.length / 2) {
   console.log("  More than half the catalogue is inert. A generator sampling it");
   console.log("  uniformly would mostly produce defects that cost a solver nothing.");
   console.log("  See ROADMAP.md P0M8 — strengthen or retire.");

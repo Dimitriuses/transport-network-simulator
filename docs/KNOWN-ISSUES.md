@@ -49,9 +49,13 @@ Ablation at P0M6 attributed the entire conflict-caused shortfall to `C-coordinat
 
 **Also found:** conflict placement matters more than conflict choice. `sudbahn` scores 0.00 on all twelve at every strength, because it is not on enough critical paths for anything done to it to reach a traveller.
 
-**What is left of this issue** is `A-id-scheme` and `A-naming` at exactly zero, for the reason in the next paragraph, plus `A-coordinate-precision` and `D-silent-cancellation` under the noise floor.
+**Closed at P0M10.** Two things finished it, and neither was strengthening a conflict.
 
-**Owner:** P0M10, which owns the identity fork.
+*Placement.* Every declared conflict sat on operators reaching about a fifth of the network while the probe reported that all of them bite hardest on the one operator that had none. Moving them, at identical settings, took conflict cost from 1.30m to **2.53m — 76 % of headroom**, spread across five conflicts rather than resting on one.
+
+*Classification.* `A-id-scheme` and `A-naming` were reclassified as **cosmetic** (`CORECONCEPT.md` §2.1). They measure exactly zero and always have; that is the expected result for texture, not evidence of a thin catalogue. §2.1's own definition of cosmetic variation already said "different ID formats", so the id-scheme entry had been mis-catalogued from the start. `A-id-collision` — two operators using `7` for *different places* — stays semantic, because an ambiguous identifier is not something an adapter settles.
+
+`A-coordinate-precision` is no longer under the floor either: it costs 0.56m on Nordline.
 
 ---
 
@@ -255,9 +259,11 @@ At 22 travellers this cost three of them and looked like noise. At 132 it cost *
 
 ---
 
-## 17. The competent solution does not survive a bigger city — `open`
+## 17. The competent solution does not survive a bigger city, or a moved conflict — `open`
 
 Written against a 34-quay world it captured **+0.292**. On the 50-quay, 132-query world of P0M9 it captures **−0.296** — worse than not integrating at all, and worse than the naive solution beside it.
+
+**Worse after P0M10.** Moving the conflicts onto Nordline took it from −0.296 to **−0.602** capture, below the naive solution on every family but Information, and its headline to 0.005. Its offset correction and transfer floor were calibrated against a world where the displaced operator was a tram network reaching ten line-stops; the displaced operator now reaches thirty-nine.
 
 Fourteen of its twenty-two failures are `replan_no_route`: stranded by a cancelled service, it declines to name an onward route and the traveller is abandoned. It refuses to board services it believes are cancelled, which is right, and then has nothing to offer instead, which is not. Its transfer floor and its offset correction were both calibrated against a network where Central was almost the only interchange.
 
@@ -265,4 +271,110 @@ Fourteen of its twenty-two failures are `replan_no_route`: stranded by a cancell
 
 It also means **Gate 1 currently measures the reference solution rather than the world.** The gate asks whether a competent solution can be built; what it reports is whether *this* one still works.
 
-**Owner:** P0M10. The choice is between strengthening the competent solution — which is legitimate engineering, since a stranded traveller with no advice is a real failure — and accepting that Gate 1 needs a solution written against this world, which is really `KNOWN-ISSUES.md` #3 and needs a person.
+**One decisive bug found and fixed at P0M10.** The replan handler passed the traveller's position with a timestamp computed by `toSeconds`, which counts from the start of the month, where `planCompetently` indexes departures in seconds from the world epoch. The two differ by whole days, so the competent solution was asked to route from a point **seven days in the future** and answered `no_route` to **26 of 26** replans. It looked like a solution too conservative to reroute anybody. Fixed by a single shared `simSeconds`; replans now succeed 61 of 61.
+
+**It did not fix the gate.** Arrivals went 106 to 103 and `abandoned_after_replans` rose to 17: the solution now reroutes and its reroutes keep breaking. The remaining fault is its geometry. `estimateOffset` recovers about 223 m for a 130 m displacement (#5), which was survivable while the displaced operator was a tram network reaching ten line-stops and is not now that it reaches thirty-nine. Eleven failures are `origin_unreachable` or `destination_unreachable` — it walks to boarding points that are not where it thinks.
+
+**A second overfit assumption, found by measuring rather than reasoning.** `buildCompetentModel` chose its reference frame as *the operator with the most stops*, on the stated reasoning that any of them would do so long as the others were measured against one. That holds only while the biggest feed is not the displaced one. P0M10 put the coordinate offset on the operator running half the city, so the solution corrected everyone **towards a frame 130 m out of true**:
+
+| operator | error before | after |
+|---|---|---|
+| ostline (no offset at all) | **62 m** | **0 m** |
+| sudbahn | 156 m | 40 m |
+| nordline (130 m offset) | 117 m | 79 m |
+
+That an operator publishing perfect coordinates was placed 62 m from where it is, is the tell: the fault was the frame, not the estimator.
+
+The frame is now chosen by **consensus rather than size** — each candidate scored by how much correcting it implies for everyone else, taking the least. A displaced feed disagrees with everyone; a good one disagrees only with the displaced. Nothing in the solution knows which feed is right, and it does not need to.
+
+Unreachable-endpoint failures fell from 11 to 8 and arrivals rose from 103 to 106. **Gate 1 still fails.**
+
+**What is left, and it is not diagnosed.** Twenty-six of its arrivals are ~11.6 min slower than the reference policy, and it issues 63 replans where the naive solution issues 31 — its plans break twice as often.
+
+The sharpest clue is on the scoreboard: `blind`, which ignores realtime entirely, captures **−0.178**; `competent`, which uses it, captures **−0.597**. Reading the feeds is costing it four tenths of the headroom. `naive` and `blind` capture identically, because the naive solution uses realtime only to warn and never to plan — so the competent solution is the only one whose *routing* depends on what the feeds say, and it is the only one this far behind.
+
+**Four candidate causes, eliminated by measurement rather than argument.** Recorded so nobody repeats them:
+
+| hypothesis | why it is wrong |
+|---|---|
+| conservative transfer budgeting | `TRANSFER_FLOOR_S` is 60 s, far too small to cost 11.6 min |
+| the vanished-trip heuristic misfires on completed trips | the feed republishes every trip on every poll; nothing vanishes but a genuine `silent_drop` |
+| published trip ids drift over the day, so old keys look vanished | ids are stable: 484 Nordline trips at 06:00, the same 484 at 18:00, none missing |
+| the minutes-vs-seconds delay heuristic misfires on a long delay | it requires every delay < 60; the world draws delays of 2–15 minutes and never approaches the boundary |
+
+**The decisive experiment not yet run** is a `competent` variant that ignores realtime entirely. It isolates in one run whether the loss is in reading the feeds or in acting on them, and everything above only narrows where to look.
+
+**Owner:** P0M10 if the solution is to be strengthened further, but note that `KNOWN-ISSUES.md` #3 says Gate 1 cannot be honestly closed this way at all — a solution written by the person who built the world measures solvability, not buildability.
+
+---
+
+## 18. Gate 3 compared an average against the scatter of single runs — `fixed at P0M10`
+
+The run-based half of Gate 3 averages over seeds and then asked whether the effect exceeded the *standard deviation of individual runs*. That is the wrong statistic. The quantity on the table is a mean, the uncertainty of a mean is the standard error — `sd/sqrt(n)` — and it shrinks as seeds are added while the spread of single runs does not shrink at all.
+
+**The gate could therefore never resolve anything, however many seeds it was given.** Adding seeds tightened the mean and left the bar it was tested against exactly where it was.
+
+Corrected to the standard error of the difference of two means, with a two-sigma bar. The gate now also computes how many seeds the current effect size would need and prints the command:
+
+```
+conflicts cost 0.127 of the score (standard error 0.076, 1.7σ)
+INCONCLUSIVE — the effect is under 2 standard errors.
+At this effect size, roughly 8 seeds would settle it:
+  TNS_GATE3_SEEDS=8 npm run gates
+```
+
+Recorded rather than quietly fixed because it belongs to this project's most persistent failure mode: **not a wrong number, but a right number compared against the wrong thing.** The 61 % Gate 3 pass, the clairvoyant reference, the conflict-free floor and this are all the same error wearing different clothes.
+
+**A second, larger version of it, found immediately afterwards.** With the standard error corrected, going from 5 seeds to 12 moved it from 0.076 to *0.081* — it did not shrink at all. Twelve seeds had simply measured the run-to-run variance more honestly than five had.
+
+The design was wasting its own information. Both worlds are run on **the same disruption draws**, so the difference can be taken run by run and the day cancels out of it. Differencing two independent means instead carries the full seed-to-seed variation into the answer, and no number of seeds removes a variance the design need never have had.
+
+Gate 3 now takes the paired difference: `sd(clean_i − declared_i) / sqrt(n)`. Same estimate of the effect, a fraction of the uncertainty.
+
+---
+
+## 19. The Information family is insensitive to every declared conflict — `open`
+
+Measured at P0M10, twelve seeds, paired: the naive solution scores **0.768** on this world and **0.767** with honest values. The declared conflicts move it by one thousandth.
+
+This contradicts the reasoning that redefined Gate 3 at P0M8. That change was made on the argument that staleness's real damage is not journey time but that nobody gets warned, and that capture alone would miss it. The measurement says otherwise: the whole-score gate is a *diluted* capture gate, not a broader one, since `0.6 × 0.216 + 0.4 × 0.001 = 0.129`.
+
+**The likely mechanism, which needs its own measurement rather than assertion:**
+
+* 90 s and 300 s of staleness are negligible against warning deadlines set by the affected leg's scheduled departure, usually tens of minutes away. The timeliness term barely moves.
+* `D-silent-cancellation` sits on Sudbahn, which reaches nine line-stops of fifty-eight. Few scored travellers depend on a train whose cancellation is hidden.
+
+**Why it matters beyond Gate 3.** `CORECONCEPT.md` treats realtime truthfulness (catalogue D) as a first-class source of difficulty, and `SCORING.md` gives the Information family 40 % of the balanced profile. If no declared conflict can move it, then either the family is not measuring what it was meant to, or catalogue D is not load-bearing — and those call for opposite responses, exactly as the identity fork does.
+
+**Owner:** P0M10, jointly with the threshold question in #20.
+
+---
+
+## 20. Gate 3's threshold is applied to a metric it was not ratified against — `open`
+
+The 20 % criterion was ratified after P1M0 **against journey-time headroom**. P0M8 redefined Gate 3 to attribute across the whole headline score and carried the same 20 % over without re-deriving it.
+
+Conflicts move only the Service component, which carries weight 0.6 in the balanced profile, so **a 20 % bar on the headline is an effective 33 % bar on capture** — a stricter test than the one agreed to, arrived at silently.
+
+Both measurements are sound and they disagree:
+
+| measured on | conflict cost | verdict |
+|---|---|---|
+| journey-time headroom, as ratified | **76 %** | passes comfortably |
+| whole headline score, as redefined | **12.9 %** (4.4σ) | fails |
+
+**This must not be resolved by picking whichever passes.** The options are to re-derive a threshold appropriate to the whole-score metric, to return Gate 3's criterion to journey-time headroom and treat the whole-score figure as a reported diagnostic, or to keep both as separate criteria that must each be met. Only the third is strictly harder than what was agreed.
+
+**Owner:** the project owner. Nothing about Gate 3 should be recorded as passed or failed until it is settled.
+
+---
+
+## 21. Gate 2 measured separation with a statistic that assumed the answer — `fixed at P0M10`
+
+Gate 2 asks whether solutions of different quality separate visibly. It computed the spread as `competent − null`, which measures separation **only if the competent solution is the best one**.
+
+At P0M10 it was not: #17's replan bug had it answering `no_route` to every replan, so it scored 0.005 while the naive solution scored 0.192. Gate 2 reported a spread of **0.005** for a set of solutions actually spanning **0.299** — comfortably over its own 0.2 bar — and failed.
+
+**A gate that fails for the wrong reason is worse than one that fails**, because it sends you looking at the world when the fault is in the solution. Two milestones' worth of "the world broke the players" reasoning rested partly on this.
+
+Now `max − min` for separation, with the ordering checked separately and reported as a note pointing at Gate 1, where a mis-ordered set of solutions actually belongs.

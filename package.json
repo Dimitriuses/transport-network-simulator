@@ -27,7 +27,8 @@
     "conformance": "node src/conformance/scripts/check.ts",
     "probe": "node src/scoring/scripts/probe.ts",
     "horizon": "node src/scoring/scripts/horizon.ts",
-    "stability": "node src/scoring/scripts/stability.ts"
+    "stability": "node src/scoring/scripts/stability.ts",
+    "failures": "node src/scoring/scripts/failures.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

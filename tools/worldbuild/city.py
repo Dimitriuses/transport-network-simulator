@@ -56,43 +56,31 @@ WORLD_UTC_OFFSET_S = 3 * 3600
 # actually reaches the published output (DATA-MODEL.md §4, §7).
 OPERATORS: tuple[dict, ...] = (
     {
-        # The conventional one. Everything it does is right, which is what
-        # makes it useful as a reference point for the others.
+        # The big incumbent, running five of the city's ten lines and calling
+        # at 39 of its line-stops — four times either of the others.
+        #
+        # **It used to be the clean one**, and that was the problem. Everything
+        # it published was right, which made it a useful reference point and
+        # meant every declared conflict sat on operators covering about a fifth
+        # of the network. The conflict-depth probe measured the consequence:
+        # every conflict bites hardest here, and none of them was here.
+        #
+        # Swapped at P0M10. A large municipal operator carrying a scheduling
+        # system it bought in the 1990s is at least as plausible as one with
+        # immaculate data, and the newer tram network below is now the clean
+        # reference instead. Geometry, timetable and traffic are untouched:
+        # only which operator publishes badly has changed, so the difference is
+        # attributable to placement and nothing else.
         "id": "nordline",
         "name": "Nordline Transit",
-        "dialect": "gtfs_like",
-        "identity": {"granularity": "quay", "id_scheme": "prefixed", "prefix": "NL"},
-        "naming": {"variant": "official"},
-        "geometry": {
-            "precision": 6,
-            "source": "quay",
-            "latlon_order": "lat_lon",
-            "offset_m": 0,
-        },
-        "time": {"encoding": "iso_offset"},
-        # Honest and current. The reference point the others are judged against.
-        "realtime": {
-            "staleness_s": 0,
-            "cancellations": "explicit",
-            "delay_unit": "seconds",
-            "publishes_delays": True,
-        },
-    },
-    {
-        # A proprietary system that grew organically. Bare integer ids that
-        # collide with Sudbahn's, locally-abbreviated names, coordinates
-        # rounded to three decimals (~110 m — enough to make a coordinate
-        # matcher unreliable without making it obviously broken), and epoch
-        # seconds instead of timestamps.
-        "id": "ostline",
-        "name": "Ostline Tram",
         "dialect": "proprietary",
         "identity": {"granularity": "quay", "id_scheme": "bare_int", "prefix": ""},
         "naming": {"variant": "abbreviated"},
         # A legacy local grid, converted approximately: every position is
         # displaced by the same ~130 m. Consistent, plausible, and fatal to a
-        # coordinate-threshold matcher, which stops seeing the tram stops as
-        # neighbours of anything (catalogue C).
+        # coordinate-threshold matcher (catalogue C). Coordinates are rounded
+        # to three decimals — about 110 m, enough to make a matcher unreliable
+        # without making it obviously broken.
         "geometry": {
             "precision": 3,
             "source": "quay",
@@ -111,10 +99,39 @@ OPERATORS: tuple[dict, ...] = (
         },
     },
     {
+        # The newer tram network, built this decade with a modern feed.
+        # Everything it does is right, which is what makes it useful as a
+        # reference point for the others — the role Nordline used to hold.
+        "id": "ostline",
+        "name": "Ostline Tram",
+        "dialect": "gtfs_like",
+        "identity": {"granularity": "quay", "id_scheme": "prefixed", "prefix": "OT"},
+        "naming": {"variant": "official"},
+        "geometry": {
+            "precision": 6,
+            "source": "quay",
+            "latlon_order": "lat_lon",
+            "offset_m": 0,
+        },
+        "time": {"encoding": "iso_offset"},
+        # Honest and current. The reference point the others are judged against.
+        "realtime": {
+            "staleness_s": 0,
+            "cancellations": "explicit",
+            "delay_unit": "seconds",
+            "publishes_delays": True,
+        },
+    },
+    {
         # A regional railway that thinks in stations, not platforms. Publishes
         # one stop per Site, positioned at the Site centroid rather than at any
         # quay a train actually calls at — so its coordinates match nothing
         # exactly. Times carry no offset at all.
+        #
+        # Unchanged by the P0M10 swap: this profile is distinct from either of
+        # the others, and it is the only operator publishing at Site
+        # granularity, which is what makes the three platforms at Central a
+        # single published stop.
         "id": "sudbahn",
         "name": "Sudbahn Regional",
         "dialect": "legacy",

@@ -680,3 +680,112 @@ Five seeds, 132 queries:
 Three remain inert: `D-silent-cancellation`, `A-id-scheme`, `A-naming`. The last two are pure-identifier conflicts and cost exactly nothing because the lazy merger matches on geometry and never needs identifiers to agree — the fork P0M10 owns, unchanged since P1M0 first found it.
 
 **A reporting bug found and fixed.** The per-point line never rendered the `!` marker for implausible settings or the `±` spread: an earlier edit had matched nothing and failed silently, so two successive changes to that line were both no-ops. The measurements and the plausible-only selection of each conflict's best setting were always correct — `C-coordinate-offset` is reported at 130 m, not at the 500 m that costs 38 min — but the output was quieter than intended about which columns nobody may generate. Worth recording because it is the same failure mode as a bad measurement: a change that silently does nothing looks exactly like a change that works.
+
+---
+
+## P0M10 — Conflict potency *(in progress)*
+
+### Two statistical errors, found in the gate's own output
+
+Both halves of Gate 3 were made seed-averaging first, because P0M9 had shown a single calibration is a draw rather than a measurement. Then the gate reported something that could not be true, and reading it produced two corrections in a row.
+
+**1. An average was tested against the scatter of single runs.** The gate averaged over seeds and asked whether the effect exceeded the *standard deviation of individual runs*. The uncertainty of a mean is the standard error, `sd/√n`. Testing against the population sd meant **adding seeds tightened the mean while leaving the bar exactly where it was — the gate could never have resolved anything, however many seeds it was given.**
+
+**2. A paired design was thrown away.** With the standard error corrected, going from 5 seeds to 12 moved it from 0.076 to **0.081** — it did not shrink at all. Twelve seeds had simply measured the run-to-run variance more honestly than five had.
+
+The two worlds are run on the *same disruption draws*. The difference can be taken run by run and the day cancels out of it. Differencing two independent means instead carries the whole seed-to-seed variation into the answer, and no number of seeds removes a variance the design need never have had. Gate 3 now uses `sd(clean_i − declared_i)/√n`: same estimate of the effect, a fraction of the uncertainty.
+
+Both are the project's signature failure again — **not a wrong number, but a right number compared against the wrong thing** — and this time the wrong thing was a choice of statistic rather than a choice of baseline. Recorded as `KNOWN-ISSUES.md` #18.
+
+### Fork A: the conflicts moved to the operator that carries the city
+
+`city.py` said of Nordline: *"Everything it does is right, which is what makes it useful as a reference point for the others."* It also runs five of the ten lines and calls at **39 line-stops against Ostline's 10 and Sudbahn's 9**. So every declared conflict sat on operators covering about a fifth of the network, while the probe reported that every conflict bites hardest precisely where none of them was.
+
+Swapped, on the project owner's decision: Nordline takes the legacy profile, Ostline becomes the clean modern reference, Sudbahn is untouched — it is the only Site-granularity operator and that is what makes the three platforms at Central one published stop.
+
+**A pure transplant, deliberately.** The same fifteen conflicts at the same settings, re-derived automatically by `_declared_conflicts()` from the manifests. Nordline's staleness was left at 90 s rather than raised to the far more biting 300 s while the file was open: that would have confounded placement with strengthening, and it is exactly the dial-turning the realism constraint exists to prevent. Geometry, timetable and traffic are untouched, so the difference is attributable to placement and nothing else.
+
+| | conflicts on ostline | conflicts on nordline |
+|---|---|---|
+| lazy shortfall vs matched optimum | 1.60m | **2.89m** |
+| the same, honest values | 0.30m | 0.19m |
+| **conflict cost** | **1.30m** | **2.69m** |
+| as a share of 3.35m headroom | 39 % | **80 %** |
+
+**Placement alone doubled it.** Nothing was made stronger, more numerous, or less realistic — the same defects were simply put where the traffic is. That is the sharpest available answer to the question P1M0 asked and P0M8 could not settle: the catalogue was never weak, and the last thing masking it was where it had been put.
+
+### A test fired to say the world had changed under it
+
+`matched-reference.test.ts` asserted that P0's unreachable foresight *dominates* a lazy integrator's shortfall — true since P1M0, and the reason a matched reference was needed at all. After the swap it is 2.10m against a 2.89m shortfall, and the assertion failed with the message it had been written to carry: *re-check whether Gate 3 still needs a matched reference*.
+
+It does. What matters is not that foresight is the larger term but that it is a large enough share to distort attribution if left in — about 40 % here. The assertion now says that instead, and will fire again if foresight ever becomes negligible.
+
+### The measurement, at last decisive — and it splits three ways
+
+Twelve seeds, paired. Individual runs scatter by 0.234 of headline; the *same-seed difference* only by 0.101, so the mean difference carries a standard error of **0.029**. The effect is **4.4σ** where the unpaired statistic had it at 1.3σ on identical data.
+
+```
+                       headline  capture  information  arrived
+this world             -0.044   -0.586   0.768   111/132
+honest values           0.085   -0.370   0.767   115/132
+
+conflicts cost   0.129 of the score  (standard error 0.029, 4.4σ)
+caused by conflicts, journey time only:  2.53m (76% of 3.35m headroom)
+```
+
+**1. On journey time the conflicts are overwhelming: 76 % of headroom.** Attribution is now spread across five conflicts rather than resting on one — `B-time-encoding:sudbahn` 0.72m, `A-coordinate-precision:nordline` 0.56m, `C-coordinate-offset:nordline` 0.54m, `C-delay-unit:nordline` 0.21m, `D-staleness:nordline` 0.04m. The exit's "no single conflict supplies more than half" is satisfied for the first time.
+
+**2. On the whole score they cost 0.129, and the bar is 0.20. Gate 3 fails.** Not inconclusively — 4.4σ. This is a real, well-measured shortfall.
+
+**3. The Information family does not move at all: 0.768 against 0.767.**
+
+That third line is the finding, and it contradicts the reasoning that put Gate 3 on the whole score in the first place. P0M8 argued that staleness's real damage is that nobody gets warned, and that measuring capture alone would miss it. **The measurement says the Information family is insensitive to every declared conflict**, so the whole-score gate is a diluted capture gate rather than a broader one: `0.6 × 0.216 + 0.4 × 0.001 = 0.129`.
+
+The likely mechanism, which deserves its own measurement rather than assertion: 90 s and 300 s of staleness are negligible against warning deadlines set by a leg's scheduled departure, usually tens of minutes away; and `D-silent-cancellation` sits on Sudbahn, which reaches nine line-stops. Neither moves recall, precision or timeliness enough to register.
+
+### The threshold is being applied to a metric it was not ratified against
+
+The 20 % criterion was ratified after P1M0 **against journey-time headroom**, where it now reads 76 %. P0M8 then redefined Gate 3 to the whole headline score and carried the same 20 % across without re-deriving it. Since conflicts move only the Service component, which carries weight 0.6, a 20 % bar on the headline is an effective 33 % bar on capture — a stricter test than the one that was agreed to, arrived at silently.
+
+Both numbers are honest and they disagree:
+
+| measured on | conflict cost | 20 % bar |
+|---|---|---|
+| journey-time headroom (as ratified) | **76 %** | passes |
+| whole headline score (as redefined) | **12.9 %** | fails |
+
+This is not a number to choose between on convenience. Recorded, and put to the project owner.
+
+### Fork B, resolved by reclassification rather than measurement
+
+`A-id-scheme` and `A-naming` are now **cosmetic** (`CORECONCEPT.md` §2.1), on the project owner's judgement: they are bound to exist, and they are not the world's main challenge. Both have measured exactly zero on every operator at every setting since P1M0.
+
+§2.1's own definition of cosmetic variation already read *"different ID formats"*, so the id-scheme entry had been mis-catalogued from the start. `A-id-collision` — two operators using `7` for **different places** — stays semantic: an ambiguous identifier is not something an adapter settles.
+
+The catalogue A section is now split explicitly into semantic and cosmetic, and `SWEEPS` carries a `cosmetic` flag so the probe counts them separately. A cosmetic conflict measuring zero is the expected result; reporting it beside the semantic ones invited the conclusion that the catalogue was thin when what it showed was that the catalogue was mislabelled.
+
+**Recorded caveat.** The measured zero is partly a property of the instrument: the lazy baseline matches on geometry and never reads a name, so a name variant has nothing to be wrong about. The reclassification is a design judgement, not a demonstration that a name-matching solver would be unaffected — and it is written up as one.
+
+### Why Gates 1 and 2 were failing: neither reason was the world
+
+**Gate 2 was not failing at all.** It computed separation as `competent − null`, which measures separation only if the competent solution is the best. It was not, so the gate reported a spread of 0.005 for a set of solutions actually spanning **0.299** — comfortably over its own bar. Now `max − min`, with the ordering checked separately and a mis-ordering reported as a Gate 1 matter. **Gate 2 passes.**
+
+A gate that fails for the wrong reason is worse than one that fails: it sends you looking at the world when the fault is in the solution, and two milestones of "the world broke the players" reasoning rested partly on this.
+
+**Gate 1 was failing on two overfit assumptions in the competent solution, both mine to the extent that P0M7 and P0M9 exposed them.**
+
+*A seven-day error.* The replan handler passed the traveller's position with a timestamp from `toSeconds`, which counts from the start of the month, where `planCompetently` indexes departures from the world epoch. The solution was asked to route from a point **seven days in the future** and answered `no_route` to **26 of 26** replans. For two milestones that looked like a solution too conservative to reroute anybody. One shared `simSeconds` later: 63 of 63 succeed.
+
+*A reference frame chosen by size.* `buildCompetentModel` took the operator with the most stops as its coordinate frame. P0M10's swap put the 130 m offset on exactly that operator, so the solution corrected everyone *towards* a displaced frame — and placed Ostline, which publishes flawless coordinates, 62 m from where it is. The frame is now chosen by **consensus**: each candidate scored by how much correcting it implies for all the others, least wins. A displaced feed disagrees with everyone; a good one disagrees only with the displaced.
+
+Both fixes are legitimate engineering rather than gate-tuning — a solution answering `no_route` to every replan because of a calendar error is broken, and one that trusts the biggest feed to be the true frame has assumed something it cannot know. Neither made Gate 1 pass.
+
+### Where P0M10 stands
+
+| gate | verdict |
+|---|---|
+| 1 — buildable | **FAIL**, and `KNOWN-ISSUES.md` #3 says it cannot honestly be closed by us at all |
+| 2 — discriminating | **PASS** — spread 0.299, four distinct scores |
+| 3 — conflicts doing the work | 76 % of headroom on journey time; 12.9 % of the whole score at 4.4σ. Threshold provenance unresolved (#20) |
+
+**Every gate failure this milestone traced to an instrument or a reference solution. None traced to the world.** The world's own numbers are the best the project has recorded: conflict cost 76 % of headroom, spread across five conflicts, monotonic in strength, at settings inside their declared realistic ranges, with the defect audit confirming all fifteen present.

@@ -57,7 +57,11 @@ The city exists to give the transport network a plausible shape. It does not nee
 
 Generating names for cities, districts, streets, stops, stations, transportation companies, routes, and vehicles.
 
-Naming is *not* cosmetic in this project — it is one of the sources of integration difficulty (see *Semantic Variability*). The generator must be able to produce **multiple, inconsistent names for the same real-world object**, which is the point.
+The generator must be able to produce **multiple, inconsistent names for the same real-world object** — abbreviations, transliterations, official versus colloquial.
+
+**Reclassified as cosmetic at P0M10.** This section previously insisted naming was *not* cosmetic but a source of integration difficulty. Measurement disagreed: `A-naming` costs a lazy integrator exactly nothing, on either journey time or the Information family, at every setting on every operator. Name variants are texture — they must exist, because a world where every operator spells a place the same way is not recognisable as the real problem — but they are not what makes the world hard.
+
+Honest caveat: the measured zero is partly a property of the instrument. The lazy baseline matches on geometry and never consults a name, so a name variant has nothing to be wrong about. The reclassification is a design judgement — that identity *formatting* is not the challenge — rather than a demonstration that a name-matching solver would be unaffected.
 
 Low implementation priority; high design importance.
 
@@ -111,15 +115,27 @@ The generator is therefore defined as *sampling from a catalogue of semantic con
 
 #### A. Identity and reference
 
+**Not all of A is semantic, and P0M10 sorted it.** The split matters because a generator that samples this section uniformly would spend most of its effort on texture.
+
+*Semantic — the operators disagree about what is true:*
+
 * The same physical stop exists in two operators under different names, with coordinates offset by 10–80 m.
-* Name variants for one place: abbreviations, transliteration, "St." / "Street", district prefixes, official vs colloquial name, renamed-but-still-referenced-by-old-name.
 * Granularity mismatch: one operator models a station as a single node, another as separate platforms / quays / entrances.
-* ID collisions across operators: both use `stop_1`, `route_5`, `1`.
+* ID collisions across operators: both use `stop_1`, `route_5`, `1` — **for different places.** The identifier is genuinely ambiguous, and no adapter resolves that.
 * ID instability: identifiers change between feed versions (renumbering).
 * ID reuse: a retired stop's ID is reassigned to a different stop.
+* A stop that two operators both name identically but which is physically two different stops 200 m apart.
+
+*Cosmetic — texture that must exist and must not carry the difficulty:*
+
+* **ID formatting**: bare integers in one feed, prefixed strings in another. One adapter, solved forever. This was always covered by §2.1's own definition of cosmetic variation ("different ID formats"); it was catalogued as semantic by oversight.
+* **Name variants** for one place: abbreviations, transliteration, "St." / "Street", district prefixes, official vs colloquial, renamed-but-still-referenced-by-old-name.
+
+Both measure exactly zero against a lazy integrator, at every setting on every operator, and have since the catalogue was first probed at P1M0. Reclassified rather than deleted: a world without them would not look like the real problem.
+*Uncatalogued as yet, and unmeasured:*
+
 * Modelling mismatch: route vs line vs pattern vs trip are conflated differently by different operators.
 * Direction modelling: one operator represents a bidirectional line as one route, another as two.
-* A stop that two operators both name identically but which is physically two different stops 200 m apart — a false-positive trap for naive matching.
 
 #### B. Time and schedule
 

@@ -86,10 +86,23 @@ test("the clairvoyance term is real, large, and excluded from the gate", { skip 
   const c = calibrate(loadWorld(worldPath));
 
   assert.ok(c.gapP0P0a > 60, "P0 gains nothing from foresight, which contradicts its definition");
-  // The specific trap: it must dominate, or nobody would have been misled.
+
+  // **This assertion used to be `gapP0P0a > gapP0aP2rt` — that foresight
+  // dominates — and it fired at P0M10 exactly as its own message asked it to.**
+  // It no longer dominates, because moving the declared conflicts onto the
+  // operator that carries the network more than doubled what they cost: 2.10m
+  // of unreachable foresight against a 2.89m shortfall, where it used to be
+  // 2.10m against 0.82m.
+  //
+  // The matched reference is still required. What matters is not that
+  // foresight is the larger term but that it is a large enough share of the
+  // shortfall to distort attribution if it were left in — here about 40 %.
+  const shortfallWithForesight = c.gapP0P0a + c.gapP0aP2rt;
   assert.ok(
-    c.gapP0P0a > c.gapP0aP2rt,
-    "foresight no longer dominates; re-check whether Gate 3 still needs a matched reference",
+    c.gapP0P0a / shortfallWithForesight > 0.2,
+    `foresight is only ${((c.gapP0P0a / shortfallWithForesight) * 100).toFixed(0)}% of the ` +
+      `shortfall a naive measurement would report. If it has become negligible, Gate 3 may no ` +
+      `longer need P0a and REFERENCE-POLICY.md §2.1 should be revisited.`,
   );
 });
 

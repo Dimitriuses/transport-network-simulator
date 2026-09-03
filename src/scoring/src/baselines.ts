@@ -993,7 +993,18 @@ export interface AblationReport {
  * but it is the only instrument that answers Phase 0's Gate 3 directly, rather
  * than by proxy.
  */
-export function ablate(world: World): AblationReport {
+export function ablate(world: World, seeds = 1): AblationReport {
+  // Fixed offsets, so a re-run compares like with like. Averaging matters here
+  // for the reason P0M9 measured: with only the disruptions changing, conflict
+  // cost varies by 36 % of its own mean, which is larger than the differences
+  // between most of the conflicts being attributed.
+  const seedList = Array.from({ length: Math.max(1, seeds) }, (_, i) => world.manifest.seed + i * 7919);
+  const meanGap = (w: World): number => {
+    const xs = seedList.map(
+      (seed) => calibrate({ ...w, manifest: { ...w.manifest, seed } }).gapP0aP2rt,
+    );
+    return xs.reduce((a, b) => a + b, 0) / xs.length;
+  };
   // Measured on the realtime-aware lazy integrator against an optimum held to
   // the *same* announcement horizon (`gapP0aP2rt`), so what is left when the
   // conflicts are switched off is reconciliation cost and nothing else.
@@ -1007,8 +1018,9 @@ export function ablate(world: World): AblationReport {
   // granularity off as well changes how many stops exist, and a lazy solver
   // given more stops finds more apparent interchanges to get wrong — which
   // varies the opportunity set and the difficulty together (KNOWN-ISSUES.md #14).
+  const baseGap = meanGap(world);
   const clean = withNoConflicts(world);
-  const cleanGap = calibrate(clean).gapP0aP2rt;
+  const cleanGap = meanGap(clean);
 
   // **Leave-one-in, not leave-one-out.** Removing a single conflict attributes
   // almost nothing here, and that is a true fact about the world rather than a
@@ -1041,14 +1053,14 @@ export function ablate(world: World): AblationReport {
     });
     const only = { ...clean, manifest: { ...clean.manifest, operators } };
 
-    entries.push({ conflict, costS: calibrate(only).gapP0aP2rt - cleanGap });
+    entries.push({ conflict, costS: meanGap(only) - cleanGap });
   }
 
   entries.sort((a, b) => b.costS - a.costS);
   const attributed = entries.reduce((a, e) => a + Math.max(0, e.costS), 0);
 
   return {
-    baselineGapS: base.gapP0aP2rt,
+    baselineGapS: baseGap,
     cleanGapS: cleanGap,
     headroomS: base.gapP0P1,
     clairvoyanceS: base.gapP0P0a,

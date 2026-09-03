@@ -51,6 +51,31 @@ const CONTRACT_VERSION = "0.3";
  * integrator makes: a timestamp with **no offset** is assumed to be in the
  * same frame as everything else. It is not. Nothing in the data says so.
  */
+/**
+ * Seconds since the world epoch, which is what the competent planner indexes
+ * departures by.
+ *
+ * **Not `toSeconds`**, which counts from the start of the month and is only
+ * ever used modulo a day. Passing one where the other is expected is off by
+ * whole days and finds no departures at all — at P0M7 the replan handler did
+ * exactly that, and the competent solution answered `no_route` to 26 of 26
+ * replans for seven months of simulated time it was accidentally asked about.
+ * It looked like a solution too conservative to reroute anybody.
+ */
+function simSeconds(iso: string): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/.exec(iso);
+  if (!m) return 0;
+  return (
+    (Number(m[3]) - WORLD_EPOCH_DAY) * 86400 +
+    Number(m[4]) * 3600 +
+    Number(m[5]) * 60 +
+    Number(m[6])
+  );
+}
+
+/** Day-of-month the world's epoch falls on. */
+const WORLD_EPOCH_DAY = 7;
+
 function toSeconds(value: string | number): number {
   if (typeof value === "number") {
     // Epoch seconds. Reduce to a comparable within-day figure.
@@ -542,15 +567,7 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
             // obligation (REFERENCE-POLICY.md §8).
             return { request_id: r.request_id, status: "declined", itinerary: null };
           }
-          const departS = (() => {
-            const d = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/.exec(r.depart_after);
-            return d
-              ? (Number(d[3]) - 7) * 86400 +
-                  Number(d[4]) * 3600 +
-                  Number(d[5]) * 60 +
-                  Number(d[6])
-              : 0;
-          })();
+          const departS = simSeconds(r.depart_after);
 
           const itinerary = cheat
             ? cheat.plan(r.origin, r.destination, departS)
@@ -600,7 +617,8 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
           }[];
         };
 
-        const atS = toSeconds(body.issued_at);
+        // The same frame the plan obligation uses. See `simSeconds`.
+        const atS = simSeconds(body.issued_at);
 
         const results = body.requests.map((r) => {
           if (mode === "null") {

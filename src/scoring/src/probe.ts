@@ -38,6 +38,20 @@ export interface Sweep {
    */
   readonly structural?: boolean;
   /**
+   * Texture rather than content: a difference an adapter settles once and for
+   * all (`CORECONCEPT.md` §2.1).
+   *
+   * A cosmetic conflict measuring zero is the expected result, not a finding.
+   * Reporting it beside the semantic ones as "inert" invites the conclusion
+   * that the catalogue is thin, when what it actually shows is that the
+   * catalogue is correctly labelled.
+   *
+   * Note this is about *formatting* identity, not about identity being
+   * ambiguous: two operators using `7` for different places is semantic and
+   * stays so. Bare integers versus prefixed strings is a parser.
+   */
+  readonly cosmetic?: boolean;
+  /**
    * The strongest setting that still describes something that happens between
    * two real transport operators, and the reason it does.
    *
@@ -70,8 +84,26 @@ export const SWEEPS: readonly Sweep[] = [
     values: ["site"],
     structural: true,
   },
-  { conflict: "A-id-scheme", group: "identity", key: "id_scheme", off: "prefixed", values: ["bare_int"] },
-  { conflict: "A-naming", group: "naming", key: "variant", off: "official", values: ["abbreviated", "colloquial"] },
+  // Cosmetic, reclassified at P0M10. Both have measured exactly zero on every
+  // operator at every setting since P1M0. Kept because a world where every
+  // operator formats ids the same way and spells every place identically is
+  // not recognisable as the real problem.
+  {
+    conflict: "A-id-scheme",
+    group: "identity",
+    key: "id_scheme",
+    off: "prefixed",
+    values: ["bare_int"],
+    cosmetic: true,
+  },
+  {
+    conflict: "A-naming",
+    group: "naming",
+    key: "variant",
+    off: "official",
+    values: ["abbreviated", "colloquial"],
+    cosmetic: true,
+  },
   {
     conflict: "A-coordinate-precision",
     group: "geometry",
@@ -226,6 +258,8 @@ export interface ProbeReport {
   readonly seeds: number;
   readonly results: readonly ProbeResult[];
   readonly inertCount: number;
+  /** Semantic conflicts measuring nothing — the ones that are a problem. */
+  readonly inertSemanticCount: number;
 }
 
 /** Below this, a difference is not distinguishable from routing noise. */
@@ -329,5 +363,8 @@ export function probeCatalogue(world: World, options: ProbeOptions = {}): ProbeR
     seeds,
     results,
     inertCount: results.filter((r) => r.inert).length,
+    inertSemanticCount: results.filter(
+      (r) => r.inert && !SWEEPS.find((sw) => sw.conflict === r.conflict)?.cosmetic,
+    ).length,
   };
 }
