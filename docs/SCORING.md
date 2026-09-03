@@ -55,6 +55,26 @@ This is the right scale because it measures the thing the project is actually ab
 
 ---
 
+### OPEN — capture is normalised against a ceiling nobody can reach
+
+`m(P0)` is the clairvoyant oracle: it routes around a cancellation announced at 09:20 while planning at 09:00. No player can, and none ever will.
+
+Measured on the P0M9 world, `P0a` — the same optimum held to what had actually been announced (`REFERENCE-POLICY.md` §2.1) — sits **2.10 min** above `P0`, against a total `P0−P1` headroom of **3.35 min**. So a solution that reconciles perfectly, plans optimally and reads every feed the instant it is published still tops out near **0.37 capture**.
+
+**A capture of 1.0 is not merely hard. It is impossible by construction, and every capture figure this project has recorded is scaled against it.** That is a large part of why the numbers look so punishing: a naive solution's −0.586 sits against a real ceiling of about 0.37, not 1.0.
+
+The choice:
+
+* **Keep `P0` as the denominator.** It is fixed, seed-derived, unbeatable, and supports the free `capture > 1` invariant that has already caught one real leak (P0M1). The scale is honest about the *world's* potential, and simply does not correspond to anything achievable.
+* **Normalise against `P0a` instead.** Scores become interpretable — 1.0 would mean "as well as anyone could have done knowing what you could know" — at the cost of a denominator that moves with the planning lead, that is a *strategy* rather than a proven bound (`KNOWN-ISSUES.md` #15), and that would break `capture > 1` as an invariant, since a real solution could legitimately exceed a heuristic reference.
+* **Report both**, with `P0` keeping the invariant and `P0a` carrying the interpretation.
+
+**Not decided, and not to be decided by implementation.** Changing the denominator rewrites every score the project has recorded, and the third option looks cheap only until two numbers called "capture" are quoted in the same paragraph.
+
+Whatever is chosen, the 0.37 figure should appear beside any capture number given to a player. A scale whose maximum is unreachable, quoted without saying so, is misleading in exactly the way §2 was written to avoid.
+
+---
+
 ## 3. Three families
 
 Metrics group into three families that are **not substitutable for each other**. This is why a single weighted sum is the wrong primary object.

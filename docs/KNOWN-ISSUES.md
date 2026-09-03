@@ -59,11 +59,13 @@ Ablation at P0M6 attributed the entire conflict-caused shortfall to `C-coordinat
 
 ---
 
-## 3. Gate 1 has no external evidence — `open`
+## 3. Gate 1 has no external evidence — `open, and now structural`
 
 The competent solution used to measure Gate 1 was written by someone who had already seen the world, the conflicts and the scoring. It establishes that the world is *solvable*. It says nothing about whether it is *discoverable*, how steep the first hour is, or whether solving it is interesting.
 
 No internal work can close this. The gate output says so in its own text so the caveat travels with the number.
+
+**Escalated at P0M10.** This was recorded as a gap in the evidence. It is a gap in the *method*: Gate 1 is measured by running a solution, and once worlds are generated, a fixed solver eventually fails on some world while a per-world solver makes the gate vacuous. `PHASES.md` now carries a proposal splitting Gate 1 into solvable (computable), not-trivial (computable) and discoverable (people, sampled) — and only the third is what this issue is about.
 
 **Owner:** P1M0 part A, which is **not closed**. The kit for running it is [`PLAYTEST-KIT.md`](PLAYTEST-KIT.md); it needs an engineer who has not seen this repository, and nothing internal substitutes for that.
 
@@ -304,7 +306,7 @@ The sharpest clue is on the scoreboard: `blind`, which ignores realtime entirely
 
 **The decisive experiment not yet run** is a `competent` variant that ignores realtime entirely. It isolates in one run whether the loss is in reading the feeds or in acting on them, and everything above only narrows where to look.
 
-**Owner:** P0M10 if the solution is to be strengthened further, but note that `KNOWN-ISSUES.md` #3 says Gate 1 cannot be honestly closed this way at all — a solution written by the person who built the world measures solvability, not buildability.
+**Owner:** superseded by the Gate 1 proposal in `PHASES.md`, which demotes this solution from gate instrument to **regression detector**. Under that proposal its score is still reported and still worth keeping current, but it stops deciding anything — because a solution written by whoever built the world was never evidence about buildability, and P0M10 spent a milestone proving it.
 
 ---
 
@@ -346,7 +348,7 @@ This contradicts the reasoning that redefined Gate 3 at P0M8. That change was ma
 
 **Why it matters beyond Gate 3.** `CORECONCEPT.md` treats realtime truthfulness (catalogue D) as a first-class source of difficulty, and `SCORING.md` gives the Information family 40 % of the balanced profile. If no declared conflict can move it, then either the family is not measuring what it was meant to, or catalogue D is not load-bearing — and those call for opposite responses, exactly as the identity fork does.
 
-**Owner:** P0M10, jointly with the threshold question in #20.
+**Owner:** open, and sharpened rather than resolved by the Gate 3 proposal in `PHASES.md`. Returning the criterion to journey time removes the *dependency* on this family without answering the question it raises: whether the Information family **should** be movable by a realtime conflict, and what is wrong with either the family or catalogue D if it is not.
 
 ---
 
@@ -363,7 +365,11 @@ Both measurements are sound and they disagree:
 | journey-time headroom, as ratified | **76 %** | passes comfortably |
 | whole headline score, as redefined | **12.9 %** (4.4σ) | fails |
 
-**This must not be resolved by picking whichever passes.** The options are to re-derive a threshold appropriate to the whole-score metric, to return Gate 3's criterion to journey-time headroom and treat the whole-score figure as a reported diagnostic, or to keep both as separate criteria that must each be met. Only the third is strictly harder than what was agreed.
+**This must not be resolved by picking whichever passes.**
+
+**Proposal on the table** (`PHASES.md`, Gate 3): return the criterion to the metric that was ratified. The reason is not that it passes — it is that the two numbers differ mostly by *which solver they measure*, and only one of those solvers is specified rather than written by us.
+
+Capture is already a fraction of headroom, so the naive player's capture drop of 0.216 means the conflicts cost **it** 0.72m, against `P2rt`'s 2.53m. That factor of 3.5 is the choice of instrument; the remaining ×0.6 is the Information family failing to move (#19). `P2rt` is defined in `REFERENCE-POLICY.md` §2; the naive player is an HTTP service that could change next week and take the gate with it.
 
 **Owner:** the project owner. Nothing about Gate 3 should be recorded as passed or failed until it is settled.
 

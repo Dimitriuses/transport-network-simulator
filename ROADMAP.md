@@ -141,6 +141,20 @@ That last row is a genuine fork and should be decided explicitly rather than by 
 
 **Exit:** Gate 3 passes — conflicts account for at least 20 % of the headline score's headroom, no single conflict supplies more than half of it, every setting sits inside its declared realistic range, and the defect audit still confirms every declared conflict is present.
 
+**Where it got to, and what it produced instead.** Placement did the work: moving the same fifteen conflicts, at the same settings, onto the operator that carries the city took conflict cost from 39 % to **76 % of headroom**, spread across five conflicts rather than resting on one. Gate 2 passes. Gate 1 does not, and Gate 3 is not decidable until a threshold question is settled.
+
+**Both remaining failures turned out to be the same structural fault**, and three proposals now sit in the specifications awaiting ratification:
+
+| proposal | where | what it changes |
+|---|---|---|
+| **Gate 1 splits into three** — solvable, not-trivial, discoverable | `docs/PHASES.md` | the first two become computable per world; the third is sampled by people, never gated. The competent solution is demoted to a regression detector |
+| **The identifiability audit** | `docs/PHASES.md`, Gate 1a | a per-world check, needing no solver, that the published data can distinguish the entities that matter — the dual of the defect audit, and a lower bound on any solver's loss |
+| **Gate 3 returns to its ratified metric** | `docs/PHASES.md`, Gate 3 | journey time against headroom, measured on `P2rt`. The whole-score figure becomes a diagnostic |
+
+The fault they share: **a gate measured by running a solution we wrote is a gate about that solution.** `P2rt` and `P0a` are defined in `REFERENCE-POLICY.md`; the competent and naive players are implementations. Every point of Gate 1's failure at P0M10 traced to a bug or an overfit assumption in ours, and Gate 3's two irreconcilable numbers differ by a factor of 3.5 for no reason other than which of the two kinds of instrument they use.
+
+A fourth question fell out and is recorded as an **OPEN** in `docs/SCORING.md`: `P0a` sits 2.10 min above `P0` against 3.35 min of headroom, so **capture is normalised against a ceiling of about 0.37 that no player can exceed**. Every capture figure the project has recorded is scaled against an unreachable 1.0.
+
 **The honest alternative.** If realistic conflicts cannot reach 20 % even with a sound instrument and a big enough world, the response is the one this roadmap has committed to from the start: **narrow the claim rather than pad the catalogue.** That would not end the project. It would move its centre of gravity from journey-time capture to the Information family and to the engineering effort of getting there — which is arguably where an integration challenge belongs anyway, and would itself be a finding worth publishing.
 ---
 

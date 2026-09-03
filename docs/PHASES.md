@@ -59,9 +59,55 @@ Mechanical, and independent of whether the game is any good:
 
 *Fails if:* nobody can get anything working — the world is opaque rather than hard. Or everyone reaches 0.9 in an hour — the conflicts are decorative.
 
+> ### PROPOSED, not yet ratified — Gate 1 splits into three
+>
+> **The gate as written cannot survive Phase 1.** It is measured by running a solution we wrote, and once worlds are generated that becomes unworkable in both directions: a fixed solver will eventually fail on some generated world, and a solver tuned per world makes the gate vacuous. Either way it stops measuring the world and starts measuring us. P0M10 is the demonstration — every point of Gate 1's failure traced to a bug or an overfit assumption in the competent solution, and none to the world.
+>
+> The tangle is that one instrument is asked three questions:
+>
+> | | question | property of | computable per world? |
+> |---|---|---|---|
+> | **1a. Solvable** | does a good solution exist? | world + scoring | **yes** |
+> | **1b. Not trivial** | does a lazy approach already max out? | world + lazy strategy | **yes, today** |
+> | **1c. Discoverable** | can an engineer *find* one from the artefacts, in an afternoon? | world + documentation + person | **no, ever** |
+>
+> #### 1b — Not trivial. Already measurable.
+>
+> `P2rt` must capture well below the achievable ceiling. Nothing new is needed: the calibration already reports it, and the committed world is nowhere near trivial.
+>
+> #### 1a — Solvable. Two parts, both computable without writing a solver.
+>
+> **Existence.** `P0a` (`REFERENCE-POLICY.md` §2.1) already establishes that a good outcome is reachable under announcement-limited information. If `P0a` is no better than `P1`, integration cannot help anybody and the world is pointless whatever its conflicts do.
+>
+> **Identifiability — the part that is missing.** `P0a` is *handed* the canonical world. It therefore proves "if you reconcile perfectly, you do well"; it says nothing about whether reconciliation is *possible from what was published*. A world can be simultaneously solvable-in-principle and unfair, and nothing currently detects that.
+>
+> The check does not require a solver, only the data:
+>
+> 1. Take every published observation of every canonical entity, across all operators and all fields — ids, names, coordinates, times, calling patterns.
+> 2. For the entities that affect routing, ask whether the map *canonical entity → observation tuple* is injective.
+> 3. Where two entities are indistinguishable in **every** published field, no solver can separate them. That is not difficulty, it is an unanswerable question.
+>
+> This yields more than a verdict. The set of unresolvable ambiguities gives a **lower bound on any solver's loss** — the price of information the world withheld — and *solvable* becomes: the achievable optimum, less that floor, is still meaningfully better than `P1`.
+>
+> **It is the exact dual of the defect audit.** That one confirms the declared conflicts are present; this one confirms they have not made the world impossible. Both run per generated world, neither needs a solution, and a generator needs both.
+>
+> **What it cannot do.** Identifiability is necessary and not sufficient. Information being present does not make it findable in an afternoon by a person with a deadline. Nothing computable closes that gap, which is why 1c stays separate rather than being quietly folded in.
+>
+> #### 1c — Discoverable. Sampled by people, not gated per world.
+>
+> Runs occasionally against a sample of worlds with real engineers ([`PLAYTEST-KIT.md`](PLAYTEST-KIT.md)), never as a per-world gate. `KNOWN-ISSUES.md` #3 has said since P0M6 that no internal work closes this, and P0M10 showed the cost of pretending otherwise.
+>
+> #### What becomes of the competent reference solution
+>
+> **Demoted from gate instrument to regression detector.** It is valuable for catching a world that has become accidentally unsolvable by a reasonable strategy, and it is worth keeping current. It stops being evidence about *buildability*, because a solution written by whoever built the world was never evidence about that.
+>
+> Its score should still be reported. It should no longer decide a gate.
+
 **Gate 2 — Headroom is real and discriminating.** The P0−P1 gap is large enough that better solutions score visibly better, and two solutions of genuinely different quality separate by a clear margin rather than noise.
 
 *Fails if:* all solutions cluster. A world that cannot tell good from mediocre cannot teach, assess, or benchmark.
+
+**Separation and ordering are different questions.** Separation is `max − min` over the measured solutions. Whether the solution we *believe* is best actually scores best is a fact about that solution and belongs to Gate 1. Conflating them cost P0M10 two milestones of looking at the world for a fault that was in a reference solution (`KNOWN-ISSUES.md` #21).
 
 **Gate 3 — The conflicts are doing the work.** *The real gate.* The attribution report must show that lost capture traces to **declared semantic conflicts** — stop matching, staleness, unit and time mismatches — and not to topology, randomness, or raw routing difficulty.
 
@@ -71,6 +117,25 @@ Two things about that wording are the result of getting it wrong first, and both
 
 * **Measured against `P0a`, not `P0`.** P0 is clairvoyant: it routes around disruptions before they are announced. Dividing by a gap containing that advantage measures the oracle's foresight as though it were the world's difficulty, and at a 30-minute planning lead that term is over twenty times the conflict term.
 * **Judged on headroom, not on share.** The original wording — "*most* lost capture" — stops being a test under a matched reference. With the conflicts switched off, a lazy integrator is exactly optimal, so the conflict-caused share is 100 % by construction whatever the conflicts do. Share is still reported; it is no longer the binding criterion.
+
+> ### PROPOSED, not yet ratified — Gate 3 returns to the metric it was ratified against
+>
+> P0M8 redefined this gate to attribute across the whole headline score, on the argument that staleness's real damage is that nobody gets warned and that capture alone would miss it. **The argument was sound and its premise was false.** Measured at P0M10 over twelve paired seeds, the Information family moves by 0.001 between a world with every declared conflict and one publishing honest values (`KNOWN-ISSUES.md` #19).
+>
+> Worse, the redefinition changed the instrument as well as the arithmetic, and that turns out to dominate:
+>
+> | measured on | what it is | conflict cost |
+> |---|---|---|
+> | `P2rt`, journey time | the baseline **specified** in `REFERENCE-POLICY.md` §2 | **2.53m — 76 % of headroom** |
+> | naive reference player, headline | an HTTP service **we wrote** | 0.129 of the score |
+>
+> Those are the same conflicts in the same world. Capture is already a fraction of headroom, so the player's capture drop of 0.216 means they cost *it* 0.72m — against `P2rt`'s 2.53m. **A factor of 3.5, from the choice of solver alone**; the remaining ×0.6 is Information failing to move. Decomposed: `0.755 → (÷3.5, solver) → 0.216 → (×0.6, families) → 0.129`.
+>
+> **This is Gate 1's disease in a second place.** Measuring a gate through a solution we wrote makes the gate about that solution. `P2rt` is defined in a specification; the naive player is an implementation that could change next week and move the gate with it.
+>
+> **Proposal:** Gate 3's criterion is the ratified one — conflict cost as a share of `P0−P1` headroom, on journey time, measured on `P2rt`, averaged over seeds with the paired difference. The whole-score figure is reported as a diagnostic and decides nothing. This resolves `KNOWN-ISSUES.md` #20 without choosing whichever number passes: it returns to the metric that was actually agreed.
+>
+> **The open question it leaves** is #19 — whether the Information family *should* be movable by a realtime conflict, and what is wrong with either the family or catalogue D if it is not.
 
 *Fails if:* loss is dominated by topology or chance. That would mean we have built a routing puzzle wearing an integration costume, and the central thesis of `CORECONCEPT.md` §2.1 — that semantic variability, not network complexity, is what makes integration interesting — is wrong for this design.
 
