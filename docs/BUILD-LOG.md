@@ -972,3 +972,166 @@ VERDICT: all three gates pass
 **And the competent solution recovered to the top of the table** — capture +0.054, headline 0.334, above the naive solution's 0.169. That is the ordering `REFERENCE-POLICY.md` §8 and Gate 2 both want, and it confirms #17's diagnosis end to end: the solution was never bad at this world, it was playing a query set where seven journeys in eight had nothing to win. Give it journeys with headroom and it wins them.
 
 The honest summary of Phase 0 is not that the gates pass. It is that **they refused to pass for four milestones while every instrument in the project was wrong in a different way**, and that the ninth correction was found by the eighth. `KNOWN-ISSUES.md` #13 through #26 are that record.
+
+---
+
+## Phase 0 — closed
+
+The milestone plans below were carried in `ROADMAP.md` until Phase 0 completed on 2026-09-04. They are moved here because the roadmap is for work still to do, and kept in full because each one's *stated intent* is worth comparing against what it actually produced — in four cases out of four, the milestone found something other than what it was scoped to find.
+
+### The reopened milestones, as planned
+
+**P0M7 — `replan`.** Issue the obligation the contract had specified since v0.3 and the harness had never sent. Scoped because conflict cost quadrupled as the planning lead shortened, so a planner that never replans is mostly blind and a blind planner cannot be punished for reconciling badly.
+
+*Found instead:* the obligation worked, and wiring it into the baselines exposed that the conflict-free world was not a floor and `P0a` was not a bound. Neither was suspected beforehand.
+
+**P0M8 — An instrument that can see a realistic conflict.** Scoped from the project owner's constraint that a conflict must stay realistic: a coordinate offset needed 260 m to bite while realism caps it at ~150 m, and the lazy matcher fused anything within 120 m. Deriving the matcher threshold from the world's own geometry closed that gap.
+
+*Found instead:* the catalogue was never one conflict deep — 8 of 12 settings bite once the instrument can see them, and `C-coordinate-offset` bites at 60 m rather than 260 m.
+
+**P0M9 — A world big enough to measure one.** Scoped because at 22 travellers one journey changing outcome was worth 0.098 of headline while Gate 3 had to decide 0.2 — a 0.1 question read with a 0.1 ruler.
+
+*Found instead:* resolution and repeatability are different problems. 132 travellers stopped one journey deciding the answer and did nothing about the *day* deciding it, and the query set it generated could not reward integration on 88 % of journeys.
+
+**P0M10 — Conflict potency.** Scoped to strengthen the conflicts that bite and retire those that cannot.
+
+*Found instead:* nothing needed strengthening. Moving the same fifteen conflicts, at identical settings, onto the operator that carries the network doubled their cost. What the milestone actually spent its time on was the forgone-obligation penalty that `REFERENCE-POLICY.md` §8 had required and nobody had implemented, a query set that could not reward integration, and two gates deciding on metrics they had not been ratified against.
+
+### What Phase 0 delivered
+
+A hand-built Tier-2 world — 38 sites, 50 quays, 10 lines, 98 scored journeys, 15 declared conflicts — with a contract, a scorer, three reference solutions, and nine instruments that measure it. All gates pass.
+
+### What Phase 0 actually taught
+
+**Every instrument was wrong at least once, and the ninth fault was found by the eighth.** The recurring shape is one sentence: *a right number compared against the wrong thing.* A baseline handed the truth. A clairvoyant reference. A floor harder than the world it floored. A population standard deviation where a standard error belonged. Two independent means where a paired difference belonged. A separation statistic that assumed its own answer. A gate deciding on an unratified metric. A player silently running as the wrong player. A per-traveller maximum compared against a population mean.
+
+None of these was a coding error. Each was a comparison whose two sides were not the same kind of thing, and each survived because the number it produced was plausible.
+
+The habit that came out of it is in `CLAUDE.md` and is the most portable thing this phase produced: **when you add a measurement, check both sides of the comparison for matched information, and for a matched opportunity set.**
+
+---
+
+### The Phase 0 milestone plans, verbatim as the roadmap carried them
+
+Kept because their exits are what the results above should be read against.
+
+### P0M7 — `replan` — **done, and it changed what P0M8 has to do**
+
+Issue the `replan` obligation the contract has specified since v0.3 and the harness has never sent (`docs/KNOWN-ISSUES.md` #1). Triggers, positions and response statuses are already fully specified in `PLAYER-CONTRACT.md` §5.5; this implements them.
+
+**Why it is first and why it is not Phase 2 work.** Half of what a live integration layer is *for* — noticing trouble and rerouting somebody around it — is currently unmeasurable, and the measurement above shows it is also suppressing the thing Gate 3 is trying to see. A player who answers once, thirty minutes ahead, cannot be punished for reconciling badly, because it had almost nothing to reconcile.
+
+**Exit:** a traveller whose plan collapses mid-journey is asked again; `P2rt` and `P0a` both replan on the same cadence; and `npm run horizon` shows conflict cost at the harness's planning lead rising towards its short-lead value.
+
+**First two clauses met. The third cannot be evaluated**, and finding out why is what this milestone produced. Wiring replanning into the baselines exposed that conflict attribution itself is unsound: switching every conflict off makes the world *harder*, because the lazy matcher then over-merges quays that are 31 m apart (`KNOWN-ISSUES.md` #14), and `P0a` is a well-informed strategy rather than a bound (#15). Conflict cost by subtraction currently reads −1.01 min. See [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md).
+
+**The trap to avoid:** `replan` must not become a way for a player to be handed information it did not fetch. The obligation says a plan needs revisiting; it does not say why, and the information-set audit must still hold.
+
+---
+
+### P0M8 — An instrument that can see a realistic conflict — **done**
+
+**Why this exists.** P0M7 left conflict cost reading −1.01 min, and the diagnosis is not that the conflicts are weak. Three numbers decide everything and none of them is a property of the conflicts:
+
+| | |
+|---|---|
+| the lazy matcher fuses stops within | **120 m** |
+| `C-coordinate-offset` first costs anything at | **260 m** |
+| a real disagreement about one stop's position tops out around | **150 m** |
+
+A matcher that cannot tell apart two quays 31 m apart cannot notice a 60 m offset. So "how strong must this conflict be" was always "how far past 120 m", which is a fact about the instrument. And past ~150 m a coordinate offset stops describing a disagreement between two operators and starts describing a broken map — a different lesson, and not the one this project teaches.
+
+Sweeping the matcher threshold does not rescue it. At 60 m, a 30 m offset costs 0.90 min, a 60 m offset costs **−0.44**, and a 130 m offset costs 0.01. Merge outcomes are discrete — a pair of stops either fuses or it does not — so across 22 queries the result is decided by which stops happen to flip, not by conflict strength. **The only magnitudes that produce a clean monotonic signal are the unrealistic ones.**
+
+Three consequences, and they are this milestone:
+
+**A. Tighten the matcher so a conflict-free world costs nothing.** At a 20–30 m threshold the clean world reconstructs exactly — 34 merged stops for 34 canonical quays — and the floor falls from 1.13 min to 0.23, which is just the five-minute poll cadence. That retires `KNOWN-ISSUES.md` #14 and makes subtraction sound again. It does *not* on its own make realistic offsets bite.
+
+**B. Gate 3 attributes across the whole headline score, not capture alone.** Service capture is journey time, and journey time is the family realistic conflicts move least. `D-staleness` costs 0.31 min of travel — but staleness's real damage is that somebody is *not warned*, which lands entirely in the Information family and is invisible to the gate as currently written. Catalogue D may already be earning its place somewhere nobody is looking.
+
+This changes how the gate is computed, not just its arithmetic. Information is only observable from a **run** — a routing model warns nobody — so Gate 3 must compare scorecards from actual runs of the naive reference player against the world and against the world with conflicts off. That is slower than `calibrate()` and worth it.
+
+**C. Realism becomes a budget, not a warning.** Every catalogue setting gets a documented plausible range and the real-world cause that produces it — kerbside pole versus platform centre at 5–30 m, station centroid versus a specific quay at 20–150 m, geocoding from a street address at 10–100 m, staleness after a stop physically moved at 10–200 m. Nothing may be generated outside its range.
+
+This is the structural form of the trap the milestone was already warned about. A note saying "do not make conflicts absurd" loses to a failing gate; a declared range that the audit enforces does not.
+
+**Exit:** a conflict-free world costs a lazy integrator under 0.25 min; Gate 3 reports conflict cost as a share of the headline score, computed from real runs; and every catalogue setting carries a plausible range with its provenance.
+
+**All three met.** The floor is 0.23 min, journey-time conflict cost is positive and monotonic at **+0.59 min (19 % of headroom)**, and the ceilings are enforced by tests rather than prose.
+
+**And the run-based gate cannot yet be decided.** Its resolution is ~0.1 of headline per traveller — arrival is binary and there are 22 — while the effect is ~0.1, so its answer is decided by one journey. `npm run gates` now prints that resolution and returns INCONCLUSIVE rather than a verdict it did not earn. That is P0M9's problem, and it is why P0M9 exists.
+
+---
+
+### P0M9 — A world big enough to measure one — **done, with one clause carried forward**
+
+**You cannot calibrate realistic-magnitude conflicts on 22 queries and 34 quays.** `KNOWN-ISSUES.md` #4 has said the gap estimates are noisy at this size since P0M6 and assigned the fix to network generation, which is Phase 1 work sitting behind a gate that cannot pass without it. P0M8's threshold sweep is the evidence that the wait is no longer affordable: the non-monotonic 0.90 / −0.44 / 0.01 sequence is not a weak signal, it is no signal.
+
+Grow the hand-authored city — more quays, more interchanges where several quays genuinely sit 30–80 m apart, more operators overlapping, and a query set large enough that a single traveller changing outcome does not move a gap.
+
+**Exit:** the three gaps are stable across seeds within a stated tolerance; a realistic-magnitude conflict produces a monotonic cost curve rather than a scatter; and Gate 3's run-based measurement resolves an effect smaller than the 20 % it must decide — that is, one traveller changing outcome must be worth substantially less than 0.2 of headline.
+
+The last clause is the operative one. It is the reason this milestone exists rather than a nicety about tolerance: at 22 travellers the gate is currently deciding a 0.1 question with a 0.1 ruler.
+
+**Where it landed.** The city grew to 38 sites, 50 quays, 10 lines and 132 scored queries. One traveller is now worth **0.001** of headline against the 0.2 the gate decides, and journey-time conflict cost rose from 19 % to **42 %** of headroom. The last clause is met by a factor of two hundred.
+
+**The first clause is not met, and is now measured rather than feared.** Across six seeds, with only the disruptions changing, `P0−P1` headroom has a standard deviation of **31 % of its mean** (1.51m to 4.28m) and conflict cost **36 %**. Resolution and repeatability turned out to be different problems: 132 travellers stopped one journey flipping the answer, and did not stop the *day* deciding it.
+
+**The monotonicity clause is met.** The conflict-depth probe now averages over seeds and judges each step against the spread. `C-coordinate-offset` runs −0.01 → 0.10 → 0.55 min across 30 → 60 → 130 m on nordline, monotonic and entirely inside its plausible band; before the world grew the same sweep gave 0.10 / 0.55 / 0.55 / −0.09 / 3.30. Nine of twelve conflicts now bite at plausible settings, up from six before P0M8.
+
+**Carried into P0M10:** difficulty must be reported as a mean over seeds with its spread, not as a single calibration. Comparing conflict settings on one seed each would be comparing draws from overlapping distributions. `npm run probe` and `npm run stability` both do this; `npm run gates` does not yet, and its Gate 3 number is still a single draw.
+
+**The trap to avoid:** growing the world until the numbers look better. The exit is *stability*, which is falsifiable, not *size*, which is not. Measure the variance and publish it.
+
+---
+
+### P0M10 — Conflict potency
+
+The milestone P0M8 used to be, now executable — with three things P0M9 established that change how it must be done.
+
+**Report over seeds, never one calibration.** Headroom's standard deviation is 31 % of its mean and conflict cost's is 36 %. A single run is a draw, not a measurement, and two settings compared one seed each are two overlapping distributions.
+
+**Gate 3 still reports a single draw.** `npm run gates` has not been made seed-averaging, so its headline conflict-cost figure carries the same 36 % uncertainty the probe now reports explicitly. That should be fixed before the gate is used to decide anything.
+
+**Gate 1 currently measures the reference solution, not the world** (`KNOWN-ISSUES.md` #17). The competent solution went from +0.292 capture on the 34-quay world to −0.296 on this one, and fourteen of its twenty-two failures are `replan_no_route`. Deciding whether to strengthen it, or to accept that Gate 1 needs a solution written by somebody who has not seen the world, comes before reading anything into Gate 1. Strengthen the conflicts the probe shows can bite *within their declared realistic range*, place them on operators carrying enough traffic to express them, retire the ones inert at every plausible setting, and add any the probe suggests are missing.
+
+From `npm run probe`, re-run once the instrument and the world are fixed:
+
+| Finding | Action |
+|---|---|
+| `sudbahn` expresses nothing at any strength | weight conflict placement by carried traffic |
+| `A-granularity`, `A-id-scheme`, `A-naming`, `A-coordinate-source`, `D-silent-cancellation` inert everywhere | make the lazy merger depend on identity, or retire them from the load-bearing catalogue |
+
+That last row is a genuine fork and should be decided explicitly rather than by implementation. Catalogue A is what `CORECONCEPT.md` presents as the heart of the challenge, and it currently costs nothing because `P2` matches on geometry alone. Either the baseline is too narrow to represent a real lazy integrator, or identity reconciliation is not load-bearing in this design. Those call for opposite responses.
+
+**Exit:** Gate 3 passes — conflicts account for at least 20 % of the headline score's headroom, no single conflict supplies more than half of it, every setting sits inside its declared realistic range, and the defect audit still confirms every declared conflict is present.
+
+**Where it got to, and what it produced instead.** Placement did the work: moving the same fifteen conflicts, at the same settings, onto the operator that carries the city took conflict cost from 39 % to **76 % of headroom**, spread across five conflicts rather than resting on one. Gate 2 passes. Gate 1 does not, and Gate 3 is not decidable until a threshold question is settled.
+
+**Both remaining failures turned out to be the same structural fault**, and three proposals now sit in the specifications awaiting ratification:
+
+**All three were ratified on 2026-09-03.**
+
+| decision | where | what it changes |
+|---|---|---|
+| **Gate 1 splits into three** — solvable, not-trivial, discoverable | `docs/PHASES.md` | the first two are computable per world and stay gates; **1c is removed from the MVP** and returns in Phase 3. The competent solution is demoted to a regression detector |
+| **The identifiability audit** | `docs/PHASES.md`, Gate 1a | a per-world check, needing no solver, that the published data can distinguish the entities that matter — the dual of the defect audit, and a lower bound on any solver's loss |
+| **Gate 3 returns to its ratified metric** | `docs/PHASES.md`, Gate 3 | journey time against headroom, measured on `P2rt`. The whole-score figure becomes a diagnostic |
+
+**Two instruments to build, both per-world and neither needing a solution:**
+
+* the **identifiability audit** — is the information there at all?
+* the **symptom check** (`KNOWN-ISSUES.md` #22) — is a player charged for a conflict given anything to notice? A conflict that silently subtracts capture is not difficult, it is arbitrary.
+
+Together they are what catches a discoverability problem in Phase 0 now that 1c is not a gate. Neither *measures* discoverability; both catch worlds that are unfair rather than hard, which is the part that can be caught without a person in the room.
+
+**Deferred to Phase 3: generated verifier quests.** Directed tasks against the world's own answer key — *find the stop these two operators disagree about and report the distance* — verifier-only, converting discoverability from anecdote into pass/fail data, and doubling as regression tests and as the seed of the Tier 0 tutorial. They arrive with the documentation work because a quest is a question about what can be found in the artefacts, and there is nothing to generate one from until conflicts and documentation are themselves generated.
+
+They do not retire the playtest. A quest asks *can you find X, having been told X exists*; the playtest asks *can you work out that X exists at all*.
+
+The fault they share: **a gate measured by running a solution we wrote is a gate about that solution.** `P2rt` and `P0a` are defined in `REFERENCE-POLICY.md`; the competent and naive players are implementations. Every point of Gate 1's failure at P0M10 traced to a bug or an overfit assumption in ours, and Gate 3's two irreconcilable numbers differ by a factor of 3.5 for no reason other than which of the two kinds of instrument they use.
+
+A fourth question fell out and is recorded as an **OPEN** in `docs/SCORING.md`: `P0a` sits 2.10 min above `P0` against 3.35 min of headroom, so **capture is normalised against a ceiling of about 0.37 that no player can exceed**. Every capture figure the project has recorded is scaled against an unreachable 1.0.
+
+**The honest alternative.** If realistic conflicts cannot reach 20 % even with a sound instrument and a big enough world, the response is the one this roadmap has committed to from the start: **narrow the claim rather than pad the catalogue.** That would not end the project. It would move its centre of gravity from journey-time capture to the Information family and to the engineering effort of getting there — which is arguably where an integration challenge belongs anyway, and would itself be a finding worth publishing.
+---

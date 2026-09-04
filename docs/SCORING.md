@@ -385,7 +385,7 @@ The third is the most faithful to what the family is for and the most work. The 
 
 ---
 
-## OPEN — the reachable ceiling has a second, smaller floor under it
+## OPEN — the reachable ceiling has a second, smaller floor under it — *owned by P1M1*
 
 `capture` normalises against `P0a` since 2026-09-04, because `P0` is clairvoyant and unreachable. But `P0a` routes on the **canonical** world: it knows which of Sudbahn's three platforms at Central its train uses, and no player can (`KNOWN-ISSUES.md` #23).
 
@@ -401,12 +401,16 @@ The first is right if the floor stays small and computable. It becomes wrong if 
 
 **That last sentence is the reason not to implement it reflexively.**
 
+**Assigned to P1M1 on 2026-09-04.** Two per cent is ignorable on the hand-built world; a *generated* one publishing at Site granularity over larger stations could make the floor much larger with nothing to stop it, and P1M1 is where such worlds first appear. `npm run identifiability` measures it per world.
+
 ---
 
-## OPEN — tier clearance thresholds, re-derivation method
+## OPEN — tier clearance thresholds, re-derivation method — *owned by P1M4*
 
 Recorded above as predating the change of denominator. What is needed is not a new number but a *method*, since the same problem will recur every time the scale moves:
 
 **Express each tier's bar as a position between named reference solutions rather than as a bare decimal.** The reference set already exists — `null`, `blind`, `naive`, `competent` — and their scores move with the scale automatically. A tier bar of "must beat the naive solution" or "must reach halfway between naive and competent" survives a change of denominator, a change of world size and a change of penalty, none of which a hard-coded 0.25 survives.
 
 It also states the intent, which a decimal does not: Tier 2 asking for "better than a lazy integrator" is a claim anybody can check, and 0.25 is a number nobody can argue with.
+
+**Assigned to P1M4 on 2026-09-04**, with `KNOWN-ISSUES.md` #24 — both are about what a declared difficulty means, and both need the same reference set.

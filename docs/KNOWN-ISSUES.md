@@ -398,7 +398,7 @@ What does not move is the **score**. `F1(recall, precision) × (0.5 + 0.5 × tim
 
 **Why it matters beyond Gate 3.** `CORECONCEPT.md` treats realtime truthfulness (catalogue D) as a first-class source of difficulty, and `SCORING.md` gives the Information family 40 % of the balanced profile. If no declared conflict can move it, then either the family is not measuring what it was meant to, or catalogue D is not load-bearing — and those call for opposite responses, exactly as the identity fork does.
 
-**Owner:** open, and sharpened rather than resolved by the Gate 3 proposal in `PHASES.md`. Returning the criterion to journey time removes the *dependency* on this family without answering the question it raises: whether the Information family **should** be movable by a realtime conflict, and what is wrong with either the family or catalogue D if it is not.
+**Owner: P1M1**, assigned 2026-09-04. Catalogue D cannot be validated in a generated world until a realtime conflict can move this family, and P1M1's exit now names it. Sharpened rather than resolved by the Gate 3 change in `PHASES.md`: Returning the criterion to journey time removes the *dependency* on this family without answering the question it raises: whether the Information family **should** be movable by a realtime conflict, and what is wrong with either the family or catalogue D if it is not.
 
 ---
 
@@ -538,7 +538,7 @@ Three things follow, and each is an improvement on the current position:
 
 The cost is that a world's declared difficulty stops being one number, which is worse for a leaderboard and better for every other purpose this project has.
 
-**Owner:** P1M4, which cannot make its central claim without it.
+**Owner: P1M4**, assigned 2026-09-04, and it cannot make its central claim without this. Two worlds could match on one baseline and differ completely for every other solver, and nothing would notice — so the exit now requires matching difficulty *profiles* rather than matching numbers.
 
 ---
 
