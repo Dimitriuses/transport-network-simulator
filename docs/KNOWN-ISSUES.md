@@ -617,3 +617,19 @@ The chosen ids are checked into `city.py`, which means the list rots silently if
 **The warning stands and is now recorded in code:** do not resolve this kind of problem by lowering the cancellation rate or the planning lead. That would make these journeys survivable and delete the thing that makes realtime integration worth anything. The problem was never that risk exists — it was that most journeys carried risk without reward.
 
 **Owner:** P1M2 still owns the *generator* rule. This fixes the committed world.
+
+---
+
+## 27. The walking-skeleton test raced its own player on cold CI runners — `fixed at P0M10`
+
+Intermittent in CI, never locally: `player at http://127.0.0.1:8220 never became ready`.
+
+Both sides of the handshake waited **100 attempts at 50 ms — five seconds each**. The simulator waited that long for the player's `/v1/health`; the player waited that long for the control API to start answering, because the test spawns it *before* the API exists and it is expected to retry.
+
+Five seconds is ample on a warm developer machine. On a cold runner, starting a runtime and parsing the source can consume most of it, and whichever side ran out first produced a failure that pointed at the other. The failing run took 5.7 s.
+
+**Fixed** by making both waits deadline-based rather than attempt-counted, at 60 s for the simulator and 90 s for the player. The player's budget deliberately exceeds the simulator's: if it gave up first, the simulator would report "never became ready" for a process that was still trying. Waiting longer costs nothing when the player is quick, since both loops exit on first success.
+
+**And the failure is now diagnosable.** The tests spawned players with stderr discarded, so a player that crashed on startup was indistinguishable from one that was merely slow — the CI log said only "never became ready", which sends you looking at the simulator. Stderr is inherited now, and both timeout messages say what they last saw.
+
+**A note on the class of bug.** This is not a determinism failure and could not have been one: `PLAYER_BOOT_BUDGET_MS` is real time, at the boundary, and never enters the model. But it is the same shape as the rest of this milestone — *a number that was fine for the case it was written for and silently wrong for another*.

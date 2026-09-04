@@ -40,7 +40,9 @@ Gate 3 remains open too, and every attempt to measure it has found the instrumen
 
 **And the corollary found at P0M8:** varying data quality also varies how much data there is. A comparison that changes both cannot attribute to either.
 
-Run `npm run check` before proposing changes: lint, typecheck, contract-drift and tests. The Python side is `cd tools && uv run ruff check . && uv run pytest`.
+Run `npm run check` before proposing changes: lint, typecheck, contract-drift and tests. The Python side is `cd tools && uv run ruff check . && uv run ruff format --check . && uv run pytest`.
+
+**`ruff format --check` is not optional and is easy to forget** — `ruff check` is the linter and passes on code the formatter would rewrite. CI runs both, and a formatting-only failure has broken the build once.
 
 ## The specifications are the source of truth
 

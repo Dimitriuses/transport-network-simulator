@@ -23,16 +23,30 @@ const mode = (raw ?? "naive") as (typeof modes)[number];
 
 // The control API may not be listening the instant we start. Retry rather than
 // racing it; the simulator polls /v1/health and will wait.
+//
+// **The budget must exceed the simulator's own**, or this process gives up
+// first and the simulator reports `never became ready` for a player that was
+// still trying. It was 100 attempts at 50 ms on both sides — five seconds each,
+// which raced on cold CI runners where starting a runtime and parsing source
+// can take longer than the whole budget.
+const CONTROL_API_BUDGET_MS = 90_000;
+
 async function boot(): Promise<void> {
-  for (let attempt = 0; attempt < 100; attempt++) {
+  const startedMs = Date.now();
+  let lastError: unknown = null;
+  while (Date.now() - startedMs < CONTROL_API_BUDGET_MS) {
     try {
       await startPlayer({ port, controlUrl, mode });
       return;
-    } catch {
+    } catch (err) {
+      lastError = err;
       await new Promise((r) => setTimeout(r, 50));
     }
   }
-  throw new Error(`could not reach the control API at ${controlUrl}`);
+  throw new Error(
+    `could not reach the control API at ${controlUrl} within ` +
+      `${(CONTROL_API_BUDGET_MS / 1000).toFixed(0)}s: ${String(lastError)}`,
+  );
 }
 
 boot().catch((err) => {

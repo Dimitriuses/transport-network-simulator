@@ -546,20 +546,46 @@ function mergeResolutions(world: World, tau: number): MergedResolution {
   return { stopToQuays, tripToJourney };
 }
 
+/**
+ * How long to wait for a player to come up, in real milliseconds.
+ *
+ * **Not part of the simulation**, and deliberately generous. A player is
+ * usually a separate process that must start a runtime, parse its own source
+ * and read the brief before it can answer — none of which the world knows or
+ * cares about. This budget was 100 attempts at 50 ms, and five seconds is
+ * ample on a warm developer machine and not ample on a cold CI runner: the
+ * walking-skeleton test failed there intermittently with `never became ready`
+ * while passing everywhere else.
+ *
+ * Waiting longer costs nothing when the player is quick, because the loop exits
+ * on the first healthy response.
+ */
+const PLAYER_BOOT_BUDGET_MS = 60_000;
+
 async function waitForHealth(baseUrl: string): Promise<void> {
-  for (let attempt = 0; attempt < 100; attempt++) {
+  const startedMs = Date.now();
+  let lastError = "no response";
+  while (Date.now() - startedMs < PLAYER_BOOT_BUDGET_MS) {
     try {
       const res = await fetch(`${baseUrl}/v1/health`);
       if (res.ok) {
         const body = (await res.json()) as { status?: string };
         if (body.status === "ready") return;
+        lastError = `health says ${JSON.stringify(body.status)}`;
+      } else {
+        lastError = `health returned ${res.status}`;
       }
-    } catch {
-      // not up yet
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
     }
     await new Promise((r) => setTimeout(r, 50));
   }
-  throw new Error(`player at ${baseUrl} never became ready`);
+  throw new Error(
+    `player at ${baseUrl} never became ready after ` +
+      `${(PLAYER_BOOT_BUDGET_MS / 1000).toFixed(0)}s. Last: ${lastError}. ` +
+      `If the player process exited, its stderr is where to look — a player ` +
+      `started before the control API must retry until the API answers.`,
+  );
 }
 
 interface PlayerIdentity {

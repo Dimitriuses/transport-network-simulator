@@ -35,7 +35,10 @@ async function runOnce(
     [join(repoRoot, "src", "refplayer", "scripts", "serve.ts")],
     {
       cwd: repoRoot,
-      stdio: ["ignore", "ignore", "ignore"],
+      // stderr inherited, not discarded: when a player fails to start, its own
+      // error is the only thing that says why, and a CI log showing only
+      // "never became ready" sends you looking at the simulator instead.
+      stdio: ["ignore", "ignore", "inherit"],
       env: {
         ...process.env,
         TNS_PLAYER_PORT: String(ports.player),
