@@ -105,7 +105,9 @@ The gate previously read: *a competent developer, given only the brief and the o
 >
 > Its score is still reported. It no longer decides a gate.
 
-#### 1c — Discoverable. **Removed from the MVP**, deferred to Phase 3.
+#### 1c — Discoverable. **PASS by decision, 2026-09-04. Removed from the MVP**, deferred to Phase 3.
+
+*Recorded as passing so it does not sit in the exit criteria as an unevaluated failure.* That is a decision about scope rather than a measurement, and it is written here in those words so nobody later reads a PASS as evidence. What is actually known about this world's discoverability is nothing.
 
 Not because it stopped mattering — it is the question `CORECONCEPT.md` cares most about — but because nothing computable answers it and a gate that cannot be evaluated should not sit in the exit criteria pretending to be one. `KNOWN-ISSUES.md` #3 has said since P0M6 that no internal work closes this; P0M10 showed the cost of pretending otherwise.
 
@@ -173,7 +175,7 @@ Two things about that wording are the result of getting it wrong first, and both
 
 ### Exit
 
-Gates **1a**, **1b**, **2** and **3** pass, or the design is revisited. **Do not begin Phase 1 on a failed Gate 3.**
+Gates **1a**, **1b**, **2** and **3** pass, or the design is revisited. Gate **1c** is recorded PASS by decision (2026-09-04) — scope, not evidence. **Do not begin Phase 1 on a failed Gate 3.**
 
 Gate **1c** (discoverable) is deliberately not in the exit criteria: nothing computable evaluates it, and it returns in Phase 3 as generated verifier quests. Its two *necessary conditions* — information present, symptom present — are in scope here and are the way a discoverability problem gets caught at this phase.
 

@@ -908,3 +908,41 @@ The identifiability audit compared **the worst walk one traveller cannot predict
 **Gate 1a passes at 6 %.** The audit now charges each ambiguity only to the travellers who could meet it and thresholds that, reporting both. It remains an over-estimate — every traveller who *could* meet the ambiguity is charged once, though not all are routed through it — which is the right direction for a bound.
 
 The world is fine. The instrument needed correcting before its subject could be judged, which is the fourth time that has happened here and the reason the finding is left recorded rather than deleted.
+
+### #17 answered: the solution is fine, the query set is not
+
+Six hypotheses died by measurement before the answer appeared, and each was cheap:
+
+| hypothesis | how it died |
+|---|---|
+| it mishandles realtime | `competent-deaf` is **byte-identical** to `competent` |
+| its transfer budget is too tight | `TRANSFER_FLOOR_S` swept 60/120/180/240 s — 2.3m per traveller at every setting |
+| its decoded departure times are off | departures match truth to **0 s** on all three operators, over 1102 trips |
+| its reference frame is displaced | true, fixed, and not enough |
+| the vanished-trip heuristic misfires | the feed republishes every trip; ids stable all day |
+| the delay-unit heuristic misfires | needs a delay ≥ 60 min; the world draws 2–15 |
+
+**The measurement that ended it** was the list of amounts lost on slow arrivals: 30.0, 25.0, 20.0, 20.0, 20.0, 20.0, 18.0, 18.0, 18.0, 15.0 minutes. Round numbers, and they are the line headways in `city.py`. It misses a vehicle and waits exactly one headway. Fifty of its sixty-three replans are `vehicle_cancelled`, against the naive solution's twenty-six.
+
+Which led to the number that explains everything:
+
+| | |
+|---|---|
+| scored queries with **any** headroom against clairvoyant `P0` | **36 of 120** |
+| queries where `P0a` equals `P1` — **no reachable headroom at all** | **105 of 120 (88 %)** |
+
+**On seven journeys in eight, the best anything could do knowing only what had been announced is exactly what a traveller does with no integration layer.** There is nothing to win — and plenty to lose, because cancellations are announced after a plan is made and a route with three transit legs is exposed three times where the reference policy's restricted graph is exposed once. Each exposure costs a full headway.
+
+So a solution that reconciles well, finds the cross-operator hops and uses the whole network takes more risk for headroom that mostly does not exist. **The competent solution is not bad at this world. It is playing a game that is 88 % downside**, and the naive solution's flattering score comes from declining a third of its obligations and making simpler plans for the rest.
+
+**And the cause is P0M9.** Growing the query set from 22 hand-picked journeys to 132 generated ones fixed the resolution problem that milestone existed for, and diluted the journeys that need integration to about one in eight. The hand-picked ones were *chosen* to need it — a tram chord beating a trip via Central, an undeclared cross-operator hop. Every Site pair 1500 m apart is mostly a radial journey with one obvious route.
+
+Recorded as `KNOWN-ISSUES.md` #26 with the fix stated as a generator requirement: **a scored query set must be sampled for reachable headroom**, `P1 − P0a` above a threshold, computable before any solution exists.
+
+The warning attached to it matters as much as the fix: **do not resolve it by removing the risk.** Lowering the cancellation rate or the planning lead would make these journeys survivable and would also delete the thing that makes realtime integration worth anything. The problem is not that risk exists — it is that 88 % of the journeys carry risk without reward.
+
+### Ratified 2026-09-04
+
+* **The forgone-obligation penalty at 1.0** — declining forfeits the whole of what integration was worth to that traveller. The null solution scores exactly −1.000, which is `REFERENCE-POLICY.md` §8's second clause as a number.
+* **The ambiguity bar at 25 %** of headroom, on the aggregate rather than the per-traveller worst case. Gate 1a passes at 6 %.
+* **Gate 1c recorded PASS by decision**, and written into `PHASES.md` in those words — scope, not evidence. What is known about this world's discoverability remains nothing.

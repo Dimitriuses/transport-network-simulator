@@ -121,8 +121,8 @@ const mean = (xs: readonly number[]): number | null =>
  * What declining one traveller's obligation costs, as a share of the headroom
  * that traveller represented.
  *
- * PROVISIONAL — see the note where it is applied. `REFERENCE-POLICY.md` §8
- * requires the penalty and does not fix its size.
+ * Ratified 2026-09-04 at 1.0. `REFERENCE-POLICY.md` §8 requires the penalty
+ * and fixes no size; this one makes declining everything score exactly −1.0.
  */
 export const FORGONE_PENALTY_SHARE = 1.0;
 
@@ -212,11 +212,12 @@ export function scoreRun(log: readonly RunRecord[], opts: ScoreOptions = {}): Sc
   // so it scales with the world rather than being an absolute number of
   // seconds that means different things in different cities.
   //
-  // **The magnitude is PROVISIONAL.** §8 asks for "strictly worse than a
-  // competent answer and roughly comparable to a poor one" and does not fix a
-  // number. 1.0 forfeits the whole of what integration was worth to that
-  // traveller. It is deliberately reported separately so the effect of changing
-  // it is visible rather than baked into one figure.
+  // **Magnitude ratified 2026-09-04 at 1.0**: declining forfeits the whole of
+  // what integration was worth to that traveller. §8 asks for "strictly worse
+  // than a competent answer and roughly comparable to a poor one" and fixes no
+  // number; 1.0 satisfies its other clause exactly — *"one that declines
+  // everything loses everything"* — and the null solution scores −1.000.
+  // Reported separately so the effect of the choice stays visible.
   const forgoneCount = travellers.filter((t) => t.forgone).length;
   const forgonePenalty =
     travellers.length === 0 ? 0 : FORGONE_PENALTY_SHARE * (forgoneCount / travellers.length);

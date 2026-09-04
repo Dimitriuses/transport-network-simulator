@@ -271,7 +271,7 @@ At 22 travellers this cost three of them and looked like noise. At 132 it cost *
 
 ---
 
-## 17. The competent solution does not survive a bigger city, or a moved conflict — `partly resolved at P0M10 — two causes, confounded`
+## 17. The competent solution does not survive a bigger city, or a moved conflict — `answered at P0M10; the cause is #26`
 
 Written against a 34-quay world it captured **+0.292**. On the 50-quay, 132-query world of P0M9 it captures **−0.296** — worse than not integrating at all, and worse than the naive solution beside it.
 
@@ -335,7 +335,18 @@ The naive solution declines a third of its obligations. A declined traveller fal
 
 **An arithmetic warning attached to this issue, because it was made here.** An earlier estimate concluded the penalty would restore the ordering. It compared a competent figure normalised against `P0` with a naive figure normalised against `P0a` — the two scales differ by a factor of 2.6, and the conclusion was an artefact of mixing them. The measured ordering is above.
 
-**What is left of #17** is therefore the original question, now cleanly posed: *why is a solution that corrects the offset, budgets transfers generously and reads every feed two minutes per traveller worse than not integrating at all?* Realtime is ruled out. Geometry is improved but still displaced by 79 m on the dominant operator. Its plans break twice as often as the naive solution's.
+**Answered.** *Because on 88 % of this world's scored journeys there is nothing to win, and it plays them anyway.* See #26. Six hypotheses were eliminated by measurement first, each cheap and each wrong:
+
+| hypothesis | how it died |
+|---|---|
+| it mishandles realtime | `competent-deaf` — plans identically, never lets a feed reach routing — is **byte-identical** to `competent` |
+| its transfer budget is too tight, so it misses connections | sweeping `TRANSFER_FLOOR_S` over 60/120/180/240 s moves the loss not at all: 2.3m per traveller at every setting |
+| its decoded departure times are off | the competent model's departures match the truth to **0 s** on all three operators, over 1102 trips |
+| its reference frame is displaced | true, and fixed — Ostline went 62 m to 0 m of error — and it was not enough |
+| the vanished-trip heuristic misfires | the feed republishes every trip; ids stable across the day |
+| the minutes-vs-seconds heuristic misfires | needs a delay ≥ 60 min; the world draws 2–15 |
+
+The measurement that ended it: **24 arrivals slower than the reference policy, and the amounts lost are 30.0, 25.0, 20.0, 20.0, 20.0, 20.0, 18.0, 18.0, 18.0, 15.0 minutes** — round numbers, and they are the line headways from `city.py`. It misses a vehicle and waits exactly one headway for the next. Fifty of its sixty-three replans are `vehicle_cancelled`, against the naive solution's twenty-six.
 
 **A methodological note worth keeping.** The first run of `competent-deaf` returned results identical to `naive`, which looked like a finding. It was not: `serve.ts` whitelisted player modes and **silently fell back to `naive`** for anything unrecognised, so the diagnostic ran as the wrong player. It now exits with an error. A silent default is indistinguishable from a working experiment.
 
@@ -546,3 +557,33 @@ Its structural fix — *"a fixed forgone-obligation penalty, independent of how 
 It is worth ratifying deliberately, because the magnitude decides an ordering rather than a decimal place: at 0.5 the naive solution still outscores the competent one; at 1.0 it does not.
 
 **Owner:** the project owner, for the magnitude only. The mechanism is required by a specification that calls it non-optional.
+
+---
+
+## 26. On 88 % of scored journeys there is no reachable headroom, and taking any risk loses — `open, and the most important item here`
+
+Measured at P0M10 while answering #17.
+
+| | |
+|---|---|
+| scored queries with **any** headroom against clairvoyant `P0` | **36 of 120** |
+| queries where `P0a` equals `P1` — **no reachable headroom at all** | **105 of 120 (88 %)** |
+| mean reachable headroom where any exists | 9.97m |
+
+On 88 % of this world's journeys, **the best anything could do knowing only what had been announced is precisely what a traveller does with no integration layer at all.** There is nothing for a player to win.
+
+**And there is plenty to lose.** Cancellations are announced after a plan is made — the harness plans 30 minutes ahead — so any itinerary is exposed to them. A route with three transit legs is exposed three times; the reference policy's restricted transfer graph produces simpler routes and is exposed less. When a leg is cancelled the traveller stands on the platform until the scheduled departure and then waits for the next vehicle: **one full headway, 15 to 30 minutes.**
+
+So a solution that reconciles the operators well, finds the cross-operator hops and uses the whole network takes more legs, more exposure and more headway losses — for headroom that, on seven journeys in eight, does not exist. **The competent solution is not bad at this world. It is playing a game that is 88 % downside.**
+
+That is the whole of #17, and it explains the naive solution's flattering score twice over: it declines a third of its obligations, and the plans it does make are simpler and therefore less exposed.
+
+**Where this came from.** P0M9 grew the query set from 22 hand-picked journeys to 132 by generating every Site pair at least 1500 m apart. The hand-picked ones were *chosen* to need integration — a tram chord that beats going via Central, an undeclared cross-operator hop. The generated ones are mostly radial journeys through Central with one obvious route, where integration has nothing to offer. Growing the world fixed the resolution problem P0M9 existed for and diluted the interesting journeys to about one in eight.
+
+**Proposed fix, and it is a generator requirement rather than a patch:** *a scored query set must be sampled for reachable headroom.* A journey where `P0a == P1` tests nothing about integration and contributes only variance and downside risk. The selection criterion is computable before any solution exists — `P1 − P0a` above a threshold — and belongs with query-set generation in P1M2.
+
+**Do not fix it by removing the risk.** Lowering the cancellation rate or the planning lead would make the existing journeys survivable, and would also delete the thing that makes realtime integration worth anything. The problem is not that risk exists; it is that 88 % of the journeys carry risk without carrying reward.
+
+**What it means for the gates.** Gate 1's failure is now explained and is not a fact about the world's *solvability* — it is a fact about the query set. Gate 3 is unaffected: it attributes conflict cost by comparing two baselines over the same queries, and a query with no headroom contributes nothing to either side.
+
+**Owner:** P1M2 for the generator rule; the project owner for whether the committed world's query set should be re-selected before anything else is read from it.

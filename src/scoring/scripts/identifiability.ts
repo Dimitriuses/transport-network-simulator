@@ -83,17 +83,14 @@ console.log("");
 // which is still an over-estimate, since not every such traveller is sent
 // through the ambiguous stop, but it is an over-estimate of the right quantity.
 //
-// The 25% threshold is PROVISIONAL — introduced with the instrument at P0M10
-// and not yet ratified, exactly as the Gate 3 materiality bar was.
-const PROVISIONAL_MAX_SHARE = 0.25;
-const ok = share <= PROVISIONAL_MAX_SHARE;
+// The 25% threshold was ratified on 2026-09-04.
+const MAX_AMBIGUITY_SHARE = 0.25;
+const ok = share <= MAX_AMBIGUITY_SHARE;
 
 console.log(`  ${ok ? "PASS" : "FAIL"} — an ambiguity may not hide more than ` +
-  `${(PROVISIONAL_MAX_SHARE * 100).toFixed(0)}% of the headroom`);
+  `${(MAX_AMBIGUITY_SHARE * 100).toFixed(0)}% of the headroom`);
 console.log("");
-console.log("  That threshold is PROVISIONAL. The figure it bounds is an upper");
-console.log("  bound: every traveller who *could* meet an ambiguity is charged");
-console.log("  for it once, though not all of them are routed through it.");
-console.log("  Ratifying or replacing the threshold is a decision, not an");
-console.log("  arithmetic correction — see docs/PHASES.md, Gate 1a.");
+console.log("  The figure thresholded is an upper bound: every traveller who");
+console.log("  *could* meet an ambiguity is charged for it once, though not all");
+console.log("  of them are routed through it. Threshold ratified 2026-09-04.");
 console.log("");
