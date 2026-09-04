@@ -30,7 +30,8 @@
     "stability": "node src/scoring/scripts/stability.ts",
     "failures": "node src/scoring/scripts/failures.ts",
     "identifiability": "node src/scoring/scripts/identifiability.ts",
-    "symptoms": "node src/scoring/scripts/symptoms.ts"
+    "symptoms": "node src/scoring/scripts/symptoms.ts",
+    "headroom": "node src/scoring/scripts/headroom.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

@@ -183,7 +183,39 @@ Gate **1c** (discoverable) is deliberately not in the exit criteria: nothing com
 
 ---
 
-## Phase 0 — result
+## Phase 0 — result, 2026-09-04
+
+*Measured with `npm run gates` at 8 seeds. **All gates pass.***
+
+| Gate | Result |
+|---|---|
+| **1a — solvable** | PASS. 6.20m of reachable headroom in 8.37m total; ambiguity no solver can resolve is 0.13m, **2 %** against a 25 % bar. |
+| **1b — not trivial** | PASS. A lazy integrator captures **0.200** of the reachable headroom. |
+| **1c — discoverable** | PASS **by decision**. Scope, not evidence — see below. |
+| **2 — discriminating** | PASS. Four solutions, four distinct scores, **0.934** of spread. |
+| **3 — conflicts doing the work** | PASS. Conflicts cost **3.04m, 36 % of headroom**, against a ratified 20 % bar. |
+
+```
+mode        capture   information   headline   arrived
+null         -1.000         0.000     -0.600     89/98
+blind        -0.232         0.000     -0.139     80/98
+naive        -0.232         0.771      0.169     80/98
+competent     0.054         0.755      0.334     83/98
+```
+
+Attribution is spread rather than resting on one defect — `C-coordinate-offset` 0.88m, `B-time-encoding` 0.75m, `A-coordinate-precision` 0.49m, `C-delay-unit` 0.31m, `D-staleness` 0.13m — and every setting sits inside its declared realistic range. The defect audit confirms all fifteen conflicts present.
+
+### What this does not say
+
+**Gate 1c is a decision, not a measurement.** Nothing is known about whether a stranger can discover this world's conflicts, and `KNOWN-ISSUES.md` #3 is still owed. A PASS there records that the question was removed from the MVP, and nothing else.
+
+**The competent solution is ours.** It scores best of the four, which is the ordering that should hold, and it was written by people who had seen the world. It is a regression detector; it is not evidence about buildability.
+
+**These numbers arrived after the instruments were corrected nine times.** Every earlier Phase 0 result was measured with at least one of: a baseline handed the true disruption set, a clairvoyant reference, a conflict-free floor that was harder than the declared world, a population standard deviation where a standard error belonged, an unpaired design, a separation statistic that assumed its own answer, a gate deciding on a metric it was not ratified against, a solution silently running as the wrong player, and a query set on which 88 % of journeys could not reward integration. `BUILD-LOG.md` records each. **The gates did their job by refusing to certify anything until the measurement was trustworthy**, which took four milestones longer than anyone expected and is the most useful thing Phase 0 produced.
+
+---
+
+## Phase 0 — earlier result, superseded
 
 *Measured 2026-09-01 with `npm run gates`.*
 

@@ -175,7 +175,7 @@ This is the same trap as #2 with one important difference: those fourteen confli
 
 ---
 
-## 13. The recorded Gate 3 pass was measured with a blind instrument — `open`
+## 13. The recorded Gate 3 pass was measured with a blind instrument — `closed at P0M10`
 
 `PHASES.md` recorded Gate 3 as passing at 61 %. P1M0 found that number was produced by a baseline handed the true disruption set, which never read a published feed and therefore could not perceive any conflict living in one. Re-measured with a feed-reading baseline, Gate 3 reads **4 % and fails**.
 
@@ -183,7 +183,9 @@ The correction is recorded in `PHASES.md`, `ROADMAP.md` and `README.md` with the
 
 **What it does not mean.** It is not evidence that the world is undramatic. The probe shows six conflicts that bite at achievable strengths; the committed world sets most of them below threshold. It is evidence that Phase 0 exited on a number it had not earned.
 
-**What it blocks.** `PHASES.md`: *"Do not begin Phase 1 on a failed Gate 3."* Phase 1 has begun, and P1M0 — the milestone whose stated purpose is to test what Phase 0 concluded — is what found it. Whether that counts as the process working or as grounds to stop is a judgement for the project owner, not something to settle by continuing.
+**What it blocked, and how it was answered.** `PHASES.md` says *"do not begin Phase 1 on a failed Gate 3."* The project owner reopened Phase 0 rather than continuing, and P0M7 through P0M10 rebuilt the instrument, the world and the reference. Gate 3 now measures 78 % of headroom on journey time and passes on the ratified criterion.
+
+The number that started this — 61 % — was never earned. The one that replaced it was measured four times with four different faults, each corrected. Closed because the instrument is now sound, not because the original verdict was recovered.
 
 **Corrected instrument, P1M0.** Gate 3 now divides by `P0a - P2rt` (`REFERENCE-POLICY.md` 2.1) - an optimum held to the same announcement horizon - so P0's foresight is excluded rather than counted as difficulty. With that:
 
@@ -204,7 +206,7 @@ The correction is recorded in `PHASES.md`, `ROADMAP.md` and `README.md` with the
 
 ---
 
-## 14. Switching every conflict off produces a *denser* world, not a floor — `partly fixed at P0M8`
+## 14. Switching every conflict off produces a *denser* world, not a floor — `closed: threshold fixed at P0M8, sample size at P0M9`
 
 Ablation, the conflict-depth probe and Gate 3 all attribute conflict cost by subtraction: measure the declared world, measure the same world with every conflict off, take the difference. That assumes the conflict-free world is a floor. It is not, and there turned out to be two separate reasons.
 
@@ -237,7 +239,7 @@ Journey-time attribution is unaffected: it averages a continuous quantity rather
 
 **What remains open** is therefore only the sample size, and that is P0M9's whole job. The density observation stands as a real property of the naive player (it is bad at transfers, and accurate data offers it more transfers to be bad at) but it is not what inverted the gate.
 
-**Owner:** P0M9 — a world big enough for a binary measurement to mean something. Nothing further can be decided about Gate 3 until then.
+**Closed at P0M9**, which grew the world to 132 scored travellers. One traveller is now worth 0.001 of headline against the 0.2 the gate decides, and P0M10 added the paired-difference statistic that shrank the standard error from 0.081 to 0.029 on the same data. Gate 3 resolves at 3σ and above.
 
 ## 15. P0a is a strategy, not a bound — `practically resolved at P0M10`
 
@@ -400,7 +402,7 @@ What does not move is the **score**. `F1(recall, precision) × (0.5 + 0.5 × tim
 
 ---
 
-## 20. Gate 3's threshold is applied to a metric it was not ratified against — `open`
+## 20. Gate 3's threshold is applied to a metric it was not ratified against — `settled 2026-09-03`
 
 The 20 % criterion was ratified after P1M0 **against journey-time headroom**. P0M8 redefined Gate 3 to attribute across the whole headline score and carried the same 20 % over without re-deriving it.
 
@@ -560,7 +562,7 @@ It is worth ratifying deliberately, because the magnitude decides an ordering ra
 
 ---
 
-## 26. On 88 % of scored journeys there is no reachable headroom, and taking any risk loses — `open, and the most important item here`
+## 26. On 88 % of scored journeys there was no reachable headroom — `fixed at P0M10`
 
 Measured at P0M10 while answering #17.
 
@@ -586,4 +588,32 @@ That is the whole of #17, and it explains the naive solution's flattering score 
 
 **What it means for the gates.** Gate 1's failure is now explained and is not a fact about the world's *solvability* — it is a fact about the query set. Gate 3 is unaffected: it attributes conflict cost by comparing two baselines over the same queries, and a query with no headroom contributes nothing to either side.
 
-**Owner:** P1M2 for the generator rule; the project owner for whether the committed world's query set should be re-selected before anything else is read from it.
+### Fixed by re-selecting the scored set
+
+The criterion implemented is deliberately **not** the `P1 − P0a` this issue was measured with. That difference mixes the transfer graph with knowledge of the day, and disruptions are seeded — so a journey would drift in and out of the scored set depending on which services happened to be cancelled, and the set would stop being a property of the city.
+
+Removing the day leaves the structural question, which is the one that matters: **does the unrestricted transfer graph beat the restricted one the reference policy is held to?** Where they differ, integration has something to offer. Where they agree, no amount of skill changes the answer.
+
+`npm run headroom` measures it. On the 922-candidate pool, 79 journeys qualify at a two-minute threshold — an 8.6 % hit rate, which is why filtering alone was not enough and the candidate pool had to grow from 110 to 900.
+
+| | before | after |
+|---|---|---|
+| scored journeys | 132 | **98** |
+| of which integration can improve | **13** | **79** |
+| of which deliberately straightforward | 119 | 19 |
+
+The nineteen that remain straightforward are the hand-picked seeds, and they are kept on purpose: a set where *every* journey needs integration would not notice a solution that breaks the easy ones.
+
+**Regenerating it is a two-step build**, documented in `city.py`, and deliberately so — the criterion needs the router, the router needs a built world, and duplicating the router in Python to break that cycle would guarantee the two drift apart:
+
+```
+TNS_QUERY_SELECTION=all npm run world:build   # every candidate
+npm run headroom                              # prints the list
+npm run world:build                           # the scored set
+```
+
+The chosen ids are checked into `city.py`, which means the list rots silently if the city changes. `src/scoring/test/headroom.test.ts` asserts the *property* the list was selected for rather than the list itself, and names the regeneration command in its failure message.
+
+**The warning stands and is now recorded in code:** do not resolve this kind of problem by lowering the cancellation rate or the planning lead. That would make these journeys survivable and delete the thing that makes realtime integration worth anything. The problem was never that risk exists — it was that most journeys carried risk without reward.
+
+**Owner:** P1M2 still owns the *generator* rule. This fixes the committed world.

@@ -6,11 +6,13 @@ Guidance for Claude Code and for anyone else working in this repository.
 
 A simulation game about integration engineering. A generated city, several independent transport operators whose data disagrees in deliberate and specific ways, and a player who must unify them. See [`README.md`](README.md).
 
-**Current state: specification complete; Phase 0 reopened on a failed Gate 3.**
+**Current state: Phase 0 complete. All gates pass as of 2026-09-04.**
 
-P0M0–P0M6 delivered one hand-built Tier-2 world end to end and were recorded as passing all three proof gates. P1M0 then found Gate 3 had been measured with an instrument wrong at both ends — a baseline handed the true disruption set so it never read a feed, and a reference granted foresight of unannounced disruptions. Corrected, **Gate 3 fails**: the declared conflicts cost 3 % of headroom against a ratified 20 % threshold.
+P0M0–P0M6 delivered one hand-built Tier-2 world and were recorded as passing all three gates. P1M0 found that result had been measured with a blind instrument, Phase 0 was reopened, and P0M7–P0M10 rebuilt the instruments, the world and the references. `npm run gates` now reports **all gates pass**: 1a solvable, 1b not trivial, 1c PASS *by decision*, 2 discriminating at 0.934 of spread, 3 at **36 % of headroom** against a ratified 20 % bar.
 
-`docs/PHASES.md` says not to begin Phase 1 on a failed Gate 3, so Phase 0 now runs **P0M7 (`replan`, done)**, **P0M8 (an instrument that can see a realistic conflict, done)**, **P0M9 (a world big enough to measure one, done)** and **P0M10 (conflict potency)**. Phase 1's generation milestones are blocked behind their joint exit. See [`ROADMAP.md`](ROADMAP.md).
+**Two things that PASS does not say.** Gate 1c is scope rather than evidence — nothing is known about whether a stranger can discover this world's conflicts (`docs/KNOWN-ISSUES.md` #3), and the playtest is still owed. And the competent reference solution is a **regression detector, not a gate instrument**: it was written by people who had seen the world.
+
+Next is **Phase 1 — generation**, in [`ROADMAP.md`](ROADMAP.md).
 
 **The constraint that shapes all of it:** a conflict must stay realistic. Two operators can disagree about where a stop is; at 500 m apart that is a broken map, not a disagreement, and it teaches something other than integration. Every route to a passing gate that runs through "make the conflict bigger" is closed.
 
@@ -18,7 +20,11 @@ Milestones are numbered `P<phase>M<milestone>`. [`docs/BUILD-LOG.md`](docs/BUILD
 
 **Gate 1 and Gate 3 were both restructured on 2026-09-03**, and for the same reason: *a gate measured by running a solution we wrote is a gate about that solution.* Gate 1 splits into solvable / not-trivial / discoverable, of which only the first two are gates; the competent reference solution is a **regression detector, not a gate instrument**. Gate 3 measures `P2rt` on journey time against headroom — the ratified metric — because `P2rt` is specified in `REFERENCE-POLICY.md` while the naive player is an implementation that could change and take the gate with it. See `docs/PHASES.md`.
 
-**The single most important open item is `docs/KNOWN-ISSUES.md` #26**: on **88 % of scored journeys `P0a` equals `P1`**, so there is no reachable headroom at all, while every itinerary remains exposed to cancellations announced after it was planned. A solution that integrates well takes more legs, more exposure and a full headway each time one is cancelled — for reward that mostly does not exist. That is why the competent reference solution scores below the naive one, and it is a fact about the query set rather than the world. Fix belongs to query-set generation; **do not fix it by lowering the cancellation rate**, which would delete the point of realtime integration.
+**The lesson worth carrying into Phase 1** is `docs/KNOWN-ISSUES.md` #26, now fixed: a scored journey must be able to *reward* integration. Where the restricted and unrestricted transfer graphs agree there is nothing to win, and every extra leg a player takes is exposure to a cancellation nobody announced. P0M9's generated query set was 88 % such journeys and the competent solution scored below the naive one because of it. `npm run headroom` selects for this; **a generator must do the same, and must not "fix" it by lowering the cancellation rate**, which would delete the point of realtime integration.
+
+The superseded framing of that item follows.
+
+**Formerly the single most important open item, `docs/KNOWN-ISSUES.md` #26**: on **88 % of scored journeys `P0a` equals `P1`**, so there is no reachable headroom at all, while every itinerary remains exposed to cancellations announced after it was planned. A solution that integrates well takes more legs, more exposure and a full headway each time one is cancelled — for reward that mostly does not exist. That is why the competent reference solution scores below the naive one, and it is a fact about the query set rather than the world. Fix belongs to query-set generation; **do not fix it by lowering the cancellation rate**, which would delete the point of realtime integration.
 
 Gate 3 remains open too, and every attempt to measure it has found the instrument wrong before finding anything about the conflicts. Journey-time attribution is now sound — conflict cost is positive, monotonic, and 19 % of headroom against a ratified 20 % threshold. The run-based half of the gate reports **INCONCLUSIVE**: at 22 travellers, arrival being binary, one journey changing outcome is worth ~0.1 of headline and the effect is ~0.1, so its answer is decided by a single traveller (`docs/KNOWN-ISSUES.md` #4, #14). P0M9 fixes that by growing the world; nothing about Gate 3 can be decided before it.
 

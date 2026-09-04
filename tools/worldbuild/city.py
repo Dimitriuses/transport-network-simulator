@@ -38,6 +38,7 @@ undeclared hop, and going via Central instead costs several minutes.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 # World epoch: the local midnight that simulated time counts from.
@@ -491,6 +492,7 @@ def _flat_metres(alat: float, alon: float, blat: float, blon: float) -> float:
 def _generate_queries(
     target: int,
     min_separation_m: float = 1500.0,
+    departures_per_pair: int = 1,
 ) -> tuple[tuple[str, float, float, float, float, int], ...]:
     """Systematic origin-destination pairs over the whole city.
 
@@ -527,8 +529,8 @@ def _generate_queries(
             pairs.append((oid, did, olat, olon, dlat, dlon))
     pairs.sort(key=lambda r: (r[0], r[1]))
 
-    stride = max(1, len(pairs) // target)
-    chosen = pairs[::stride][:target]
+    stride = max(1, len(pairs) // max(1, target // departures_per_pair))
+    chosen = [pair for pair in pairs[::stride] for _ in range(departures_per_pair)][:target]
 
     out: list[tuple[str, float, float, float, float, int]] = []
     for k, (_oid, _did, olat, olon, dlat, dlon) in enumerate(chosen):
@@ -541,10 +543,51 @@ def _generate_queries(
     return tuple(out)
 
 
-# How many generated journeys to add. Sized so that one traveller changing
+# How many generated journeys to consider. Sized so that one traveller changing
 # outcome is worth well under the 0.2 of headline Gate 3 must decide, which is
 # P0M9's exit condition rather than a round number.
-GENERATED_QUERIES = 110
+#
+# **These are candidates, not the scored set.** P0M10 measured that only 13 of
+# 132 generated journeys can be improved by integration at all: on the rest the
+# unrestricted transfer graph and the restricted one the reference policy is
+# held to produce the same answer, so there is nothing to win and every extra
+# leg a player takes is exposure to a cancellation nobody announced
+# (KNOWN-ISSUES.md #26). A query set like that measures risk appetite.
+#
+# So a large pool is generated and filtered to those that test something.
+GENERATED_QUERIES = 900
+DEPARTURES_PER_PAIR = 3
+
+# Generated journeys where the unrestricted transfer graph beats the restricted
+# one by at least two minutes — the ones where integration has something to
+# offer. Produced by `npm run headroom` and pasted here.
+#
+# **Regenerating it is a two-step build**, and deliberately so: the criterion
+# needs the router, the router needs a built world, and duplicating the router
+# in Python to break that cycle would guarantee the two drift apart.
+#
+#   TNS_QUERY_SELECTION=all npm run world:build   # every candidate
+#   npm run headroom                              # prints the list below
+#   npm run world:build                           # the scored set
+#
+# Empty means "score every candidate", which is what the first step needs.
+SCORED_IDS: frozenset[str] = frozenset(
+    (
+        "g062", "g089", "g100", "g106", "g107", "g143",
+        "g149", "g151", "g160", "g169", "g171", "g172",
+        "g173", "g198", "g201", "g207", "g243", "g245",
+        "g253", "g254", "g271", "g341", "g348", "g413",
+        "g417", "g418", "g435", "g436", "g437", "g492",
+        "g498", "g522", "g529", "g530", "g538", "g550",
+        "g551", "g555", "g556", "g557", "g570", "g577",
+        "g578", "g596", "g600", "g602", "g612", "g634",
+        "g637", "g641", "g650", "g661", "g662", "g690",
+        "g691", "g712", "g713", "g724", "g725", "g730",
+        "g731", "g748", "g762", "g773", "g787", "g791",
+        "g804", "g856", "g861", "g862", "g875", "g882",
+        "g883", "g892", "g894", "g895",
+    )
+)
 
 
 # Movement model. No defects yet, so vehicles run exactly to schedule and the
@@ -553,6 +596,12 @@ WALK_SPEED_MPS = 1.3
 MAX_WALK_M = 400.0
 
 
-QUERIES: tuple[tuple[str, float, float, float, float, int], ...] = (
-    SEED_QUERIES + _generate_queries(GENERATED_QUERIES)
-)
+def _scored() -> tuple[tuple[str, float, float, float, float, int], ...]:
+    """The hand-picked core, plus the generated journeys worth scoring."""
+    generated = _generate_queries(GENERATED_QUERIES, departures_per_pair=DEPARTURES_PER_PAIR)
+    if os.environ.get("TNS_QUERY_SELECTION") == "all" or not SCORED_IDS:
+        return SEED_QUERIES + generated
+    return SEED_QUERIES + tuple(q for q in generated if q[0] in SCORED_IDS)
+
+
+QUERIES: tuple[tuple[str, float, float, float, float, int], ...] = _scored()

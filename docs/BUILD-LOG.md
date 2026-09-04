@@ -946,3 +946,29 @@ The warning attached to it matters as much as the fix: **do not resolve it by re
 * **The forgone-obligation penalty at 1.0** — declining forfeits the whole of what integration was worth to that traveller. The null solution scores exactly −1.000, which is `REFERENCE-POLICY.md` §8's second clause as a number.
 * **The ambiguity bar at 25 %** of headroom, on the aggregate rather than the per-traveller worst case. Gate 1a passes at 6 %.
 * **Gate 1c recorded PASS by decision**, and written into `PHASES.md` in those words — scope, not evidence. What is known about this world's discoverability remains nothing.
+
+### Phase 0's exit criteria met, 2026-09-04
+
+Two divergences between the specification and `gates.ts` had to be closed first, and they were the same divergence twice: **the script was still deciding gates the way it had before the specification changed.**
+
+*Gate 1* still ran the old solution-based check and let its failure drive the verdict, although the split ratified on 2026-09-03 makes the competent solution a regression detector. It now computes 1a (reachable headroom and identifiability, from the world alone), 1b (a lazy integrator must not already win) and reports 1c as a decision.
+
+*Gate 3* still decided on the whole-score figure, although the same ratification returned its criterion to journey-time headroom on `P2rt`. The numbers did not change; which one is binding did.
+
+A guard was corrected rather than silenced along the way. The `#14` warning fired on any honest-values floor above 30 s — a proxy from when the floor was expected to be zero. It is not zero and should not be: a lazy integrator polling every five minutes loses something on entirely honest data, which is a property of the solver rather than a defect in the comparison. It now fires on what #14 was about — a negative conflict cost, or a residual larger than what is being attributed.
+
+```
+VERDICT: all three gates pass
+```
+
+| | |
+|---|---|
+| 1a solvable | 6.20m reachable of 8.37m; ambiguity 2 % against a 25 % bar |
+| 1b not trivial | a lazy integrator captures 0.200 of reachable headroom |
+| 1c discoverable | PASS by decision — scope, not evidence |
+| 2 discriminating | 0.934 of spread, four distinct scores |
+| 3 conflicts doing the work | 3.04m, **36 % of headroom**, bar 20 % |
+
+**And the competent solution recovered to the top of the table** — capture +0.054, headline 0.334, above the naive solution's 0.169. That is the ordering `REFERENCE-POLICY.md` §8 and Gate 2 both want, and it confirms #17's diagnosis end to end: the solution was never bad at this world, it was playing a query set where seven journeys in eight had nothing to win. Give it journeys with headroom and it wins them.
+
+The honest summary of Phase 0 is not that the gates pass. It is that **they refused to pass for four milestones while every instrument in the project was wrong in a different way**, and that the ninth correction was found by the eighth. `KNOWN-ISSUES.md` #13 through #26 are that record.

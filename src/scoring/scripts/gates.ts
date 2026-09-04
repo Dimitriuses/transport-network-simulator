@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { loadWorld } from "@tns/core";
 import { runOpenLoop } from "@tns/server";
 import { ablate, calibrate, scoreRun, auditInformationSets, valueCleanWorld } from "@tns/scoring";
+import { auditIdentifiability } from "@tns/projections";
 import type { World } from "@tns/schema";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -112,21 +113,81 @@ console.log("");
 const competent = results.find((r) => r.mode === "competent")!;
 
 // ---- Gate 1 ---------------------------------------------------------------
+//
+// **Split into three at P0M10, ratified 2026-09-03** (PHASES.md, Gate 1).
+//
+// It used to be one number: run the competent reference solution and see how it
+// did. That measured the solution, not the world — and it could not survive
+// Phase 1, where a fixed solver eventually fails on some generated world while
+// a per-world solver makes the gate vacuous.
+//
+// 1a and 1b are computed from the world alone, need no solution, and run per
+// generated world. 1c cannot be computed at all and is a decision.
+const cal = calibrate(world);
 console.log("  GATE 1 — buildable");
-const g1 = (competent.capture ?? -1) > 0 && (competent.headline ?? -1) > 0.2;
-console.log(`    a solution built only from the brief and the operator APIs`);
-console.log(`    captures ${n(competent.capture)} of the headroom, headline ${n(competent.headline)}`);
-console.log(`    ${g1 ? "PASS" : "FAIL"} — needs capture above 0 and a headline above 0.20`);
 console.log("");
-console.log("    Caveat, and it is not a small one: the competent solution was");
-console.log("    written by someone who had seen the world. A real Gate 1 needs");
-console.log("    somebody who has not. This measures whether the world is");
-console.log("    *solvable*, not whether it is discoverable.");
+
+// -- 1a: solvable ------------------------------------------------------------
+// Two parts. *Existence*: is a good outcome reachable at all? `P0a` answers it
+// — if the announcement-limited optimum is no better than the reference policy,
+// integration cannot help anybody whatever the conflicts do.
+//
+// *Identifiability*: can the canonical structure be recovered from what was
+// published? A world can be solvable-in-principle and still unfair, and only
+// this notices. Charged across the scored population, not to the one traveller
+// who suffers most.
+const reachableS = cal.gapP0P1 - cal.gapP0P0a;
+const ident = auditIdentifiability(world);
+const ambiguityShare = cal.gapP0P1 === 0 ? 0 : ident.worstAggregateS / cal.gapP0P1;
+const g1a = reachableS > 60 && ambiguityShare <= 0.25;
+
+console.log("    1a — solvable");
+console.log(`      reachable headroom, P1 to P0a        ${mins(reachableS)}` +
+  ` of ${mins(cal.gapP0P1)} total`);
+console.log(`      ambiguity no solver can resolve      ${mins(ident.worstAggregateS)}` +
+  `  (${(ambiguityShare * 100).toFixed(0)}% of headroom, bar 25%)`);
+console.log(`      ${g1a ? "PASS" : "FAIL"} — a good outcome must be reachable, and recoverable`);
+console.log("");
+
+// -- 1b: not trivial ---------------------------------------------------------
+// The other way Gate 1 can fail: everyone reaches 0.9 in an hour. A lazy
+// integrator that already captures most of the reachable headroom means the
+// conflicts are decorative.
+const lazyCapture = reachableS === 0 ? 1 : (cal.gapP0P1 - (cal.gapP0P0a + cal.gapP0aP2rt)) / reachableS;
+const g1b = lazyCapture < 0.5;
+console.log("    1b — not trivial");
+console.log(`      a lazy integrator captures           ${n(lazyCapture)} of reachable headroom`);
+console.log(`      ${g1b ? "PASS" : "FAIL"} — doing the obvious thing badly must not already win`);
+console.log("");
+
+// -- 1c: discoverable --------------------------------------------------------
+console.log("    1c — discoverable      PASS by decision (2026-09-04)");
+console.log("      Removed from the MVP: nothing computable evaluates it, and a");
+console.log("      gate that cannot be evaluated should not sit in the exit");
+console.log("      criteria pretending to be one. It returns in Phase 3 as");
+console.log("      generated verifier quests. **This is scope, not evidence** —");
+console.log("      what is known about this world's discoverability is nothing.");
+console.log("");
+
+const g1 = g1a && g1b;
+
+// -- the reference solution, demoted -----------------------------------------
+// Reported because a world that has become accidentally unsolvable by a
+// reasonable strategy is worth noticing. It decides nothing: a solution written
+// by whoever built the world was never evidence about buildability, and P0M10
+// spent a milestone proving it.
+console.log("    regression detector — not a gate");
+console.log(`      the competent reference solution captures ${n(competent.capture)},` +
+  ` headline ${n(competent.headline)}`);
+if ((competent.capture ?? 0) < 0) {
+  console.log("      It is below the reference policy. See KNOWN-ISSUES.md #17 and #26:");
+  console.log("      on most of this world's journeys there is no reachable headroom,");
+  console.log("      and any extra leg is exposed to a cancellation nobody announced.");
+}
 console.log("");
 
 // ---- Gate 2 ---------------------------------------------------------------
 console.log("  GATE 2 — headroom real and discriminating");
-const cal = calibrate(world);
 // **Separation and ordering are different questions, and this used to conflate
 // them.** The spread was `competent - null`, which measures separation only if
 // the competent solution is in fact the best. At P0M10 it was not — a bug in
@@ -255,16 +316,26 @@ console.log(
 );
 console.log("");
 
-// The headline already runs 0 (no better than a city with no integration
-// layer) to 1 (perfect), so a difference in it *is* a share of what a player
-// competes for. No separate headroom division is needed, and none should be
-// invented — that was where the old gate hid the oracle's foresight.
-const materiality = conflictCost;
-
+// The headline runs 0 (no better than a city with no integration layer) to 1
+// (perfect), so a difference in it is already a share of what a player competes
+// for and needs no separate division. It is reported for that reason and is not
+// what the gate decides on — see the criterion below.
 // Retained as a diagnostic, on journey time alone, so the two are comparable
 // against every number recorded before P0M8.
 const ab = ablate(world, GATE3_SEEDS);
 const captureCost = ab.baselineGapS - ab.cleanGapS;
+
+// **The criterion is journey time against headroom, measured on `P2rt`**
+// (ratified 2026-09-03, PHASES.md Gate 3). The whole-score figure above is a
+// diagnostic and decides nothing.
+//
+// The two differ mostly by *which solver they measure* — `P2rt` is specified in
+// REFERENCE-POLICY.md §2, the naive player is an implementation that could
+// change next week and take the gate with it — and by the Information family,
+// which no declared conflict moves (KNOWN-ISSUES.md #19). This script decided
+// on the whole-score number until P0M10, which contradicted the ratified
+// criterion; the numbers below are unchanged, only which one is binding.
+const materiality = ab.headroomS === 0 ? 0 : captureCost / ab.headroomS;
 console.log(`    for comparison, on journey time alone:`);
 console.log(`      excluded — P0's unreachable foresight      ${mins(ab.clairvoyanceS)}`);
 console.log(`      lazy shortfall vs a matched optimum        ${mins(ab.baselineGapS)}`);
@@ -283,10 +354,26 @@ if (ab.entries.some((e) => Math.abs(e.costS) > 1)) {
   console.log("");
 }
 
-if (captureCost < 0 || ab.cleanGapS > 30) {
-  console.log("    WARNING: the conflict-free world is not behaving as a floor.");
-  console.log("    Conflict attribution by subtraction is unsound when it does");
-  console.log("    not. See docs/KNOWN-ISSUES.md #14.");
+// **What #14 was actually about**: the honest-values world coming out *harder*
+// than the declared one, which makes the subtraction meaningless and shows up
+// as a negative conflict cost.
+//
+// The guard used to fire on any floor above 30 s, which was a proxy from when
+// the floor was expected to be zero. It is not zero and should not be: a lazy
+// integrator polling every five minutes loses something on entirely honest
+// data, and that is a property of the solver rather than a defect in the
+// comparison. What matters is that the residual does not dominate what is being
+// attributed.
+if (captureCost < 0) {
+  console.log("    WARNING: conflict cost is negative — the honest-values world is");
+  console.log("    HARDER than the declared one, so the subtraction is meaningless.");
+  console.log("    See docs/KNOWN-ISSUES.md #14.");
+  console.log("");
+} else if (ab.cleanGapS > captureCost) {
+  console.log("    WARNING: a lazy integrator loses more to its own polling cadence");
+  console.log(`    (${mins(ab.cleanGapS)}) than to every declared conflict (${mins(captureCost)}).`);
+  console.log("    Attribution still subtracts correctly, but the conflicts are not");
+  console.log("    what makes this world hard. See docs/KNOWN-ISSUES.md #14.");
   console.log("");
 }
 
@@ -313,7 +400,7 @@ console.log("");
 // 61 % Gate 3 pass stood for four milestones because of it.
 const SIGMA = 2;
 const resolvable = Math.abs(conflictCost) > SIGMA * costSe;
-const g3 = resolvable && materiality > 0.2;
+const g3 = materiality > 0.2;
 
 if (!resolvable) {
   const needed = Math.ceil(
@@ -328,7 +415,14 @@ if (!resolvable) {
   console.log(`    At this effect size, roughly ${needed} seeds would settle it:`);
   console.log(`      TNS_GATE3_SEEDS=${needed} npm run gates`);
 } else {
-  console.log(`    ${g3 ? "PASS" : "FAIL"} — the declared conflicts must cost at least 20% of the score`);
+  console.log(
+  `    ${g3 ? "PASS" : "FAIL"} — the declared conflicts must cost at least 20% of the headroom`,
+);
+if (!resolvable) {
+  console.log("");
+  console.log("    (The whole-score figure above is under two standard errors and");
+  console.log("    is reported only as a diagnostic. It does not decide this gate.)");
+}
 }
 console.log("");
 // ---------------------------------------------------------------------------
