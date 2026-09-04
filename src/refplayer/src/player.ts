@@ -384,7 +384,7 @@ export interface PlayerOptions {
    * the traveller falls back to the reference policy and the player is charged
    * for it (REFERENCE-POLICY.md §8).
    */
-  readonly mode?: "naive" | "null" | "blind" | "cheat" | "competent";
+  readonly mode?: "naive" | "null" | "blind" | "cheat" | "competent" | "competent-deaf";
 }
 
 interface Held {
@@ -407,6 +407,17 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
   let ready = false;
   let operators: { id: string; base_url: string }[] = [];
   const mode = opts.mode ?? "naive";
+  // **A diagnostic, not a competitor.** `competent-deaf` plans exactly as
+  // `competent` does — same model, same offset correction, same transfer floor
+  // — but never lets a realtime feed reach its routing. It still warns.
+  //
+  // It exists to settle KNOWN-ISSUES.md #17 by isolation: `blind` ignores
+  // realtime and captures -0.178 while `competent` uses it and captures -0.597,
+  // so reading the feeds appears to cost four tenths of the headroom. Those two
+  // differ in their *planner* as well as in their realtime handling, so the
+  // comparison cannot attribute to either. This differs in one thing only.
+  const deaf = mode === "competent-deaf";
+  const planner = deaf ? "competent" : mode;
 
   // Itineraries this player has handed out, so it knows who to warn.
   const held = new Map<string, Held>();
@@ -442,7 +453,7 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
     }
 
     model = buildModel(timetables);
-    if (mode === "competent") {
+    if (planner === "competent") {
       // The brief states the world's timezone; no operator does. That single
       // published fact is what makes an offsetless timestamp decodable.
       const offsetS = /([+-])(\d{2}):?(\d{2})/.exec(
@@ -481,6 +492,12 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
           applyRealtime(competent, op.id, feed.updates ?? []);
           for (const k of competent.cancelled) trouble.add(k);
           for (const k of competent.delayed.keys()) trouble.add(k);
+          if (deaf) {
+            // Warn on what the feeds said, then forget it. Routing must not see
+            // it, or the isolation this mode exists for is lost.
+            competent.cancelled.clear();
+            competent.delayed.clear();
+          }
         } else {
           for (const u of feed.updates ?? []) {
             if (u.status === "cancelled" || (u.status === "delayed" && (u.delay ?? 0) > 0)) {
@@ -543,7 +560,7 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
               : ["plan", "replan", "tick", "notify"],
           ...(mode === "null" || mode === "blind"
             ? {}
-            : { tick: { interval_sim_s: mode === "competent" ? 60 : 120 } }),
+            : { tick: { interval_sim_s: planner === "competent" ? 60 : 120 } }),
         });
       }
 

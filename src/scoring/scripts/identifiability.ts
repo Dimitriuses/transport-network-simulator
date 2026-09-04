@@ -46,13 +46,14 @@ console.log("");
 if (report.groups.length === 0) {
   console.log("  Every published place is distinguishable. Nothing here bounds a solver.");
 } else {
-  console.log("  group                                             spread   unpredictable");
-  console.log("  ------------------------------------------------  -------  -------------");
+  console.log("  group                                      spread  unpredictable  reachable by");
+  console.log("  -----------------------------------------  ------  -------------  ------------");
   for (const g of report.groups.slice(0, 12)) {
     const names = g.quayIds.join(", ");
     console.log(
-      `  ${(names.length > 48 ? names.slice(0, 45) + "..." : names).padEnd(48)}  ` +
-        `${g.spreadM.toFixed(0).padStart(5)}m  ${mins(g.unpredictableS).padStart(11)}`,
+      `  ${(names.length > 41 ? names.slice(0, 38) + "..." : names).padEnd(41)}  ` +
+        `${g.spreadM.toFixed(0).padStart(4)}m  ${mins(g.unpredictableS).padStart(13)}  ` +
+        `${g.reachableByQueries}/${report.scoredQueries} queries`,
     );
   }
   if (report.groups.length > 12) console.log(`  ... and ${report.groups.length - 12} more`);
@@ -62,17 +63,25 @@ if (report.groups.length === 0) {
 }
 
 console.log("");
-const share = headroomS === 0 ? 0 : report.worstUnpredictableS / headroomS;
-console.log(`  worst single unpredictable walk   ${mins(report.worstUnpredictableS)}`);
-console.log(`  against ${mins(headroomS)} of headroom   ${(share * 100).toFixed(0)}%`);
+const perTraveller = headroomS === 0 ? 0 : report.worstUnpredictableS / headroomS;
+const share = headroomS === 0 ? 0 : report.worstAggregateS / headroomS;
+console.log(`  worst walk one traveller cannot predict   ${mins(report.worstUnpredictableS)}  ` +
+  `(${(perTraveller * 100).toFixed(0)}% of headroom)`);
+console.log(`  the same, across the scored population   ${mins(report.worstAggregateS)}  ` +
+  `(${(share * 100).toFixed(0)}% of headroom)`);
+console.log("");
+console.log("  The second line is the one thresholded. Comparing a single");
+console.log("  traveller's worst case against the population mean is a maximum");
+console.log("  measured against an average, and it overstated this world by a");
+console.log("  factor of six when the instrument was first written.");
 console.log("");
 
-// **A bound, not a verdict.** An ambiguity is only unfair if the world charges
-// for something nobody could have determined, and how often that bites depends
-// on the query set rather than on the world's structure. What this can say
-// without inventing a query-dependent claim is how large a single unpredictable
-// cost can get, and whether that is a rounding error beside the headroom or a
-// significant fraction of it.
+// **An upper bound, and it is thresholded on the aggregate.** An ambiguity is
+// only unfair if the world charges for something nobody could have determined,
+// and one nobody can reach costs nothing however wide it is. So the bound
+// charges each ambiguity only to the travellers who could meet it, once each —
+// which is still an over-estimate, since not every such traveller is sent
+// through the ambiguous stop, but it is an over-estimate of the right quantity.
 //
 // The 25% threshold is PROVISIONAL — introduced with the instrument at P0M10
 // and not yet ratified, exactly as the Gate 3 materiality bar was.
@@ -82,9 +91,9 @@ const ok = share <= PROVISIONAL_MAX_SHARE;
 console.log(`  ${ok ? "PASS" : "FAIL"} — an ambiguity may not hide more than ` +
   `${(PROVISIONAL_MAX_SHARE * 100).toFixed(0)}% of the headroom`);
 console.log("");
-console.log("  That threshold is PROVISIONAL. It bounds how much a single");
-console.log("  unanswerable question can cost; it does not measure how often the");
-console.log("  question is asked, which is a fact about the query set rather than");
-console.log("  about the world. Ratifying or replacing it is a decision, not an");
+console.log("  That threshold is PROVISIONAL. The figure it bounds is an upper");
+console.log("  bound: every traveller who *could* meet an ambiguity is charged");
+console.log("  for it once, though not all of them are routed through it.");
+console.log("  Ratifying or replacing the threshold is a decision, not an");
 console.log("  arithmetic correction — see docs/PHASES.md, Gate 1a.");
 console.log("");

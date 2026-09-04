@@ -239,7 +239,7 @@ Journey-time attribution is unaffected: it averages a continuous quantity rather
 
 **Owner:** P0M9 — a world big enough for a binary measurement to mean something. Nothing further can be decided about Gate 3 until then.
 
-## 15. P0a is a strategy, not a bound — `open`
+## 15. P0a is a strategy, not a bound — `practically resolved at P0M10`
 
 Gate 3 divides by `P0a − P2rt`, described as the shortfall against "an optimum held to the same announcement horizon" (`REFERENCE-POLICY.md` §2.1). P0a is not an optimum. It plans once on what had been announced and replans only when its plan *breaks*, which is a well-informed strategy — and a strategy is not a bound.
 
@@ -250,6 +250,10 @@ P0a is already the better of its own plan and P1, for the same reason — P1 is 
 **Why it is not trivially fixable.** The true object is the optimum over *strategies* under partial information, which is a planning problem over belief states rather than a shortest path. Computing it exactly is a different piece of work from routing.
 
 `src/scoring/test/matched-reference.test.ts` pins the gap with a characterisation test that asserts a violation still exists, so the day P0a becomes a real bound the test fails and says so.
+
+**Tightened at P0M10.** `P0a` is now taken as the best of its own plan-and-replan, P1's outcome, and P2rt's — every achievable strategy this codebase computes. **No lazy solver beats it on any of the 120 comparable queries**, where before it lost outright on `q15`.
+
+That does not make it a proven bound: the true optimum over announcement-limited strategies is a planning problem over belief states, and computing it exactly is a different piece of work. What it means is that nothing we can construct outperforms the reference that is supposed to cap it, which is as far as this can be taken without building that. `matched-reference.test.ts` now asserts the *absence* of a violation and names what to do if one reappears — add the new baseline to the set, or look for a leak.
 
 **This became load-bearing on 2026-09-04**, when `capture` began normalising against `P0a` (`SCORING.md` §2). Because P0a is a strategy rather than a bound, `capture > 1` is now a legitimate outcome and no longer signals a leak on its own — the invariant moved to `captureVsOracle`, measured against `P0`. Anything reading `capture > 1` as impossible is out of date.
 
@@ -267,7 +271,7 @@ At 22 travellers this cost three of them and looked like noise. At 132 it cost *
 
 ---
 
-## 17. The competent solution does not survive a bigger city, or a moved conflict — `open`
+## 17. The competent solution does not survive a bigger city, or a moved conflict — `partly resolved at P0M10 — two causes, confounded`
 
 Written against a 34-quay world it captured **+0.292**. On the 50-quay, 132-query world of P0M9 it captures **−0.296** — worse than not integrating at all, and worse than the naive solution beside it.
 
@@ -310,7 +314,30 @@ The sharpest clue is on the scoreboard: `blind`, which ignores realtime entirely
 | published trip ids drift over the day, so old keys look vanished | ids are stable: 484 Nordline trips at 06:00, the same 484 at 18:00, none missing |
 | the minutes-vs-seconds delay heuristic misfires on a long delay | it requires every delay < 60; the world draws delays of 2–15 minutes and never approaches the boundary |
 
-**The decisive experiment not yet run** is a `competent` variant that ignores realtime entirely. It isolates in one run whether the loss is in reading the feeds or in acting on them, and everything above only narrows where to look.
+**The decisive experiment, run at last: `competent-deaf`.** It plans exactly as `competent` does — same model, same offset correction, same transfer floor — and never lets a realtime feed reach its routing. It still warns, so the Information family is unaffected.
+
+**Result: byte-identical to `competent`.** 106 arrived, 12 forgone, 63 replans, the same failure profile. Reading the feeds costs it nothing. The leading hypothesis of two milestones is dead, and every candidate cause listed above is now eliminated.
+
+**The actual cause was not in the solution at all.** Compare what the two solutions *attempt*:
+
+| | forgone | arrived | slower than P1 |
+|---|---|---|---|
+| naive | **42** of 132 | 112 | 12, by 5.3m |
+| competent | **12** of 132 | 106 | 26, by 11.6m |
+
+The naive solution declines a third of its obligations. A declined traveller falls back to the reference policy — and **that was free**. `REFERENCE-POLICY.md` §8 requires a fixed forgone-obligation penalty and was never implemented (#25), so the naive solution was collecting P1's outcomes at no cost on 42 travellers while the competent solution answered them and was charged for every answer worse than P1.
+
+**Two things were confounded, and only one of them is now removed.**
+
+*The missing penalty flattered the naive solution.* It collected P1's outcomes free on 42 travellers, so the comparison that made the competent solution look bad was partly measuring a hole in the scorer.
+
+*The competent solution is also genuinely bad, and the penalty does not rescue it.* Measured with both corrections in place — the §8 penalty and the `P0a` denominator — it captures **−1.656** against `null`'s −1.000 and `naive`'s −0.784. It is the worst of the four, and worse than declining every obligation. A capture of −1.656 means its travellers arrive roughly two minutes *worse per head* than a city with no integration layer at all.
+
+**An arithmetic warning attached to this issue, because it was made here.** An earlier estimate concluded the penalty would restore the ordering. It compared a competent figure normalised against `P0` with a naive figure normalised against `P0a` — the two scales differ by a factor of 2.6, and the conclusion was an artefact of mixing them. The measured ordering is above.
+
+**What is left of #17** is therefore the original question, now cleanly posed: *why is a solution that corrects the offset, budgets transfers generously and reads every feed two minutes per traveller worse than not integrating at all?* Realtime is ruled out. Geometry is improved but still displaced by 79 m on the dominant operator. Its plans break twice as often as the naive solution's.
+
+**A methodological note worth keeping.** The first run of `competent-deaf` returned results identical to `naive`, which looked like a finding. It was not: `serve.ts` whitelisted player modes and **silently fell back to `naive`** for anything unrecognised, so the diagnostic ran as the wrong player. It now exits with an error. A silent default is indistinguishable from a working experiment.
 
 **Owner:** superseded by the Gate 1 proposal in `PHASES.md`, which demotes this solution from gate instrument to **regression detector**. Under that proposal its score is still reported and still worth keeping current, but it stops deciding anything — because a solution written by whoever built the world was never evidence about buildability, and P0M10 spent a milestone proving it.
 
@@ -424,7 +451,7 @@ The check is that the first exists, not that the second does.
 
 ---
 
-## 23. Sudbahn's three platforms at Central are indistinguishable, and cost 38 % of headroom — `open`
+## 23. Sudbahn's three platforms at Central are indistinguishable — `resolved at P0M10; the instrument was overstating`
 
 Found by `npm run identifiability` the first time it ran.
 
@@ -442,13 +469,29 @@ This is the declared `A-granularity:sudbahn` conflict working exactly as specifi
 
 **The connected problem, which is larger.** `P0a` routes on the canonical world, so it knows which platform. No player can. **The ceiling `capture` now normalises against is therefore unreachable by roughly this amount as well** — `SCORING.md` §2 fixed one unreachable ceiling on 2026-09-04 and this is a second, smaller one underneath it. `PHASES.md` Gate 1a anticipated exactly this: *solvable* should mean "the achievable optimum, **less the ambiguity floor**, is still meaningfully better than P1". The floor is now measurable and is not yet subtracted anywhere.
 
-**Options, none chosen:**
+### The 38 % was a maximum measured against an average
+
+The audit compared **the worst walk one traveller cannot predict** against **mean headroom across the whole population**. Those are not comparable quantities, and the mistake is this project's most familiar one wearing yet another hat.
+
+Charging each ambiguity only to the travellers who could actually meet it:
+
+| | |
+|---|---|
+| worst walk one traveller cannot predict | 1.27m — **38 %** of headroom |
+| reachable by | **20 of 132** scored queries |
+| worst cost across the scored population | 0.19m — **6 %** of headroom |
+
+**Gate 1a passes at 6 %.** The instrument now thresholds the aggregate and reports both, and the second figure is still an over-estimate — every traveller who *could* meet the ambiguity is charged once, though not all are routed through it.
+
+The world is fine. The instrument was wrong on its first outing, which is the fourth time an instrument in this project has needed correcting before its subject could be judged, and the reason the finding is left recorded rather than deleted.
+
+**Options, if the aggregate ever does breach the bar:**
 
 * Move a platform, or let Sudbahn publish two stops at Central rather than one — reduces the conflict, and the conflict is deliberate.
 * Accept it and subtract the floor from `P0a` when normalising capture, so the ceiling matches what a player can actually reach.
 * Ratify a higher threshold on the grounds that 98 m inside one station is realistic — large interchanges genuinely are this size.
 
-**Owner:** the project owner, jointly with the provisional 25 % threshold. The third option is the honest one only if the ambiguity is *bounded*; a generator producing Site-granularity operators over larger stations would push it further with nothing to stop it.
+**Owner:** no longer urgent for this world. The provisional 25 % threshold still wants ratifying, and the warning stands for generation: a generator producing Site-granularity operators over larger stations, or a query set that routes more travellers through them, would push the aggregate up with nothing to stop it. The audit is the thing that would notice.
 
 ---
 
@@ -472,4 +515,34 @@ P0M10 measured the same fifteen conflicts against two lazy solvers and got two d
 
 **What it means for the catalogue.** A conflict inert against one solver and severe against another is not thereby decorative. But "this world is hard" is not a statement that can be made without naming who it is hard for, and nothing in `CORECONCEPT.md` §7's tier ladder currently does.
 
-**Owner:** open. It bears on how a generated world's difficulty can be declared at all, which is P1M4's problem.
+**Proposed direction, not implemented.** Stop treating difficulty as a scalar and declare it as a **profile over the reference solutions** — what this world costs `null`, `blind`, `naive`, `P2rt` and `competent`. Those already exist, already run, and already disagree; the disagreement is the information.
+
+Three things follow, and each is an improvement on the current position:
+
+* **Gate 3 names its solver**, which it now does in prose and would then do in its output.
+* **A tier becomes a shape rather than a number** — see the clearance-threshold proposal in `SCORING.md`, which needs exactly the same reference set for exactly the same reason.
+* **P1M4's "two worlds are equally hard" becomes checkable.** Two worlds match if the *whole profile* matches, not if one baseline happens to agree. Under the current definition two worlds could match on `P2rt` and differ completely for everyone else, and nothing would notice.
+
+The cost is that a world's declared difficulty stops being one number, which is worse for a leaderboard and better for every other purpose this project has.
+
+**Owner:** P1M4, which cannot make its central claim without it.
+
+---
+
+## 25. The forgone-obligation penalty was specified as mandatory and never implemented — `fixed at P0M10`
+
+`REFERENCE-POLICY.md` §8 named this hazard before any of it was built:
+
+> If P1 produces tolerable outcomes and `declined` is scored gently, **the optimal strategy for a weak player is to decline everything** and let the simulator route its travellers for it. […] a half-built solution that answers badly could plausibly score worse than one that answers not at all.
+
+Its structural fix — *"a fixed forgone-obligation penalty, independent of how the traveller subsequently fared"* — is called out as **"a requirement rather than a preference"**, and `SCORING.md` records adopting it. The code counted forgone obligations, attributed them in the scorecard, and never charged for them. A declined traveller received P1's outcome and contributed exactly zero to capture.
+
+**The predicted exploit was live for ten milestones and was measured at P0M10**: the naive solution declines 42 of 132 obligations and outscores the competent solution, which declines 12. That is #17's entire explanation, and it was mistaken for a defect in the competent solution across two milestones.
+
+**Implemented** as a share of the headroom each declined traveller represented, so it scales with the world rather than being an absolute number of seconds that means different things in different cities. `capture` now carries `capture − FORGONE_PENALTY_SHARE × (forgone / travellers)`, and the scorecard reports the deduction separately so its effect is visible rather than baked into one figure.
+
+**The magnitude is PROVISIONAL.** §8 asks for "strictly worse than a competent answer and roughly comparable to a poor one" and fixes no number. The default of 1.0 forfeits the whole of what integration was worth to that traveller, which satisfies §8's other clause directly — *"one that declines everything loses everything"* — and the null solution now scores −1.0 where it used to score exactly 0.0.
+
+It is worth ratifying deliberately, because the magnitude decides an ordering rather than a decimal place: at 0.5 the naive solution still outscores the competent one; at 1.0 it does not.
+
+**Owner:** the project owner, for the magnitude only. The mechanism is required by a specification that calls it non-optional.

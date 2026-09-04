@@ -359,3 +359,54 @@ The non-arrival line is doing exactly what §4 intends: three stranded traveller
 Changing the denominator on 2026-09-04 rescaled capture by roughly 2.6 without touching the thresholds, so **every tier is now materially harder to clear than the number was chosen to mean**. On the P0M9 world the naive solution's headline fell from 0.192 to 0.019 against an unchanged bar of 0.25.
 
 This is the same mistake as `KNOWN-ISSUES.md` #20 — a threshold ratified against one metric and left in place when the metric changed — and it is recorded rather than adjusted for the same reason. Re-deriving it is a decision about how hard a tier should be, not an arithmetic correction, and picking a number that makes current results look reasonable would be choosing the answer first.
+
+---
+
+## OPEN — the Information family registers realtime failures and does not score them
+
+Measured at P0M10 with `npm run symptoms`. Switching `D-silent-cancellation:sudbahn` on produces **ten silent events** where the honest world has none, and `D-staleness:sudbahn` produces late ones. The *events* move. The **score** moves by 0.001.
+
+`F1(recall, precision) × (0.5 + 0.5 × timeliness)` washes ten silent events down to a thousandth of a point, and the reason is structural rather than a tuning error:
+
+* **The timeliness term has a floor of 0.5.** A player that warns nobody in time keeps half the multiplier, so lateness can never cost more than half the family.
+* **Recall is diluted by the events a conflict does not touch.** A world with many material events and ten newly-silent ones moves recall by a few per cent, and F1 by less.
+* **A silent event and a late one are scored on different axes** — one hurts recall, the other timeliness — so a conflict that converts *in-time* warnings into *silent* ones moves both a little and neither much.
+
+**This matters beyond Gate 3.** `CORECONCEPT.md` treats realtime truthfulness as first-class, and the Information family carries 40 % of the balanced profile. A family that cannot be moved by the conflicts designed to move it is not weighing what it was built to weigh.
+
+**Candidate directions, none chosen:**
+
+1. **Remove the timeliness floor**, or lower it. A warning that arrives after the traveller has boarded is worth close to nothing, and the current formula says it is worth half.
+2. **Score per material event rather than in aggregate**, so ten silent events cost ten events' worth rather than a shift in a ratio of ratios.
+3. **Weight events by what they cost the traveller.** A missed warning about a cancellation that stranded somebody should not score the same as one about a two-minute delay. The traveller outcomes needed for this are already in the run log.
+4. **Accept it** and say plainly that catalogue D is not load-bearing for scoring, as `A-id-scheme` and `A-naming` were reclassified as cosmetic at P0M10.
+
+The third is the most faithful to what the family is for and the most work. The fourth should not be chosen by default — which is what happens if none of the others is.
+
+---
+
+## OPEN — the reachable ceiling has a second, smaller floor under it
+
+`capture` normalises against `P0a` since 2026-09-04, because `P0` is clairvoyant and unreachable. But `P0a` routes on the **canonical** world: it knows which of Sudbahn's three platforms at Central its train uses, and no player can (`KNOWN-ISSUES.md` #23).
+
+So `P0a` is unreachable too, by the identifiability floor `npm run identifiability` now measures — **0.19 min, about 6 % of headroom** on this world. Capture of 1.0 remains slightly impossible, by a much smaller margin than before.
+
+**Options:**
+
+1. **Subtract the floor**, normalising against `P0a + ambiguityFloor`. `PHASES.md` Gate 1a already frames *solvable* this way — "the achievable optimum, **less the ambiguity floor**". Principled, and makes 1.0 genuinely reachable.
+2. **Leave it and state it.** Six per cent is within the noise of a single calibration and the floor is itself an upper bound. Publishing the figure beside capture may be enough.
+3. **Remove the ambiguity from the world instead**, which trades a scoring problem for a content decision (#23).
+
+The first is right if the floor stays small and computable. It becomes wrong if a generated world's floor is large, because then capture would be normalised against a ceiling that moves with a defect — and a player would score better on a world whose ambiguity was worse.
+
+**That last sentence is the reason not to implement it reflexively.**
+
+---
+
+## OPEN — tier clearance thresholds, re-derivation method
+
+Recorded above as predating the change of denominator. What is needed is not a new number but a *method*, since the same problem will recur every time the scale moves:
+
+**Express each tier's bar as a position between named reference solutions rather than as a bare decimal.** The reference set already exists — `null`, `blind`, `naive`, `competent` — and their scores move with the scale automatically. A tier bar of "must beat the naive solution" or "must reach halfway between naive and competent" survives a change of denominator, a change of world size and a change of penalty, none of which a hard-coded 0.25 survives.
+
+It also states the intent, which a decimal does not: Tier 2 asking for "better than a lazy integrator" is a claim anybody can check, and 0.25 is a number nobody can argue with.

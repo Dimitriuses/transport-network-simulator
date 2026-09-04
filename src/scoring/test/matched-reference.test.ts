@@ -121,31 +121,34 @@ test("P0a never beats the clairvoyant oracle", { skip }, () => {
   }
 });
 
-test("P0a is a strategy, not an optimum — and the difference is measurable", { skip }, () => {
-  // The invariant that survives, and the one that matters: P0a has strictly
-  // better information and a strictly better model than P2rt, so it must never
-  // lose. When it did — P2rt failing, being handed P1's whole-journey outcome
-  // and beating the reference it was measured against — that was a defect in
-  // P0a's construction, not a fact about the world (fixed at P0M7 by having a
-  // stranded baseline resume from where it stands, and by recognising that P1
-  // is itself an achievable announcement-limited strategy).
-  // P0a plans once on what had been announced and replans only when its plan
-  // *breaks*. That is a well-informed strategy, and a strategy is not an
-  // optimum: on q15 it detours around an announced delay that turns out not to
-  // matter, and a lazy integrator that ignored the announcement arrives sooner.
+test("nothing we can compute beats P0a", { skip }, () => {
+  // **This test used to assert the opposite**, and fired at P0M10 exactly as
+  // its own message asked it to.
   //
-  // This test records the gap between what Gate 3's denominator is called and
-  // what it is. It is not a bug in P0a's code; it is a limit on what can be
-  // claimed from it, and it is why conflict attribution is unsound today
-  // (KNOWN-ISSUES.md #15). Delete this test when P0a becomes a real bound.
+  // `P0a` plans once on what had been announced and replans only when its plan
+  // breaks — a well-informed strategy, and a strategy is not a bound. On `q15`
+  // it detoured around an announced delay that turned out not to matter, and a
+  // *lazy* integrator that ignored the announcement arrived sooner. A reference
+  // that loses to something with less information is not capping anything.
+  //
+  // It is now taken as the best of its own plan, P1's outcome and P2rt's —
+  // every achievable strategy this codebase computes. That does not make it a
+  // proven bound; the true optimum over announcement-limited strategies is a
+  // planning problem over belief states. It does mean nothing we can construct
+  // outperforms the reference that is supposed to cap it.
+  //
+  // This matters more since 2026-09-04, when `P0a` became `capture`'s
+  // denominator: a loose ceiling inflates every score measured against it.
   const c = calibrate(loadWorld(worldPath));
   const beaten = c.perQuery.filter(
     (g) => g.p0a !== null && g.p2rt !== null && g.p2rt < g.p0a - 1,
   );
-  assert.ok(
-    beaten.length > 0,
-    "no lazy integrator now beats P0a — P0a may have become a genuine bound, in which " +
-      "case KNOWN-ISSUES.md #15 can be closed and Gate 3 re-derived.",
+  assert.equal(
+    beaten.length,
+    0,
+    `a lazy integrator beat P0a on ${beaten.map((g) => g.queryId).join(", ")}. ` +
+      `Either a new baseline needs adding to the set P0a is the best of, or ` +
+      `something has been given information it should not have.`,
   );
 });
 

@@ -45,6 +45,9 @@ export function renderScorecard(card: Scorecard, audit?: AuditResult): string {
   // ---- Service -----------------------------------------------------------
   const s = card.service;
   p(`  SERVICE                              capture ${s.capture === null ? "  n/a" : s.capture.toFixed(3)}`);
+  if (s.forgonePenalty > 0) {
+    p(`    of which forgone penalty  -${s.forgonePenalty.toFixed(3)}  (${s.forgone} declined, REFERENCE-POLICY.md §8)`);
+  }
   if (s.capture === null && s.captureNote) p(`    ${s.captureNote}`);
   p(`    travellers               ${s.arrived}/${s.travellers} arrived`);
   if (s.nonArrivals > 0) {

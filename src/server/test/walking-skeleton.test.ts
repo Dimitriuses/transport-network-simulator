@@ -92,21 +92,36 @@ test("no traveller beats perfect information", { skip }, async () => {
   );
 });
 
-test("a player that answers nothing scores exactly 0.0", { skip }, async () => {
+test("a player that answers nothing loses everything", { skip }, async () => {
   const log: RunRecord[] = await runOnce({ operator: 9260, control: 9269, player: 8260 }, "null");
   const card = scoreRun(log);
 
-  // The zero point of the capture scale, demonstrated end to end rather than
-  // asserted. Every obligation is declined, every traveller falls back to the
-  // reference policy, and the player is charged for exactly that — so it lands
-  // on 0.0 by construction, not by coincidence (REFERENCE-POLICY.md §8).
+  // **This test used to assert exactly 0.0, and that was the exploit.**
+  //
+  // `REFERENCE-POLICY.md` §8 predicted it before any of this was built: *"a
+  // half-built solution that answers badly could plausibly score worse than one
+  // that answers not at all"*, and required a fixed forgone-obligation penalty
+  // as the structural fix — "a requirement rather than a preference". The
+  // penalty was never implemented. Declining was free, and P0M10 measured the
+  // consequence: the naive solution declines 42 of 132 obligations and
+  // outscores the competent solution, which declines 12 and answers the rest.
+  //
+  // §8 states the target ordering directly: *"a player that declines only where
+  // it genuinely has no answer loses a little; one that declines everything
+  // loses everything."* This is the second clause.
   assert.equal(card.obligations["declined"], world().queries.length);
-  assert.equal(card.service.capture, 0);
-  assert.equal(card.service.meanJourneyS, card.service.meanReferenceS);
 
-  // And it is not rewarded for the tidiness: every one is recorded as forgone.
+  // Its travellers still travel — under the reference policy, exactly as before.
+  assert.equal(card.service.meanJourneyS, card.service.meanReferenceS);
   const forgone = log.filter((r) => r.kind === "traveller" && r.forgone).length;
   assert.equal(forgone, world().queries.length);
+
+  // And it is charged the full penalty for every one of them.
+  assert.equal(card.service.forgone, world().queries.length);
+  assert.ok(
+    card.service.capture !== null && card.service.capture < -0.99,
+    `declining every obligation scored ${card.service.capture}, which is not "losing everything"`,
+  );
 });
 
 test("a naive player is now actively harmful", { skip }, async () => {

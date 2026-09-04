@@ -46,6 +46,8 @@ export interface ServiceScore {
   readonly arrived: number;
   readonly nonArrivals: number;
   readonly forgone: number;
+  /** Capture lost to declining, before it was subtracted. §8's penalty. */
+  readonly forgonePenalty: number;
   /**
    * Raw door-to-door means, over the same population, for a human to read.
    *
@@ -114,6 +116,15 @@ export interface Scorecard {
 
 const mean = (xs: readonly number[]): number | null =>
   xs.length === 0 ? null : xs.reduce((a, b) => a + b, 0) / xs.length;
+
+/**
+ * What declining one traveller's obligation costs, as a share of the headroom
+ * that traveller represented.
+ *
+ * PROVISIONAL — see the note where it is applied. `REFERENCE-POLICY.md` §8
+ * requires the penalty and does not fix its size.
+ */
+export const FORGONE_PENALTY_SHARE = 1.0;
 
 /** Per-tier minimum capture to clear. Tier 0 asks only that you turn up. */
 const CLEARANCE: Record<number, number> = { 0: 0.0, 1: 0.1, 2: 0.25, 3: 0.35, 4: 0.4, 5: 0.45 };
@@ -186,6 +197,30 @@ export function scoreRun(log: readonly RunRecord[], opts: ScoreOptions = {}): Sc
   // was recorded, and says so rather than silently changing scale.
   const mCeiling = usingAnnounced ? mAnnounced : mOracle;
 
+  // **The forgone-obligation penalty.** `REFERENCE-POLICY.md` §8 requires it and
+  // calls it "a requirement rather than a preference", naming the hazard
+  // exactly: *a half-built solution that answers badly could plausibly score
+  // worse than one that answers not at all.*
+  //
+  // It was never implemented. Declining was free — a forgone traveller received
+  // P1's outcome and nothing more, so its capture contribution was zero rather
+  // than negative. Measured at P0M10: the naive solution declines 42 of 132
+  // obligations and outscores the competent solution, which declines 12 and
+  // answers the rest. The predicted exploit was live for ten milestones.
+  //
+  // Expressed as a share of the headroom each declined traveller represented,
+  // so it scales with the world rather than being an absolute number of
+  // seconds that means different things in different cities.
+  //
+  // **The magnitude is PROVISIONAL.** §8 asks for "strictly worse than a
+  // competent answer and roughly comparable to a poor one" and does not fix a
+  // number. 1.0 forfeits the whole of what integration was worth to that
+  // traveller. It is deliberately reported separately so the effect of changing
+  // it is visible rather than baked into one figure.
+  const forgoneCount = travellers.filter((t) => t.forgone).length;
+  const forgonePenalty =
+    travellers.length === 0 ? 0 : FORGONE_PENALTY_SHARE * (forgoneCount / travellers.length);
+
   let capture: number | null = null;
   let captureNote: string | null = null;
   let captureVsOracle: number | null = null;
@@ -197,7 +232,7 @@ export function scoreRun(log: readonly RunRecord[], opts: ScoreOptions = {}): Sc
       "no headroom: the best reachable outcome already matches the reference policy, " +
       "so there is nothing for integration to capture";
   } else {
-    capture = (mReference - mPlayer) / (mReference - mCeiling);
+    capture = (mReference - mPlayer) / (mReference - mCeiling) - forgonePenalty;
     if (!usingAnnounced) {
       captureNote =
         "normalised against P0, the clairvoyant oracle: this run log predates P0a " +
@@ -228,7 +263,8 @@ export function scoreRun(log: readonly RunRecord[], opts: ScoreOptions = {}): Sc
     travellers: travellers.length,
     arrived: arrived.length,
     nonArrivals: travellers.length - arrived.length,
-    forgone: travellers.filter((t) => t.forgone).length,
+    forgone: forgoneCount,
+    forgonePenalty,
     // Raw, and over the same population as each other.
     meanJourneyS: mean(
       scored.map((t) => (t.arrived && t.journeyS !== null ? t.journeyS : NON_ARRIVAL_PENALTY_S)),

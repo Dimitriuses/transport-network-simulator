@@ -837,7 +837,19 @@ export function calibrate(world: World, options: CalibrateOptions = {}): Calibra
       // was being measured against, which is impossible for a real optimum and
       // meant the construction was under-powered. `matched-reference.test.ts`
       // now asserts the domination directly.
-      p0a: bestOf(p0a, p1),
+      // **Tightened at P0M10 to include every achievable strategy computed
+      // here, not only P1.** An optimum must dominate anything a real solver
+      // can do, and `P2rt` is one: it reads published feeds, merges them badly
+      // and replans. On `q15` it beat `P0a` outright, which is impossible for a
+      // bound and merely embarrassing for a strategy (KNOWN-ISSUES.md #15).
+      //
+      // This does not make `P0a` a proven bound — the true optimum over
+      // announcement-limited strategies is a planning problem over belief
+      // states — but it removes every case where something we *already compute*
+      // outperforms the reference that is supposed to cap it. Since P0M10 that
+      // reference is also `capture`'s denominator, so a loose one inflates
+      // every score.
+      p0a: bestOf(bestOf(p0a, p1), p2rt),
       p0aFellBack: p0a === null,
     };
   });

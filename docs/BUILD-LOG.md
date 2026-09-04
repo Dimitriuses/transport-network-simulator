@@ -846,3 +846,65 @@ This is the same error as the clairvoyant reference, the conflict-free floor, th
 **Difficulty is not a scalar property of a world.** It is a property of the (world, solver) pair. P1M0 noted that as an aside; this quantifies it, and it means *"this world is hard"* is not a statement that can be made without naming who it is hard for — which nothing in the tier ladder currently does. Recorded as `KNOWN-ISSUES.md` #24.
 
 It also sharpens #19. The Information family's **events** do move — `D-silent-cancellation:sudbahn` produces ten silent events where the honest world has none — while the Information **score** moves by a thousandth. The insensitivity is in the scoring formula, not in the world and not in the instrument, which is a more tractable problem than either and a different one from the mechanism that issue had guessed at.
+
+### #17 resolved, and the cause was not the competent solution
+
+The decisive experiment finally ran. `competent-deaf` plans exactly as `competent` does and never lets a realtime feed reach its routing. **The result is byte-identical to `competent`** — 106 arrived, 12 forgone, 63 replans, the same failure profile. Reading the feeds costs it nothing, and the hypothesis that had stood for two milestones is dead along with every other candidate listed against #17.
+
+**A methodological note first, because it nearly produced a fifth wrong answer.** The first run of `competent-deaf` returned results identical to `naive`, which looked like a finding. `serve.ts` whitelisted player modes and **silently fell back to `naive`** for anything unrecognised, so the diagnostic ran as the wrong player and produced a complete, plausible, meaningless run. It now exits with an error. *A silent default is indistinguishable from a working experiment.*
+
+**What was actually wrong** was visible in what the two solutions attempt:
+
+| | forgone | arrived | slower than P1 |
+|---|---|---|---|
+| naive | **42** of 132 | 112 | 12, by 5.3m |
+| competent | **12** of 132 | 106 | 26, by 11.6m |
+
+The naive solution declines a third of its obligations, and **declining was free**. `REFERENCE-POLICY.md` §8 requires a fixed forgone-obligation penalty, calls it *"a requirement rather than a preference"*, and names the hazard exactly:
+
+> a half-built solution that answers badly could plausibly score worse than one that answers not at all.
+
+It was never implemented. The scorecard counted forgone obligations, attributed them, and charged nothing. **The exploit the specification predicted before any of this was built was live for ten milestones**, and two of those milestones were spent looking for a defect in the competent solution that was really a missing mechanism in the scorer.
+
+### And the measurement that corrected the correction
+
+With both changes in place — the §8 penalty and the `P0a` denominator — the ordering is:
+
+```
+null        -1.000      blind      -0.784
+naive       -0.784      competent  -1.656
+```
+
+`null` lands on exactly **−1.000**, which is §8's second clause stated as a number: *"one that declines everything loses everything."* Gate 2's spread rose from 0.299 to 0.522.
+
+**But the competent solution is now the worst of the four, and worse than declining everything.** An earlier estimate in this milestone concluded the penalty would restore the ordering; it compared a competent figure normalised against `P0` with a naive figure normalised against `P0a`, two scales that differ by a factor of 2.6. The conclusion was an artefact of mixing them — the ninth instance of this project's one recurring error, committed while writing up the eighth.
+
+So the honest position: **two causes were confounded and one is removed.** The missing penalty flattered the naive solution, which collected P1's outcomes free on 42 travellers. The competent solution is *also* genuinely bad — roughly two minutes per traveller worse than no integration at all — and no penalty rescues that. #17 keeps the second half.
+
+### The penalty, implemented
+
+`capture − FORGONE_PENALTY_SHARE × (forgone / travellers)`, expressed as a share of the headroom each declined traveller represented so it scales with the world rather than being an absolute number of seconds meaning different things in different cities. The scorecard reports the deduction on its own line.
+
+The magnitude is **provisional** and decides an ordering rather than a decimal place: at 0.5 the naive solution still outscores the competent one, at 1.0 it does not. The default satisfies §8's other clause directly — *"one that declines everything loses everything"* — and the null solution now scores −1.0 where it scored exactly 0.0.
+
+**A test fired to say so.** `a player that answers nothing scores exactly 0.0` had asserted the exploit as though it were a property, with a comment claiming the player "is not rewarded for the tidiness". It was. Rewritten to assert §8's requirement instead.
+
+### #15 tightened: nothing we can compute beats P0a
+
+`P0a` is now the best of its own plan-and-replan, P1's outcome **and P2rt's** — every achievable strategy this codebase computes. A lazy solver beat it on `q15` before; it now loses on **none of the 120 comparable queries**.
+
+Not a proven bound — the true optimum over announcement-limited strategies is a planning problem over belief states — but nothing constructible outperforms the reference that caps it, which matters more since 2026-09-04 made that reference `capture`'s denominator. The characterisation test now asserts the *absence* of a violation and says what to do if one returns.
+
+### #23 dissolved: the instrument was overstating by a factor of six
+
+The identifiability audit compared **the worst walk one traveller cannot predict** against **mean headroom over the whole population** — a maximum against an average, this project's most familiar error in yet another hat.
+
+| | |
+|---|---|
+| worst walk one traveller cannot predict | 1.27m — 38 % of headroom |
+| reachable by | **20 of 132** scored queries |
+| worst cost across the scored population | 0.19m — **6 %** |
+
+**Gate 1a passes at 6 %.** The audit now charges each ambiguity only to the travellers who could meet it and thresholds that, reporting both. It remains an over-estimate — every traveller who *could* meet the ambiguity is charged once, though not all are routed through it — which is the right direction for a bound.
+
+The world is fine. The instrument needed correcting before its subject could be judged, which is the fourth time that has happened here and the reason the finding is left recorded rather than deleted.

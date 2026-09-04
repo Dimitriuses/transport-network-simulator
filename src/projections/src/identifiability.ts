@@ -39,6 +39,8 @@ export interface AmbiguousGroup {
    * member of the group it is being sent to.
    */
   readonly unpredictableS: number;
+  /** Scored queries with any member of this group within walking distance. */
+  readonly reachableByQueries: number;
 }
 
 export interface IdentifiabilityReport {
@@ -54,6 +56,17 @@ export interface IdentifiabilityReport {
    * that needs the query set to compute is a bound about the query set.
    */
   readonly worstUnpredictableS: number;
+  /**
+   * The worst cost the ambiguity can impose **across the scored population**,
+   * rather than on the one traveller who suffers most.
+   *
+   * The per-traveller worst case compared against mean headroom is a
+   * comparison between a maximum and an average, and it overstated this world's
+   * ambiguity by a factor of six the first time it was reported. An ambiguity
+   * nobody can reach costs nothing however wide it is.
+   */
+  readonly worstAggregateS: number;
+  readonly scoredQueries: number;
 }
 
 /**
@@ -131,11 +144,17 @@ export function auditIdentifiability(world: World, tau = 0): IdentifiabilityRepo
         spreadM = Math.max(spreadM, metres(a.lat, a.lon, b.lat, b.lon));
       }
     }
+    const members = new Set(quayIds);
+    const reachableByQueries = world.queries.filter((q) =>
+      world.queryAccess.some((a) => a.queryId === q.id && members.has(a.quayId)),
+    ).length;
+
     groups.push({
       quayIds: [...quayIds].sort(),
       signature,
       spreadM,
       unpredictableS: Math.ceil(spreadM / walkSpeed),
+      reachableByQueries,
     });
   }
 
@@ -146,5 +165,14 @@ export function auditIdentifiability(world: World, tau = 0): IdentifiabilityRepo
     groups,
     ambiguousQuays: groups.reduce((n, g) => n + g.quayIds.length, 0),
     worstUnpredictableS: groups.length === 0 ? 0 : groups[0]!.unpredictableS,
+    // Charged only to the travellers who could meet it, and only once each.
+    worstAggregateS:
+      world.queries.length === 0
+        ? 0
+        : groups.reduce(
+            (total, g) => total + (g.unpredictableS * g.reachableByQueries) / world.queries.length,
+            0,
+          ),
+    scoredQueries: world.queries.length,
   };
 }
