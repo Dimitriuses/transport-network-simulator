@@ -59,7 +59,7 @@ Ablation at P0M6 attributed the entire conflict-caused shortfall to `C-coordinat
 
 ---
 
-## 3. Gate 1 has no external evidence — `open, and now structural`
+## 3. Gate 1 has no external evidence — `resolved as a method change; the evidence is still owed`
 
 The competent solution used to measure Gate 1 was written by someone who had already seen the world, the conflicts and the scoring. It establishes that the world is *solvable*. It says nothing about whether it is *discoverable*, how steep the first hour is, or whether solving it is interesting.
 
@@ -67,7 +67,11 @@ No internal work can close this. The gate output says so in its own text so the 
 
 **Escalated at P0M10.** This was recorded as a gap in the evidence. It is a gap in the *method*: Gate 1 is measured by running a solution, and once worlds are generated, a fixed solver eventually fails on some world while a per-world solver makes the gate vacuous. `PHASES.md` now carries a proposal splitting Gate 1 into solvable (computable), not-trivial (computable) and discoverable (people, sampled) — and only the third is what this issue is about.
 
-**Owner:** P1M0 part A, which is **not closed**. The kit for running it is [`PLAYTEST-KIT.md`](PLAYTEST-KIT.md); it needs an engineer who has not seen this repository, and nothing internal substitutes for that.
+**Settled 2026-09-03.** Gate 1 splits into solvable (1a, computable), not-trivial (1b, computable) and discoverable (1c). **1c is removed from the MVP exit criteria** — nothing computable evaluates it, and a gate that cannot be evaluated should not sit in the exit pretending to be one. It returns in Phase 3 as generated verifier quests.
+
+**What replaces it in Phase 0** are two *necessary* conditions, neither of which establishes discoverability but either of whose failure makes a world unfair rather than hard: information present (the identifiability audit, 1a) and **symptom present** (#22).
+
+**Still owed:** the playtest itself. [`PLAYTEST-KIT.md`](PLAYTEST-KIT.md) needs an engineer who has not seen this repository, and quests will not substitute — they measure directed search, not undirected discovery.
 
 ---
 
@@ -365,7 +369,9 @@ Both measurements are sound and they disagree:
 | journey-time headroom, as ratified | **76 %** | passes comfortably |
 | whole headline score, as redefined | **12.9 %** (4.4σ) | fails |
 
-**This must not be resolved by picking whichever passes.**
+**Settled 2026-09-03:** the criterion returns to journey-time headroom on `P2rt`. Not because it passes — because the two numbers differ mostly by *which solver they measure*, and only `P2rt` is specified in a document rather than written by us. The whole-score figure is reported and decides nothing. See `PHASES.md`, Gate 3.
+
+The original framing follows.
 
 **Proposal on the table** (`PHASES.md`, Gate 3): return the criterion to the metric that was ratified. The reason is not that it passes — it is that the two numbers differ mostly by *which solver they measure*, and only one of those solvers is specified rather than written by us.
 
@@ -384,3 +390,24 @@ At P0M10 it was not: #17's replan bug had it answering `no_route` to every repla
 **A gate that fails for the wrong reason is worse than one that fails**, because it sends you looking at the world when the fault is in the solution. Two milestones' worth of "the world broke the players" reasoning rested partly on this.
 
 Now `max − min` for separation, with the ordering checked separately and reported as a note pointing at Gate 1, where a mis-ordered set of solutions actually belongs.
+
+---
+
+## 22. Nothing checks that a conflict a player is charged for is one they could notice — `open`
+
+Gate 1a will establish that the *information* needed to reconcile a world is present. Nothing establishes that a player who fails to reconcile it is given anything to work with.
+
+**A conflict that silently subtracts capture with no observable consequence is not difficult, it is arbitrary.** The player loses and has no thread to pull, and no amount of skill converts into a better score. That is the failure mode `PLAYTEST-KIT.md` §5 calls *"the gate fails, informatively"* — they reach a scored run and cannot tell why it went the way it did — and it is the one discoverability problem that can be caught without a person in the room.
+
+**Proposed check.** For each declared conflict, run the leave-one-in comparison the ablation already performs, but ask it of the **player-visible output** rather than of the score: does the scorecard, the attribution list or the trace differ between the world with that conflict and the world without it? A conflict that moves the score and moves nothing a player can see fails.
+
+**It must produce a symptom, not a diagnosis.** `OBSERVABILITY.md` §8 defaults to the `attributed` disclosure level precisely because naming a cause hands over the answer key.
+
+* *"Three travellers missed a connection you budgeted at 60 s that took 210 s"* — a thread to pull.
+* *"`C-coordinate-offset:nordline` cost you 0.54 min"* — the solution.
+
+The check is that the first exists, not that the second does.
+
+**Why it is not sufficient**, and must not be described as measuring discoverability: a symptom existing in the output does not mean a person under time pressure will notice it, read it correctly, or know what to do about it. Only a playtest answers that (#3).
+
+**Owner:** Phase 0, alongside the identifiability audit. Both are cheap, both are per-world, and both catch unfairness that would otherwise only surface when a real person hits it.

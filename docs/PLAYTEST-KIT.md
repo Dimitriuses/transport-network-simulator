@@ -4,6 +4,8 @@ Everything needed to run the external playtest that `ROADMAP.md` P1M0 part A ask
 
 This exists because Gate 1 has no external evidence and cannot get any from inside the project (`KNOWN-ISSUES.md` #3). The competent solution that established the world is *solvable* was written by someone who already knew every conflict in it. Whether the world is **discoverable** — whether a stranger can find those conflicts by looking — is a different question, and only a stranger can answer it.
 
+**This is the *undirected* measurement, and Phase 3's generated quests will not replace it.** Quests ask *can you find X, having been told X exists*; this asks *can you work out that X exists at all*. The second is the harder claim and the one the project rests on. When quests arrive, a world passing all of them while no unprompted engineer notices a single conflict has failed at exactly the thing the quests appear to prove — so keep running this, less often, rather than retiring it.
+
 **One session with one engineer closes more of this than another month of internal work.** Two is better. More than three is diminishing returns at this stage.
 
 ---

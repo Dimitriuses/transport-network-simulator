@@ -145,11 +145,24 @@ That last row is a genuine fork and should be decided explicitly rather than by 
 
 **Both remaining failures turned out to be the same structural fault**, and three proposals now sit in the specifications awaiting ratification:
 
-| proposal | where | what it changes |
+**All three were ratified on 2026-09-03.**
+
+| decision | where | what it changes |
 |---|---|---|
-| **Gate 1 splits into three** — solvable, not-trivial, discoverable | `docs/PHASES.md` | the first two become computable per world; the third is sampled by people, never gated. The competent solution is demoted to a regression detector |
+| **Gate 1 splits into three** — solvable, not-trivial, discoverable | `docs/PHASES.md` | the first two are computable per world and stay gates; **1c is removed from the MVP** and returns in Phase 3. The competent solution is demoted to a regression detector |
 | **The identifiability audit** | `docs/PHASES.md`, Gate 1a | a per-world check, needing no solver, that the published data can distinguish the entities that matter — the dual of the defect audit, and a lower bound on any solver's loss |
 | **Gate 3 returns to its ratified metric** | `docs/PHASES.md`, Gate 3 | journey time against headroom, measured on `P2rt`. The whole-score figure becomes a diagnostic |
+
+**Two instruments to build, both per-world and neither needing a solution:**
+
+* the **identifiability audit** — is the information there at all?
+* the **symptom check** (`KNOWN-ISSUES.md` #22) — is a player charged for a conflict given anything to notice? A conflict that silently subtracts capture is not difficult, it is arbitrary.
+
+Together they are what catches a discoverability problem in Phase 0 now that 1c is not a gate. Neither *measures* discoverability; both catch worlds that are unfair rather than hard, which is the part that can be caught without a person in the room.
+
+**Deferred to Phase 3: generated verifier quests.** Directed tasks against the world's own answer key — *find the stop these two operators disagree about and report the distance* — verifier-only, converting discoverability from anecdote into pass/fail data, and doubling as regression tests and as the seed of the Tier 0 tutorial. They arrive with the documentation work because a quest is a question about what can be found in the artefacts, and there is nothing to generate one from until conflicts and documentation are themselves generated.
+
+They do not retire the playtest. A quest asks *can you find X, having been told X exists*; the playtest asks *can you work out that X exists at all*.
 
 The fault they share: **a gate measured by running a solution we wrote is a gate about that solution.** `P2rt` and `P0a` are defined in `REFERENCE-POLICY.md`; the competent and naive players are implementations. Every point of Gate 1's failure at P0M10 traced to a bug or an overfit assumption in ours, and Gate 3's two irreconcilable numbers differ by a factor of 3.5 for no reason other than which of the two kinds of instrument they use.
 

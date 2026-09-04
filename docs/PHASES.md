@@ -55,11 +55,11 @@ Mechanical, and independent of whether the game is any good:
 
 `CORECONCEPT.md` §8 states the MVP's purpose as proving the core loop is hard *and* interesting. That needs to be falsifiable, or it gets answered by whoever is most invested in the answer.
 
-**Gate 1 — Buildable.** A competent developer, given only the brief and the operator documentation and no help, produces a working solution within a bounded sitting and captures meaningfully above 0.0.
+**Gate 1 — Buildable.** *Split into three at P0M10, ratified 2026-09-03. Only the first two are gates.*
 
-*Fails if:* nobody can get anything working — the world is opaque rather than hard. Or everyone reaches 0.9 in an hour — the conflicts are decorative.
+The gate previously read: *a competent developer, given only the brief and the operator documentation and no help, produces a working solution within a bounded sitting and captures meaningfully above 0.0.* It was measured by running a solution we wrote.
 
-> ### PROPOSED, not yet ratified — Gate 1 splits into three
+> #### Why it was split
 >
 > **The gate as written cannot survive Phase 1.** It is measured by running a solution we wrote, and once worlds are generated that becomes unworkable in both directions: a fixed solver will eventually fail on some generated world, and a solver tuned per world makes the gate vacuous. Either way it stops measuring the world and starts measuring us. P0M10 is the demonstration — every point of Gate 1's failure traced to a bug or an overfit assumption in the competent solution, and none to the world.
 >
@@ -93,15 +93,33 @@ Mechanical, and independent of whether the game is any good:
 >
 > **What it cannot do.** Identifiability is necessary and not sufficient. Information being present does not make it findable in an afternoon by a person with a deadline. Nothing computable closes that gap, which is why 1c stays separate rather than being quietly folded in.
 >
-> #### 1c — Discoverable. Sampled by people, not gated per world.
->
-> Runs occasionally against a sample of worlds with real engineers ([`PLAYTEST-KIT.md`](PLAYTEST-KIT.md)), never as a per-world gate. `KNOWN-ISSUES.md` #3 has said since P0M6 that no internal work closes this, and P0M10 showed the cost of pretending otherwise.
->
 > #### What becomes of the competent reference solution
 >
 > **Demoted from gate instrument to regression detector.** It is valuable for catching a world that has become accidentally unsolvable by a reasonable strategy, and it is worth keeping current. It stops being evidence about *buildability*, because a solution written by whoever built the world was never evidence about that.
 >
-> Its score should still be reported. It should no longer decide a gate.
+> Its score is still reported. It no longer decides a gate.
+
+#### 1c — Discoverable. **Removed from the MVP**, deferred to Phase 3.
+
+Not because it stopped mattering — it is the question `CORECONCEPT.md` cares most about — but because nothing computable answers it and a gate that cannot be evaluated should not sit in the exit criteria pretending to be one. `KNOWN-ISSUES.md` #3 has said since P0M6 that no internal work closes this; P0M10 showed the cost of pretending otherwise.
+
+**How it returns, in Phase 3: generated verifier quests.** Rather than watching someone explore and writing down impressions, the world generates directed tasks against its own answer key — *find the stop these two operators disagree about, and report the distance*; *measure how far behind this feed runs*; *name the two stops whose identifiers collide*. Verifier-only, never served to a player.
+
+That converts discoverability from anecdote into data: a quest has a right answer, so it yields pass/fail per conflict per person, comparable across worlds and across people, and it doubles as a regression test and as the seed of the Tier 0 tutorial.
+
+**The distinction that must not be lost when it arrives.** A quest measures **directed search** — *can you find X, having been told X exists*. A playtest measures **undirected discovery** — *can you work out that X exists at all*. The second is the harder claim and the one §2.1 is really about. Quests are cheaper, repeatable and scorable, and they cannot replace [`PLAYTEST-KIT.md`](PLAYTEST-KIT.md); a world where every quest is passed and no unprompted engineer ever notices a conflict has failed at exactly the thing the quests appear to prove.
+
+#### What can be checked *now*, without people
+
+Neither of these establishes discoverability. Both are **necessary conditions**, and a world failing either is unfair rather than hard — which is worth catching in Phase 0 rather than in a playtest.
+
+**Information present.** The identifiability audit above (1a). If the published data cannot distinguish two entities, no amount of looking will.
+
+**Symptom present.** *Proposed, not yet built.* Every conflict that costs a player points must produce a distinguishable symptom in **player-visible** output — a scorecard line, a traceable failure, a warning that arrived too late. A conflict that silently subtracts capture with no observable consequence is not difficult, it is arbitrary: the player loses and has no thread to pull.
+
+This is checkable against the existing attribution machinery: for each declared conflict, does the player-visible output differ between the world with it and without it? It is the same leave-one-in comparison the ablation already runs, asked of the scorecard rather than of the score.
+
+**It must stay a symptom, not a diagnosis.** `OBSERVABILITY.md` §8 sets `attributed` as the default disclosure level precisely because naming the cause hands over the answer key. *"Three travellers missed a connection you budgeted at 60 s that took 210 s"* is a thread to pull. *"`C-coordinate-offset:nordline` cost you 0.54 min"* is the solution.
 
 **Gate 2 — Headroom is real and discriminating.** The P0−P1 gap is large enough that better solutions score visibly better, and two solutions of genuinely different quality separate by a clear margin rather than noise.
 
@@ -118,7 +136,7 @@ Two things about that wording are the result of getting it wrong first, and both
 * **Measured against `P0a`, not `P0`.** P0 is clairvoyant: it routes around disruptions before they are announced. Dividing by a gap containing that advantage measures the oracle's foresight as though it were the world's difficulty, and at a 30-minute planning lead that term is over twenty times the conflict term.
 * **Judged on headroom, not on share.** The original wording — "*most* lost capture" — stops being a test under a matched reference. With the conflicts switched off, a lazy integrator is exactly optimal, so the conflict-caused share is 100 % by construction whatever the conflicts do. Share is still reported; it is no longer the binding criterion.
 
-> ### PROPOSED, not yet ratified — Gate 3 returns to the metric it was ratified against
+> ### Ratified 2026-09-03 — Gate 3 returns to the metric it was ratified against
 >
 > P0M8 redefined this gate to attribute across the whole headline score, on the argument that staleness's real damage is that nobody gets warned and that capture alone would miss it. **The argument was sound and its premise was false.** Measured at P0M10 over twelve paired seeds, the Information family moves by 0.001 between a world with every declared conflict and one publishing honest values (`KNOWN-ISSUES.md` #19).
 >
@@ -133,7 +151,7 @@ Two things about that wording are the result of getting it wrong first, and both
 >
 > **This is Gate 1's disease in a second place.** Measuring a gate through a solution we wrote makes the gate about that solution. `P2rt` is defined in a specification; the naive player is an implementation that could change next week and move the gate with it.
 >
-> **Proposal:** Gate 3's criterion is the ratified one — conflict cost as a share of `P0−P1` headroom, on journey time, measured on `P2rt`, averaged over seeds with the paired difference. The whole-score figure is reported as a diagnostic and decides nothing. This resolves `KNOWN-ISSUES.md` #20 without choosing whichever number passes: it returns to the metric that was actually agreed.
+> **Decided:** Gate 3's criterion is the ratified one — conflict cost as a share of `P0−P1` headroom, on journey time, measured on `P2rt`, averaged over seeds with the paired difference. The whole-score figure is reported as a diagnostic and decides nothing. This resolves `KNOWN-ISSUES.md` #20 without choosing whichever number passes: it returns to the metric that was actually agreed.
 >
 > **The open question it leaves** is #19 — whether the Information family *should* be movable by a realtime conflict, and what is wrong with either the family or catalogue D if it is not.
 
@@ -143,7 +161,9 @@ Two things about that wording are the result of getting it wrong first, and both
 
 ### Exit
 
-All three gates pass, or the design is revisited. **Do not begin Phase 1 on a failed Gate 3.**
+Gates **1a**, **1b**, **2** and **3** pass, or the design is revisited. **Do not begin Phase 1 on a failed Gate 3.**
+
+Gate **1c** (discoverable) is deliberately not in the exit criteria: nothing computable evaluates it, and it returns in Phase 3 as generated verifier quests. Its two *necessary conditions* — information present, symptom present — are in scope here and are the way a discoverability problem gets caught at this phase.
 
 > **This clause was invoked on 2026-09-02.** Gate 3 was recorded as passing at P0M6 and re-measured as failing at P1M0. Phase 0 is reopened: P0M7 (`replan`) and P0M8 (conflict potency) now sit ahead of Phase 1, whose generation milestones are blocked behind their joint exit. See [`../ROADMAP.md`](../ROADMAP.md).
 
@@ -235,6 +255,13 @@ Expected order, subject to that evidence:
 * `single_operator_rt` reference competence from Tier 3, narrowing the headroom and demanding more of the player.
 * **`latency: sim`** — per-connection simulated-time cursors, making parallelism a real decision. Note that `DATA-MODEL.md` §4 found a catalogue D defect (non-atomic pagination) depends on it, so this may need to arrive earlier than its tier suggests.
 * Mid-run schema drift, high query volume, fault tolerance under load.
+* **Generated verifier quests — Gate 1c returns here.** Directed tasks the world generates against its own answer key: *find the stop these two operators disagree about and report the distance*; *measure how far behind this feed runs*; *name the two stops whose identifiers collide*. Verifier-only, never served to a player, and belonging with the documentation work because a quest is a question about what can be found in the artefacts.
+
+  Why here rather than earlier: quests are cheap to generate only once conflicts are generated from declared manifests (P1M1) and documentation exists to be read (also P1M1). Before that there is nothing to generate a quest *from*.
+
+  They convert discoverability from anecdote into data — a quest has a right answer, so it scores pass/fail per conflict per person, comparable across worlds and people — and they double as regression tests and as the seed of the Tier 0 tutorial.
+
+  **Do not let them quietly replace the playtest.** A quest measures *directed search* — can you find X, having been told X exists. A playtest measures *undirected discovery* — can you work out that X exists at all. The second is the harder claim and the one `CORECONCEPT.md` §2.1 is about. A world where every quest passes and no unprompted engineer ever notices a conflict has failed at precisely the thing the quests appear to prove.
 
 **Completion:** a Tier-5 world is solvable by a strong solution and clearly discriminates across the quality range. A Tier-5 world nobody can score above 0.2 on is broken, not hard.
 
