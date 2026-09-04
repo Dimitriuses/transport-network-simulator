@@ -107,6 +107,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       p0Wait: number | null;
       p1: number | null;
       p1Exec: ReturnType<typeof executeReactively>;
+      p0aExec: ReturnType<typeof executeReactively>;
     }
   >();
   for (const q of world.queries) {
@@ -116,11 +117,35 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
     // P1 is *executed*, not merely planned: it discovers each failure by
     // standing on a platform and replanning (REFERENCE-POLICY.md §4.3).
     const p1 = executeReactively(world, scheduleIx, disruptions, o, d, q.departAfterS, "obvious");
+
+    // P0a — the best a perfect integrator could have done knowing only what had
+    // been announced when it planned (REFERENCE-POLICY.md §2.1). Computed
+    // exactly as P1 is, and differing from it in the two ways that matter: it
+    // plans on an index that carries the announced disruptions rather than the
+    // bare schedule, and it may use any transfer rather than only the obvious
+    // ones.
+    //
+    // This is what `capture` is normalised against. P0 is clairvoyant — it
+    // routes around a cancellation announced after it planned — so a capture of
+    // 1.0 against P0 is not merely hard but impossible, and every score the
+    // project recorded before 2026-09-04 was scaled against a ceiling nobody
+    // could reach (SCORING.md §2).
+    const announced = disruptions.filter((x) => x.announcedAtS <= q.departAfterS - PLAN_LEAD_S);
+    const p0aExec = executeReactively(
+      world,
+      buildIndex(world, announced),
+      disruptions,
+      o,
+      d,
+      q.departAfterS,
+      "all",
+    );
     baselines.set(q.id, {
       p0: p0 ? p0.arriveS - q.departAfterS : null,
       p0Wait: p0 ? p0.waitS : null,
       p1: p1.journeyS,
       p1Exec: p1,
+      p0aExec,
     });
   }
 
@@ -352,6 +377,15 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         referenceJourneyS: base.p1,
         oracleWaitS: base.p0Wait,
         referenceWaitS: base.p1Exec.waitS,
+        // **An optimum must dominate every achievable strategy, and P1 is one.**
+        // P1 plans on the bare schedule with no disruption knowledge at all,
+        // which is strictly less than "everything announced by now", so where
+        // P1 does better, P1's outcome *is* the announcement-limited optimum.
+        // The same rule `baselines.ts` applies for the same reason: without it
+        // a reference that fails to arrive reports no ceiling at all, and
+        // capture silently falls back to the clairvoyant scale.
+        announcedJourneyS: betterOf(base.p0aExec, base.p1Exec).journeyS,
+        announcedWaitS: betterOf(base.p0aExec, base.p1Exec).waitS,
       });
     }
 
@@ -641,6 +675,21 @@ interface Simulated {
  * run does not abort — robustness is measured, not punished by forfeit
  * (PLAYER-CONTRACT.md §8).
  */
+/**
+ * The better of two executions, preferring one that arrived.
+ *
+ * A non-arrival is worse than any arrival, and between two arrivals the shorter
+ * journey wins.
+ */
+function betterOf(
+  a: ReturnType<typeof executeReactively>,
+  b: ReturnType<typeof executeReactively>,
+): ReturnType<typeof executeReactively> {
+  if (a.journeyS === null) return b;
+  if (b.journeyS === null) return a;
+  return a.journeyS <= b.journeyS ? a : b;
+}
+
 function fallbackToReference(p1: ReturnType<typeof executeReactively>): Simulated {
   return {
     arrived: p1.arrived,

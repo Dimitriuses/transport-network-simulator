@@ -33,6 +33,15 @@ export const NON_ARRIVAL_PENALTY_S = 3600;
 export interface ServiceScore {
   readonly capture: number | null;
   readonly captureNote: string | null;
+  /**
+   * Capture against the clairvoyant oracle, reported **only** when the player
+   * passed the reachable ceiling.
+   *
+   * `capture` normalises against `P0a`, which a real solution can legitimately
+   * exceed. Above 1.0 is therefore no longer a leak signal on its own — this
+   * is, because nothing can beat `P0`.
+   */
+  readonly captureVsOracle: number | null;
   readonly travellers: number;
   readonly arrived: number;
   readonly nonArrivals: number;
@@ -157,22 +166,65 @@ export function scoreRun(log: readonly RunRecord[], opts: ScoreOptions = {}): Sc
     scored.map((t) => generalised(t.referenceJourneyS!, t.referenceWaitS ?? 0)),
   );
 
+  // **Normalised against P0a, not P0** (decided 2026-09-04, SCORING.md §2).
+  //
+  // P0 is clairvoyant: it routes around a cancellation announced after it
+  // planned. On the P0M9 world it sits 2.10 min below P1 out of 3.35 min of
+  // headroom, so a solution reconciling perfectly and reading every feed the
+  // instant it published still tops out near 0.37 against it. A capture of 1.0
+  // against P0 is not hard, it is impossible, and quoting a score on a scale
+  // whose maximum cannot be reached is the failure §2 was written to avoid.
+  const withAnnounced = scored.filter(
+    (t) => t.announcedJourneyS !== null && t.announcedJourneyS !== undefined,
+  );
+  const usingAnnounced = withAnnounced.length === scored.length && scored.length > 0;
+  const mAnnounced = usingAnnounced
+    ? mean(withAnnounced.map((t) => generalised(t.announcedJourneyS!, t.announcedWaitS ?? 0)))
+    : null;
+
+  // The ceiling actually used. Falls back to P0 for run logs written before P0a
+  // was recorded, and says so rather than silently changing scale.
+  const mCeiling = usingAnnounced ? mAnnounced : mOracle;
+
   let capture: number | null = null;
   let captureNote: string | null = null;
-  if (mPlayer === null || mOracle === null || mReference === null) {
+  let captureVsOracle: number | null = null;
+
+  if (mPlayer === null || mOracle === null || mReference === null || mCeiling === null) {
     captureNote = "no comparable travellers";
-  } else if (Math.abs(mReference - mOracle) < 1) {
+  } else if (Math.abs(mReference - mCeiling) < 1) {
     captureNote =
-      "no headroom: the reference policy already matches the oracle, so there is " +
-      "nothing for integration to capture";
+      "no headroom: the best reachable outcome already matches the reference policy, " +
+      "so there is nothing for integration to capture";
   } else {
-    capture = (mReference - mPlayer) / (mReference - mOracle);
+    capture = (mReference - mPlayer) / (mReference - mCeiling);
+    if (!usingAnnounced) {
+      captureNote =
+        "normalised against P0, the clairvoyant oracle: this run log predates P0a " +
+        "and its capture is on a scale whose maximum no player can reach";
+    } else if (capture > 1) {
+      // **Not an error.** P0a is a well-informed strategy rather than a proven
+      // bound (KNOWN-ISSUES.md #15), so a real solution can legitimately beat
+      // it — it plans once on what was announced and only replans when its plan
+      // breaks. What remains impossible is beating P0, which sees the whole day
+      // in advance. So the invariant moves to a second line of defence rather
+      // than disappearing: when a player passes the reachable ceiling, check it
+      // against the unreachable one.
+      captureVsOracle = (mReference - mPlayer) / (mReference - mOracle);
+      captureNote =
+        captureVsOracle > 1
+          ? `beat the clairvoyant oracle (${captureVsOracle.toFixed(3)} against P0) — ` +
+            "impossible, so information has leaked; see OBSERVABILITY.md §5"
+          : `beat the announcement-limited optimum (${captureVsOracle.toFixed(3)} against P0), ` +
+            "which is legitimate: P0a is a strategy, not a bound";
+    }
   }
 
   const arrived = travellers.filter((t) => t.arrived);
   const service: ServiceScore = {
     capture,
     captureNote,
+    captureVsOracle,
     travellers: travellers.length,
     arrived: arrived.length,
     nonArrivals: travellers.length - arrived.length,
@@ -224,7 +276,16 @@ export function scoreRun(log: readonly RunRecord[], opts: ScoreOptions = {}): Sc
   if (opts.invalidReason) {
     verdict = "invalid";
     verdictReason = opts.invalidReason;
-  } else if (impossibleTravellers.length > 0 || (capture !== null && capture > 1)) {
+    // **The trigger is beating P0, not beating `capture`'s own denominator.**
+    // Since 2026-09-04 capture normalises against P0a, which a real solution
+    // may legitimately exceed (KNOWN-ISSUES.md #15) — quarantining on that
+    // would punish a player for being better than a heuristic reference.
+    // Arriving sooner than perfect information allows remains impossible, and
+    // that is what is checked: per traveller, and in aggregate.
+  } else if (
+    impossibleTravellers.length > 0 ||
+    (captureVsOracle !== null && captureVsOracle > 1)
+  ) {
     // *Decided at P0M5: quarantine, do not invalidate.* Hard-invalidating risks
     // punishing a player for our bug — and during Phase 0 every single
     // occurrence of this signal was our bug, three times over. The run is

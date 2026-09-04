@@ -94,7 +94,7 @@ Two words are easy to confuse:
 Others worth knowing before reading code:
 
 * **P0 / P1 / P2** — the oracle (perfect information), the reference policy (how travellers behave with no integration layer), and a lazy-integration baseline. `REFERENCE-POLICY.md` §2.
-* **Capture** — the score. `(P1 − player) / (P1 − P0)`. 1.0 matches the oracle, 0.0 is no better than no integration at all, negative means actively harmful, above 1.0 is impossible and signals a leak.
+* **Capture** — the score. `(P1 − player) / (P1 − P0a)` since 2026-09-04. 1.0 means as well as anyone could have done *knowing what could be known*; 0.0 is no better than no integration at all; negative is actively harmful. **Above 1.0 is legitimate** — `P0a` is a strategy, not a bound — and triggers `captureVsOracle` against clairvoyant `P0`, where above 1.0 *is* impossible and quarantines the run. Scores recorded before that date used `P0` and are not comparable. `SCORING.md` §2.
 * **L1 / L2 / L3** — canonical world (immutable), simulation state (mutable), operator projections (derived). `DATA-MODEL.md`.
 * **Site / Quay** — a station complex, and a specific boarding point within it. Operators publish at different granularities, and that mismatch is a core challenge rather than an inconvenience.
 * **Obligation** — something the simulator asks the player: `plan`, `replan`, `tick`.

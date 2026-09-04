@@ -28,7 +28,9 @@
     "probe": "node src/scoring/scripts/probe.ts",
     "horizon": "node src/scoring/scripts/horizon.ts",
     "stability": "node src/scoring/scripts/stability.ts",
-    "failures": "node src/scoring/scripts/failures.ts"
+    "failures": "node src/scoring/scripts/failures.ts",
+    "identifiability": "node src/scoring/scripts/identifiability.ts",
+    "symptoms": "node src/scoring/scripts/symptoms.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

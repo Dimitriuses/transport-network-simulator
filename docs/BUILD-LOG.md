@@ -789,3 +789,60 @@ Both fixes are legitimate engineering rather than gate-tuning — a solution ans
 | 3 — conflicts doing the work | 76 % of headroom on journey time; 12.9 % of the whole score at 4.4σ. Threshold provenance unresolved (#20) |
 
 **Every gate failure this milestone traced to an instrument or a reference solution. None traced to the world.** The world's own numbers are the best the project has recorded: conflict cost 76 % of headroom, spread across five conflicts, monotonic in strength, at settings inside their declared realistic ranges, with the defect audit confirming all fifteen present.
+
+### Capture stopped being scored against an impossible ceiling
+
+`P0` is clairvoyant. On the P0M9 world it sits 2.10 min below `P1` out of 3.35 min of headroom, so a solution reconciling perfectly and reading every feed the instant it published still topped out near **0.37**. A capture of 1.0 was not hard, it was unreachable, and every figure the project had recorded was scaled against it.
+
+Capture now normalises against `P0a` — the same optimum held to what had actually been announced. **1.0 means "as well as anyone could have done knowing what could be known".** The naive solution moved from −0.178 to −0.465, a factor of 2.61 that matches the ratio of the two denominators almost exactly, which is the check that it did what it should.
+
+**The `capture > 1` invariant moved rather than disappeared.** `P0a` is a strategy, not a bound (`KNOWN-ISSUES.md` #15), so a real solution may legitimately beat it, and quarantining that would punish a player for outperforming a heuristic. What stays impossible is beating `P0`. So: capture is reported against `P0a`; **only** when it exceeds 1.0 is `captureVsOracle` computed against `P0`; and *that* exceeding 1.0 quarantines the run.
+
+One silent failure the implementation forced out: `executeReactively` returns null when the announcement-limited run does not arrive, and capture then reverted to the clairvoyant scale **without saying so**. Fixed by flooring `P0a` at `P1` — the reference policy plans with no disruption knowledge at all, which is strictly less than "everything announced by now", so any optimum must dominate it. The same rule `baselines.ts` had already needed, for the same reason.
+
+**Recorded rather than adjusted:** `CLEARANCE` sets a minimum headline per tier, chosen while capture was normalised against `P0`. Rescaling by 2.6 without touching those bars makes every tier materially harder to clear than its number was chosen to mean — the naive solution's headline fell from 0.192 to 0.019 against an unchanged 0.25. That is `KNOWN-ISSUES.md` #20 again, and re-deriving it is a decision about how hard a tier should be rather than an arithmetic correction.
+
+### Gate 1a, built: `npm run identifiability`
+
+The dual of the defect audit. That one confirms the declared conflicts are present; this confirms they have not made the world unanswerable. It needs no solver — only the data.
+
+A quay's signature is every published observation of it, from every operator: stop id, name, coordinates. Two quays with identical signatures cannot be told apart by anybody reading only what was published, and the walk between them is a cost no solver can predict.
+
+**One thing is deliberately not treated as distinguishing: which trips call there.** An operator publishing at Site granularity names one stop for three platforms and its trips call at that stop, so the calling pattern separates them no better than the stop does. Counting it would report a world as fair on the strength of information the player cannot act on.
+
+**It found something on its first run.** Sudbahn's three platforms at Central all publish as `sudbahn|1|Tsentralna|50.450200|30.514200`, no other operator names them, and they are spread over 98 m — **1.27 min of unpredictable walking, 38 % of headroom**, over the provisional 25 % bar it ships with.
+
+That is `A-granularity:sudbahn` working exactly as declared, which is the point worth keeping: **a conflict can be correctly declared, audited as present, and still ask a question nobody can answer.** The defect audit confirms it exists; only this says what it costs someone who cannot resolve it. And it got worse at P0M9, which added the third platform — no instrument then existed to notice.
+
+The larger consequence is recorded as `KNOWN-ISSUES.md` #23: `P0a` routes on the canonical world, so it knows which platform and no player can. **The ceiling capture was just re-based on is itself unreachable by roughly this amount** — one unreachable ceiling was fixed on 2026-09-04 and a second, smaller one sits underneath it. `PHASES.md` Gate 1a anticipated it: *solvable* should mean "the achievable optimum, **less the ambiguity floor**, is still better than P1". The floor is now measurable and is not yet subtracted anywhere.
+
+### Gate 1's symptom condition, built: `npm run symptoms`
+
+For each declared conflict, does the **player-visible** output differ between a world with it and a world without? The symptom vector is attribution causes, traveller failure reasons and Information event counts. It **excludes the score**, because a conflict that moves the number and nothing else is exactly the case being tested for.
+
+It shares `conflictVariants()` with the ablation, so a conflict one instrument scores and the other never builds cannot slip through.
+
+**Result: nothing in this world is arbitrary.** Five of fourteen conflicts produce a visible symptom, and every silent one costs the solver exactly 0.000 — which is the correct result for texture, not a finding.
+
+### The eighth instance, caught before it was reported
+
+The first version read costs from `npm run probe` and symptoms from its own runs. Those are `P2rt` and the naive reference player — **two different lazy solvers** — and it was about to report `B-time-encoding:sudbahn` as *silent and costly*: arbitrary, the precise failure mode the check exists to catch.
+
+It is neither. On the solver that cannot see the conflict, it also does not pay for it: the naive player parses `local_naive` timestamps using the offset the brief states, so a conflict that defeats `P2rt`'s decoder is free to it. The check now measures cost and symptom in the same run on the same solver.
+
+This is the same error as the clairvoyant reference, the conflict-free floor, the population standard deviation and the unpaired design — **a right number compared against the wrong thing**. It was avoided only because the rule had been written into `CLAUDE.md` after the seventh.
+
+### And the finding underneath it
+
+| conflict | costs `P2rt` | costs the naive player | visible to the player? |
+|---|---|---|---|
+| `B-time-encoding:sudbahn` | **0.72m — Gate 3's largest term** | **0.000** | no |
+| `C-coordinate-offset:nordline` | 0.54m | 0.514 | yes |
+| `A-coordinate-precision:nordline` | 0.56m | 0.080 | yes |
+| `C-delay-unit:nordline` | 0.21m | 0.000 | no |
+
+`P2rt` loses 76 % of headroom across five conflicts; the naive player loses to **two**, and the conflict dominating Gate 3 costs it nothing.
+
+**Difficulty is not a scalar property of a world.** It is a property of the (world, solver) pair. P1M0 noted that as an aside; this quantifies it, and it means *"this world is hard"* is not a statement that can be made without naming who it is hard for — which nothing in the tier ladder currently does. Recorded as `KNOWN-ISSUES.md` #24.
+
+It also sharpens #19. The Information family's **events** do move — `D-silent-cancellation:sudbahn` produces ten silent events where the honest world has none — while the Information **score** moves by a thousandth. The insensitivity is in the scoring formula, not in the world and not in the instrument, which is a more tractable problem than either and a different one from the mechanism that issue had guessed at.

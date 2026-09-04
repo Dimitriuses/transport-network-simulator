@@ -91,6 +91,12 @@ The gate previously read: *a competent developer, given only the brief and the o
 >
 > **It is the exact dual of the defect audit.** That one confirms the declared conflicts are present; this one confirms they have not made the world impossible. Both run per generated world, neither needs a solution, and a generator needs both.
 >
+> **Built at P0M10: `npm run identifiability`.** A quay's signature is every published observation of it — stop id, name and coordinates, from every operator. Two quays with identical signatures are indistinguishable to anybody reading only what was published, and the walk between them is a cost no solver can predict.
+>
+> One thing is deliberately *not* treated as distinguishing: which trips call there. An operator publishing at Site granularity names one stop for three platforms, and its trips call at that stop — so the calling pattern separates the platforms no better than the stop does. Counting it would report a world as fair on the strength of information the player cannot act on.
+>
+> **It reports a bound, not a frequency.** How often an ambiguity bites depends on the query set; how much it can cost when it does is a fact about the world. Only the second is claimed.
+>
 > **What it cannot do.** Identifiability is necessary and not sufficient. Information being present does not make it findable in an afternoon by a person with a deadline. Nothing computable closes that gap, which is why 1c stays separate rather than being quietly folded in.
 >
 > #### What becomes of the competent reference solution
@@ -118,6 +124,12 @@ Neither of these establishes discoverability. Both are **necessary conditions**,
 **Symptom present.** *Proposed, not yet built.* Every conflict that costs a player points must produce a distinguishable symptom in **player-visible** output — a scorecard line, a traceable failure, a warning that arrived too late. A conflict that silently subtracts capture with no observable consequence is not difficult, it is arbitrary: the player loses and has no thread to pull.
 
 This is checkable against the existing attribution machinery: for each declared conflict, does the player-visible output differ between the world with it and without it? It is the same leave-one-in comparison the ablation already runs, asked of the scorecard rather than of the score.
+
+**Built at P0M10: `npm run symptoms`.** It shares `conflictVariants()` with the ablation, deliberately — a conflict that one instrument scores and the other never builds would let a world pass one for reasons the other never saw.
+
+The symptom vector is attribution causes, traveller failure reasons and the Information family's event counts. **It excludes the score**, because a conflict that moves the number and nothing else is precisely the case being tested for, and including the number would make the check pass on the strength of the thing it is checking.
+
+**Silent is not automatically a failure.** A cosmetic conflict costing nothing *should* be invisible. The combination that makes a world arbitrary is silent **and** costly, so the output is read beside `npm run probe`.
 
 **It must stay a symptom, not a diagnosis.** `OBSERVABILITY.md` §8 sets `attributed` as the default disclosure level precisely because naming the cause hands over the answer key. *"Three travellers missed a connection you budgeted at 60 s that took 210 s"* is a thread to pull. *"`C-coordinate-offset:nordline` cost you 0.54 min"* is the solution.
 

@@ -90,14 +90,28 @@ test("a cheat scores far above an honest player, which is why the audit exists",
   const honest = await run("naive", { operator: 9330, control: 9339, player: 8330 });
   const cheat = await run("cheat", { operator: 9340, control: 9349, player: 8340 });
 
-  const a = scoreRun(honest.log).service.capture!;
-  const b = scoreRun(cheat.log).service.capture!;
+  const honestCard = scoreRun(honest.log);
+  const cheatCard = scoreRun(cheat.log);
+  const a = honestCard.service.capture!;
+  const b = cheatCard.service.capture!;
 
-  // The headline invariants cannot separate these: the cheat lands on 1.000,
-  // not above it, so `capture > 1` never fires. Only the information-set audit
-  // distinguishes earned from unearned.
   assert.ok(b > a, `cheating did not pay (${b} vs ${a})`);
-  assert.ok(b <= 1.0001, "the cheat exceeded the oracle, which is a different bug");
+
+  // **Since 2026-09-04 `capture > 1` is no longer the invariant.** Capture
+  // normalises against P0a, the best available knowing only what had been
+  // announced, and a real solution may legitimately beat that — it is a
+  // strategy, not a bound (KNOWN-ISSUES.md #15).
+  //
+  // What remains impossible is beating P0, which sees the whole day in advance.
+  // So the check moved rather than disappeared: `captureVsOracle` is computed
+  // only when a player passes the reachable ceiling, and *that* exceeding 1.0
+  // is the leak signal.
+  assert.ok(
+    cheatCard.service.captureVsOracle === null || cheatCard.service.captureVsOracle <= 1.0001,
+    "the cheat beat the clairvoyant oracle, which is a different bug from cheating",
+  );
+  // And the point of the test: the score alone still does not separate them.
+  // Only the information-set audit distinguishes earned from unearned.
 });
 
 test("profiles weight the same vector differently and say which they used", { skip }, async () => {

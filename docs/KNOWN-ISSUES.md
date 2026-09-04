@@ -251,6 +251,8 @@ P0a is already the better of its own plan and P1, for the same reason — P1 is 
 
 `src/scoring/test/matched-reference.test.ts` pins the gap with a characterisation test that asserts a violation still exists, so the day P0a becomes a real bound the test fails and says so.
 
+**This became load-bearing on 2026-09-04**, when `capture` began normalising against `P0a` (`SCORING.md` §2). Because P0a is a strategy rather than a bound, `capture > 1` is now a legitimate outcome and no longer signals a leak on its own — the invariant moved to `captureVsOracle`, measured against `P0`. Anything reading `capture > 1` as impossible is out of date.
+
 **Owner:** P0M8, jointly with #14 — both are the same question: what is a fair reference for attributing conflict cost?
 
 ---
@@ -345,7 +347,11 @@ Measured at P0M10, twelve seeds, paired: the naive solution scores **0.768** on 
 
 This contradicts the reasoning that redefined Gate 3 at P0M8. That change was made on the argument that staleness's real damage is not journey time but that nobody gets warned, and that capture alone would miss it. The measurement says otherwise: the whole-score gate is a *diluted* capture gate, not a broader one, since `0.6 × 0.216 + 0.4 × 0.001 = 0.129`.
 
-**The likely mechanism, which needs its own measurement rather than assertion:**
+**Sharpened at P0M10 by the symptom check, and the answer is not what this issue assumed.** The Information family's *events* do move: switching `D-silent-cancellation:sudbahn` on produces **10 silent events** where the honest world has none, and `D-staleness:sudbahn` produces late ones. The world is not failing to generate observable realtime failures.
+
+What does not move is the **score**. `F1(recall, precision) × (0.5 + 0.5 × timeliness)` washes ten silent events down to a thousandth of a point. So the insensitivity is in the *scoring formula*, not in the world and not in the instrument — which is a considerably more tractable problem than either, and a different one from the mechanism guessed below.
+
+**The original guesses, kept because they were wrong in an instructive way:**
 
 * 90 s and 300 s of staleness are negligible against warning deadlines set by the affected leg's scheduled departure, usually tens of minutes away. The timeliness term barely moves.
 * `D-silent-cancellation` sits on Sudbahn, which reaches nine line-stops of fifty-eight. Few scored travellers depend on a train whose cancellation is hidden.
@@ -393,7 +399,7 @@ Now `max − min` for separation, with the ordering checked separately and repor
 
 ---
 
-## 22. Nothing checks that a conflict a player is charged for is one they could notice — `open`
+## 22. Nothing checks that a conflict a player is charged for is one they could notice — `built at P0M10`
 
 Gate 1a will establish that the *information* needed to reconcile a world is present. Nothing establishes that a player who fails to reconcile it is given anything to work with.
 
@@ -410,4 +416,60 @@ The check is that the first exists, not that the second does.
 
 **Why it is not sufficient**, and must not be described as measuring discoverability: a symptom existing in the output does not mean a person under time pressure will notice it, read it correctly, or know what to do about it. Only a playtest answers that (#3).
 
-**Owner:** Phase 0, alongside the identifiability audit. Both are cheap, both are per-world, and both catch unfairness that would otherwise only surface when a real person hits it.
+**Built:** `npm run symptoms`. It shares `conflictVariants()` with the ablation so the two instruments cannot drift apart, and its symptom vector — attribution causes, traveller failure reasons, Information event counts — **excludes the score**, since a conflict that moves the number and nothing else is the case being tested for.
+
+**Silent is not automatically a failure.** A cosmetic conflict costing nothing *should* be invisible. Silent **and** costly is what makes a world arbitrary, so the output is read beside `npm run probe`.
+
+**Known limitation:** one seed per run. A conflict whose symptom depends on which services happen to be disrupted can be missed, and the output says so.
+
+---
+
+## 23. Sudbahn's three platforms at Central are indistinguishable, and cost 38 % of headroom — `open`
+
+Found by `npm run identifiability` the first time it ran.
+
+Sudbahn publishes at Site granularity, so `r-central-1`, `r-central-2` and `r-central-3` all appear as a single stop:
+
+```
+sudbahn|1|Tsentralna|50.450200|30.514200
+```
+
+No other operator publishes those quays. **Nothing in the published data distinguishes them**, and they are spread over 98 m — so a traveller sent to "Tsentralna" faces up to **1.27 min** of walking that no solver can predict, against 3.35 min of headroom. That is **38 %**, over the provisional 25 % bar the audit ships with.
+
+This is the declared `A-granularity:sudbahn` conflict working exactly as specified, which is what makes it worth recording rather than simply fixing: **a conflict can be correctly declared, correctly audited as present, and still ask a question nobody can answer.** The defect audit confirms it exists; only the identifiability audit says what it costs a player who cannot possibly resolve it.
+
+**It got worse at P0M9 and nobody noticed.** That milestone added a third platform at Central to deepen the granularity conflict. It also widened the spread, and no instrument then existed to report the consequence.
+
+**The connected problem, which is larger.** `P0a` routes on the canonical world, so it knows which platform. No player can. **The ceiling `capture` now normalises against is therefore unreachable by roughly this amount as well** — `SCORING.md` §2 fixed one unreachable ceiling on 2026-09-04 and this is a second, smaller one underneath it. `PHASES.md` Gate 1a anticipated exactly this: *solvable* should mean "the achievable optimum, **less the ambiguity floor**, is still meaningfully better than P1". The floor is now measurable and is not yet subtracted anywhere.
+
+**Options, none chosen:**
+
+* Move a platform, or let Sudbahn publish two stops at Central rather than one — reduces the conflict, and the conflict is deliberate.
+* Accept it and subtract the floor from `P0a` when normalising capture, so the ceiling matches what a player can actually reach.
+* Ratify a higher threshold on the grounds that 98 m inside one station is realistic — large interchanges genuinely are this size.
+
+**Owner:** the project owner, jointly with the provisional 25 % threshold. The third option is the honest one only if the ambiguity is *bounded*; a generator producing Site-granularity operators over larger stations would push it further with nothing to stop it.
+
+---
+
+## 24. Which conflicts bite is a property of the solver, not of the world — `open`
+
+P0M10 measured the same fifteen conflicts against two lazy solvers and got two different catalogues.
+
+| conflict | costs `P2rt` (journey time) | costs the naive player (capture) | visible to the player? |
+|---|---|---|---|
+| `B-time-encoding:sudbahn` | **0.72m — the largest single contributor** | **0.000** | no |
+| `C-coordinate-offset:nordline` | 0.54m | **0.514** | yes |
+| `A-coordinate-precision:nordline` | 0.56m | 0.080 | yes |
+| `C-delay-unit:nordline` | 0.21m | 0.000 | no |
+| `D-staleness:nordline` | 0.04m | 0.000 | no |
+
+`P2rt` loses 76 % of headroom across five conflicts. The naive reference player loses to **two**, and the conflict that dominates Gate 3's number costs it nothing at all — it parses `local_naive` timestamps correctly using the offset the brief states, so a conflict that defeats `P2rt`'s decoder is free to it.
+
+**Difficulty is not a scalar property of a world.** It is a property of the (world, solver) pair, which P1M0 recorded as an aside and this makes concrete and quantified. Gate 3 measures `P2rt` because `P2rt` is *specified*; a real player may face an entirely different subset of the catalogue.
+
+**This nearly produced a false finding.** The symptom check's first version read costs from `npm run probe` (`P2rt`) and symptoms from its own runs (the naive player), and was about to report `B-time-encoding:sudbahn` as **silent and costly** — arbitrary, the exact failure mode #22 exists to catch. It is neither: on the solver that cannot see it, it also does not pay for it. The check now measures cost and symptom in the same run on the same solver, and the eighth instance of this project's recurring error was avoided only because the rule had been written down after the seventh.
+
+**What it means for the catalogue.** A conflict inert against one solver and severe against another is not thereby decorative. But "this world is hard" is not a statement that can be made without naming who it is hard for, and nothing in `CORECONCEPT.md` §7's tier ladder currently does.
+
+**Owner:** open. It bears on how a generated world's difficulty can be declared at all, which is P1M4's problem.

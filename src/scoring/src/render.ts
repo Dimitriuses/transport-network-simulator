@@ -105,6 +105,14 @@ export function renderScorecard(card: Scorecard, audit?: AuditResult): string {
   }
 
   // ---- Forensics ---------------------------------------------------------
+  if (card.service.captureVsOracle !== null) {
+    p("");
+    p(`  CAPTURE PASSED THE REACHABLE CEILING — ${card.service.captureVsOracle.toFixed(3)} against P0`);
+    p("    capture is normalised against P0a, the best available knowing only what");
+    p("    had been announced. Passing it is legitimate; passing P0, which sees the");
+    p("    whole day in advance, is not. See SCORING.md §2.");
+  }
+
   if (card.impossibleTravellers.length > 0) {
     p("  ! travellers arrived sooner than perfect information allows:");
     for (const t of card.impossibleTravellers) p(`      ${t}`);

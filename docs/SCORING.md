@@ -44,7 +44,7 @@ Use the three policies instead. For any metric `m` where lower is better:
 
 | capture | meaning |
 |---|---|
-| **1.0** | matched the oracle — captured all available headroom |
+| **1.0** | matched the best reachable outcome — see the 2026-09-04 note below, which changed what this is measured against |
 | **0.0** | no better than a city with no integration layer at all |
 | **< 0** | **actively harmful** — your solution made things worse than doing nothing |
 | **> 1.0** | impossible; signals a bug, a leak, or a cheat (§11) |
@@ -55,23 +55,42 @@ This is the right scale because it measures the thing the project is actually ab
 
 ---
 
-### OPEN — capture is normalised against a ceiling nobody can reach
+### DECIDED 2026-09-04 — capture normalises against `P0a`; `P0` keeps the invariant
 
 `m(P0)` is the clairvoyant oracle: it routes around a cancellation announced at 09:20 while planning at 09:00. No player can, and none ever will.
 
-Measured on the P0M9 world, `P0a` — the same optimum held to what had actually been announced (`REFERENCE-POLICY.md` §2.1) — sits **2.10 min** above `P0`, against a total `P0−P1` headroom of **3.35 min**. So a solution that reconciles perfectly, plans optimally and reads every feed the instant it is published still tops out near **0.37 capture**.
+Measured on the P0M9 world, `P0a` — the same optimum held to what had actually been announced (`REFERENCE-POLICY.md` §2.1) — sits **2.10 min** above `P0` against a total `P0−P1` headroom of **3.35 min**. A solution that reconciles perfectly, plans optimally and reads every feed the instant it is published still topped out near **0.37** on the old scale.
 
-**A capture of 1.0 is not merely hard. It is impossible by construction, and every capture figure this project has recorded is scaled against it.** That is a large part of why the numbers look so punishing: a naive solution's −0.586 sits against a real ceiling of about 0.37, not 1.0.
+**A capture of 1.0 against `P0` was not merely hard. It was impossible by construction**, and every capture figure recorded before this date was scaled against it.
 
-The choice:
+So:
 
-* **Keep `P0` as the denominator.** It is fixed, seed-derived, unbeatable, and supports the free `capture > 1` invariant that has already caught one real leak (P0M1). The scale is honest about the *world's* potential, and simply does not correspond to anything achievable.
-* **Normalise against `P0a` instead.** Scores become interpretable — 1.0 would mean "as well as anyone could have done knowing what you could know" — at the cost of a denominator that moves with the planning lead, that is a *strategy* rather than a proven bound (`KNOWN-ISSUES.md` #15), and that would break `capture > 1` as an invariant, since a real solution could legitimately exceed a heuristic reference.
-* **Report both**, with `P0` keeping the invariant and `P0a` carrying the interpretation.
+```
+                m(P1) − m(player)
+   capture =  ─────────────────────
+                m(P1) − m(P0a)
+```
 
-**Not decided, and not to be decided by implementation.** Changing the denominator rewrites every score the project has recorded, and the third option looks cheap only until two numbers called "capture" are quoted in the same paragraph.
+**1.0 now means "as well as anyone could have done knowing what could be known".** The reachable range is narrower, so the same absolute loss reads larger: the naive solution moved from −0.178 to −0.465 on the P0M9 world, a factor of 2.6 that matches the ratio of the two denominators exactly.
 
-Whatever is chosen, the 0.37 figure should appear beside any capture number given to a player. A scale whose maximum is unreachable, quoted without saying so, is misleading in exactly the way §2 was written to avoid.
+#### `capture > 1` is no longer the leak signal, and the invariant did not disappear
+
+`P0a` is a well-informed **strategy**, not a proven bound (`KNOWN-ISSUES.md` #15): it plans once on what had been announced and replans only when its plan breaks. A real solution can legitimately beat it, and quarantining that would punish a player for being better than a heuristic.
+
+What remains impossible is beating `P0`. So the check moves to a second line of defence:
+
+1. `capture` is reported against `P0a`. Above 1.0 is **legitimate** and says the reachable reference was under-powered on that run — feedback on `P0a`, not on the player.
+2. **When and only when capture exceeds 1.0**, `captureVsOracle` is computed against `P0`, and reported.
+3. `captureVsOracle > 1` is impossible. It quarantines the run and triggers the forensic procedure (`OBSERVABILITY.md` §5), exactly as `capture > 1` used to.
+
+The per-traveller check — *no traveller may arrive sooner than perfect information allows* — is unchanged and still measured against `P0`. It has caught a real leak once (P0M1) and costs nothing to keep.
+
+`P0a` is also floored at `P1`: the reference policy plans with no disruption knowledge at all, which is strictly less than "everything announced by now", so any optimum must dominate it. Without that floor a reference that fails to arrive reports no ceiling and capture silently reverts to the clairvoyant scale.
+
+#### Run logs written before this date
+
+They carry no `P0a` and are scored against `P0`, with `captureNote` saying so. Their capture figures are **not comparable** with anything scored after it.
+
 
 ---
 
@@ -330,3 +349,13 @@ The non-arrival line is doing exactly what §4 intends: three stranded traveller
 **Open:** none. All four were closed at P0M5 — wait weighting (§4), the Information combination (§5), ablation as opt-in (§10), and quarantine-not-invalidate on `capture > 1` (§11).
 
 **With this drafted, every question in `CORECONCEPT.md` §9 has a drafted answer except the platform and packaging questions Q39–Q40 and Q43–Q44**, which are product decisions that do not block building. The specifications are ready to become executable: OpenAPI documents and a conformance suite from the schema source in `DATA-MODEL.md` §5.
+
+---
+
+## OPEN — tier clearance thresholds predate the change of denominator
+
+`CLEARANCE` sets a minimum headline per tier — 0.25 at Tier 2, rising to 0.45 at Tier 5. Those numbers were chosen while capture was normalised against `P0`, and capture carries 0.6 of the balanced headline.
+
+Changing the denominator on 2026-09-04 rescaled capture by roughly 2.6 without touching the thresholds, so **every tier is now materially harder to clear than the number was chosen to mean**. On the P0M9 world the naive solution's headline fell from 0.192 to 0.019 against an unchanged bar of 0.25.
+
+This is the same mistake as `KNOWN-ISSUES.md` #20 — a threshold ratified against one metric and left in place when the metric changed — and it is recorded rather than adjusted for the same reason. Re-deriving it is a decision about how hard a tier should be, not an arithmetic correction, and picking a number that makes current results look reasonable would be choosing the answer first.

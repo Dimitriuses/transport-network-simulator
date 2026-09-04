@@ -100,6 +100,15 @@ export interface TravellerOutcome {
    * less standing about (SCORING.md §4).
    */
   readonly oracleWaitS: number | null;
+  /**
+   * The announcement-limited optimum — `P0a`, `REFERENCE-POLICY.md` §2.1.
+   *
+   * The denominator `capture` is normalised against, because `P0` is
+   * clairvoyant and no player can reach it. Optional so that run logs written
+   * before this existed still score, against `P0` and with a note saying so.
+   */
+  readonly announcedJourneyS?: number | null;
+  readonly announcedWaitS?: number | null;
   readonly referenceWaitS: number | null;
 }
 

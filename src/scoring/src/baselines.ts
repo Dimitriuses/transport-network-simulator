@@ -993,6 +993,40 @@ export interface AblationReport {
  * but it is the only instrument that answers Phase 0's Gate 3 directly, rather
  * than by proxy.
  */
+/**
+ * One world per declared conflict, each with that conflict alone switched on.
+ *
+ * Shared by ablation and the symptom check so the two cannot drift apart: a
+ * conflict that ablation scores and the symptom check never builds — or the
+ * reverse — would let a world pass one instrument for reasons the other never
+ * saw. Cross-operator conflicts such as `A-id-collision` have no single
+ * manifest setting and are skipped by both, identically.
+ */
+export function conflictVariants(world: World): { conflict: string; world: World }[] {
+  const clean = withNoConflicts(world);
+  const out: { conflict: string; world: World }[] = [];
+
+  for (const conflict of world.manifest.activeConflicts) {
+    const setting = CONFLICT_SETTINGS[(conflict.split(":")[0] ?? "")];
+    if (!setting) continue; // cross-operator conflicts have no single setting
+
+    const [group, key] = setting;
+    const [, operatorId] = conflict.split(":");
+    const original = world.manifest.operators.find((o) => o.id === operatorId);
+    if (!original) continue;
+    const live = (original.manifest as Record<string, Record<string, unknown>>)[group]?.[key];
+
+    const operators = clean.manifest.operators.map((o) => {
+      if (o.id !== operatorId) return o;
+      const m = structuredClone(o.manifest) as Record<string, Record<string, unknown>>;
+      if (m[group]) m[group]![key] = live;
+      return { ...o, manifest: m };
+    });
+    out.push({ conflict, world: { ...clean, manifest: { ...clean.manifest, operators } } });
+  }
+  return out;
+}
+
 export function ablate(world: World, seeds = 1): AblationReport {
   // Fixed offsets, so a re-run compares like with like. Averaging matters here
   // for the reason P0M9 measured: with only the disruptions changing, conflict
@@ -1035,24 +1069,7 @@ export function ablate(world: World, seeds = 1): AblationReport {
   // conflicts would each have caused alone is counted twice — that overlap is
   // the redundancy itself, and it is worth seeing rather than hiding.
   const entries: AblationEntry[] = [];
-  for (const conflict of world.manifest.activeConflicts) {
-    const setting = CONFLICT_SETTINGS[(conflict.split(":")[0] ?? "")];
-    if (!setting) continue; // cross-operator conflicts have no single setting
-
-    const [group, key] = setting;
-    const [, operatorId] = conflict.split(":");
-    const original = world.manifest.operators.find((o) => o.id === operatorId);
-    if (!original) continue;
-    const live = (original.manifest as Record<string, Record<string, unknown>>)[group]?.[key];
-
-    const operators = clean.manifest.operators.map((o) => {
-      if (o.id !== operatorId) return o;
-      const m = structuredClone(o.manifest) as Record<string, Record<string, unknown>>;
-      if (m[group]) m[group]![key] = live;
-      return { ...o, manifest: m };
-    });
-    const only = { ...clean, manifest: { ...clean.manifest, operators } };
-
+  for (const { conflict, world: only } of conflictVariants(world)) {
     entries.push({ conflict, costS: meanGap(only) - cleanGap });
   }
 
