@@ -60,7 +60,14 @@ Per-operator manifests sampled from the §2.1 catalogue, parameterised by tier. 
 * ✅ **`docs_url` served** (`KNOWN-ISSUES.md` #11), accurate only, generated from each operator's own manifest. The rule for what an operator documents is in `CORECONCEPT.md` §2.1 F: format and units yes, accuracy and freshness no.
 * ✅ **Every tier audits clean.** Tiers 0–5 generate worlds whose defect audit reports no MISS, whose composed geometry is plausible, and whose identifiability audit passes.
 
-**Still open in this milestone:** `KNOWN-ISSUES.md` #19 and the `P0a` ambiguity floor, both below, and both **decisions rather than implementations** — `npm run information` and `npm run identifiability` now produce the evidence for them.
+* ✅ **`KNOWN-ISSUES.md` #19, resolved — the premise was wrong.** All four candidate Information formulas were implemented and measured; none could distinguish the declared world from an honest one, because the committed world's staleness settings sit *below* its own shortest announcement lead and conceal nothing. On a world where staleness is at the ceiling the *current* formula moves by 0.2173 at 8.1σ. The disruption policy moved into `@tns/schema` so the generator compares against one number rather than two copies.
+* ✅ **Six defects fixed, with regression cover** — `KNOWN-ISSUES.md` #28–#33. Five were found by auditing generated worlds; the sixth (#33, the content hash omitting the `operators` table) turned up while chasing one of the others.
+
+**Three decisions taken 2026-09-05, all recorded rather than implemented:**
+
+* **The Information formula does not change**, and `SCORING.md`'s item keeps its OPEN label. The candidates differ by less than one σ; there is no evidence for a change, and the question of what the family should weigh is still undecided.
+* **The `P0a` ambiguity floor holds at "publish it, subtract nothing"**, and is **reassigned to P1M2** — the scenario that motivated the warning is a property of the network, and P1M2 is what generates networks.
+* **`D-staleness`'s value range needs deriving from the world rather than listing as constants** — `KNOWN-ISSUES.md` #34, owned by P1M4. Needs more study before anything is implemented.
 
 **What Phase 0 established that this must honour:**
 
@@ -73,7 +80,7 @@ Also serves each operator's `docs_url`, currently advertised and unserved (`KNOW
 **Assigned here — two scoring corrections that generation would otherwise inherit:**
 
 * **`KNOWN-ISSUES.md` #19 — the Information family registers realtime failures and does not score them.** Ten silent cancellations move the score by 0.001, because the timeliness term has a floor of 0.5 and recall is diluted by the events a conflict does not touch. Catalogue D cannot be validated in a generated world until this is fixed, and `SCORING.md` carries four candidate directions.
-* **`SCORING.md` — `P0a` has an ambiguity floor under it.** `capture` normalises against `P0a`, which routes on the canonical world and therefore knows things no player can. On this world that is 2 % and ignorable; a generated world publishing at Site granularity over larger stations could make it much worse, with nothing to stop it. The choice is recorded there, with the warning attached: subtracting the floor means a player scores *better* on a world whose ambiguity is *worse*.
+* ~~**`SCORING.md` — `P0a` has an ambiguity floor under it.**~~ **Reassigned to P1M2 on 2026-09-05.** Measured on generated worlds at every tier the floor is 1 %, *below* the hand-built world's 2 %, and does not grow with tier — the ambiguity comes from `A-granularity`, which the generator will not place on an operator with no station to collapse. The scenario the warning was about is a property of the *network*, so the decision waits for generated networks.
 
 **Exit:** generated manifests produce worlds whose defect audit passes, whose identifiability audit and symptom check pass, and whose ablation profile falls within the band their declared tier targets; every operator serves documentation matching its own behaviour; and a realtime conflict moves the Information family.
 
@@ -90,6 +97,8 @@ Routes, patterns, journeys and calendars over an existing city graph — efficie
 * **A scored journey must be able to reward integration.** `npm run headroom` is the criterion, and it is deliberately structural — routing on the unrestricted transfer graph against the restricted one — because a criterion involving disruptions would make the scored set depend on which day was drawn.
 * **Keep some straightforward journeys.** A set where every journey needs integration would not notice a solution that breaks the easy ones.
 * **Do not fix a risk-heavy query set by removing the risk.** Lowering the cancellation rate or the planning lead would make such journeys survivable and delete the thing that makes realtime integration worth anything.
+
+**Assigned here on 2026-09-05 — `SCORING.md`, `P0a`'s ambiguity floor.** `capture` normalises against `P0a`, which routes on the canonical world and so knows which platform its train uses when no player can. Measured at 1 % on every generated world and 2 % on the hand-built one, and it does not grow with tier — but the case the warning was about is Site granularity over *larger stations*, and station size is a property of the network. Re-measure with `npm run identifiability` once generated networks exist, then choose between subtracting the floor and continuing to publish it beside capture. The warning that keeps it undecided still stands: subtracting means a player scores *better* on a world whose ambiguity is *worse*.
 
 **Exit:** a generated network produces headroom comparable to the hand-authored one; at least 60 % of scored journeys can be improved by integration and some deliberately cannot; and the three gaps are stable across seeds within a stated tolerance.
 
@@ -116,6 +125,7 @@ The tier ladder becomes real: generate to a requested tier, and verify. This is 
 **Assigned here — the two questions about what a declared difficulty even means:**
 
 * **`KNOWN-ISSUES.md` #24 — difficulty is a property of the (world, solver) pair, not of the world.** `P2rt` loses 76 % of headroom to the declared conflicts; the naive reference player loses to two of them, and the conflict dominating Gate 3 costs it nothing. **P1M4 cannot make its central claim without resolving this**: under the current definition two worlds could match on one baseline and differ completely for every other solver, and nothing would notice. The proposal is to declare difficulty as a *profile* over the reference solutions rather than a scalar.
+* **`KNOWN-ISSUES.md` #34 — a conflict's settings are chosen without reference to the world they act on.** `D-staleness` offers `[60, 300, 900]`; two of the three conceal nothing against a shortest announcement lead of 300 s, so the expressibility filter drops them and staleness becomes a switch rather than a ladder. The ranges should be *derived* from the world's parameters rather than listed as constants — which supplies a lever the two items below both need. Needs study before implementation, and explicitly not to be settled by picking numbers that make the ladder look reasonable.
 * **`SCORING.md` — tier clearance thresholds predate the change of denominator.** `CLEARANCE` was chosen while capture normalised against clairvoyant `P0`; rescaling by 2.6 without touching it made every tier materially harder to clear than its number was chosen to mean. The proposed fix is a *method* rather than a number — express each bar as a position between named reference solutions, which survives a change of denominator, world size or penalty as a hard-coded decimal does not.
 
 **Exit:** two independently generated worlds at the same declared tier produce matching difficulty *profiles* within a stated tolerance, **and a solution built for one performs comparably on the other**; and every tier's clearance bar is expressed in terms that survive a change of scale.

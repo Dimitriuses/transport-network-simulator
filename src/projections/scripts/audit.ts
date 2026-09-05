@@ -30,7 +30,23 @@ console.log(`  ${report.declared.length} conflicts declared`);
 console.log("");
 
 for (const f of report.findings) {
-  console.log(`  ${f.present ? "ok  " : "MISS"}  ${f.conflict.padEnd(34)}  ${f.evidence}`);
+  const verdict = !f.present ? "MISS" : f.inert ? "INRT" : "ok  ";
+  console.log(`  ${verdict}  ${f.conflict.padEnd(34)}  ${f.evidence}`);
+}
+
+if (report.inert.length > 0) {
+  console.log("");
+  console.log("  PRESENT BUT INERT:");
+  for (const c of report.inert) console.log(`    ${c}`);
+  console.log("");
+  console.log("  These are in the data and cannot change any outcome. Not the same");
+  console.log("  failure as a missing conflict: the projection did what it was told,");
+  console.log("  and two of the world's parameters do not fit together. A staleness");
+  console.log("  shorter than the shortest announcement lead conceals nothing from");
+  console.log("  anybody, however it is placed. See KNOWN-ISSUES.md #19.");
+  console.log("");
+  console.log("  This does not fail the audit, and it does mean the world is easier");
+  console.log("  in that catalogue section than its tier claims.");
 }
 
 if (report.missing.length > 0) {

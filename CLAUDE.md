@@ -32,7 +32,13 @@ Milestones are numbered `P<phase>M<milestone>`. [`docs/BUILD-LOG.md`](docs/BUILD
 
 **Added at P1M1**, and all of them take a world path so they can be pointed at a *generated* bundle: `npm run realism` measures each operator's composed published geometry against the plausibility ceiling; `npm run docs` prints what a player reads at an operator's `docs_url`; `npm run information` scores the four candidate Information formulas side by side against the declared and honest worlds. Generated worlds are built with `python -m worldbuild <path> --tier N`.
 
-**Every per-world instrument must run against every generated world**, not as a release check. The audit, the realism check, the identifiability audit and the symptom check each caught something on a generated world that nobody had thought to look for — see `KNOWN-ISSUES.md` #28–#31.
+**Every per-world instrument must run against every generated world**, not as a release check. The audit, the realism check, the identifiability audit and the symptom check each caught something on a generated world that nobody had thought to look for — see `KNOWN-ISSUES.md` #28–#33.
+
+**A test that cannot fail is not a test, and the tell is an evidence line whose value never changes.** Both of P1M1's audit defects had that shape: `C-coordinate-offset` compared a stop with an unrelated quay, and `D-staleness` passed on a condition that is true whenever staleness is non-zero, printing `hides 0 disruption(s)` on a world where it hid nothing *and* on one where it hid a third of them. Neither was caught by asserting the audit passes, because both did. When you add a check, construct the case it should reject and require a different answer.
+
+**The audit has three verdicts.** `ok`, `MISS`, and `INRT` — present in the data and incapable of changing any outcome. Absent and inert are different problems needing different fixes, and inert does not fail the audit: it means two of the world's parameters do not fit together, not that a projection misbehaved.
+
+**Two numbers that decide something together must live in one place.** `noticeLeadS` and `D-staleness` sat in different packages, and their relationship decided whether catalogue D existed at all — it did not, for the whole of Phase 0 (`KNOWN-ISSUES.md` #19). The disruption policy is now in `@tns/schema` and ships in `contract/catalogue.json`. Before adding a threshold, ask what else it is implicitly compared against.
 
 **The world is 38 sites, 50 quays, 10 lines and 98 scored journeys, and the instruments take minutes.** `npm run probe` is the slowest — several hundred calibrations.
 

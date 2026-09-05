@@ -1197,3 +1197,27 @@ The fix needs no unrealistic setting: 900 s is already the ceiling, already carr
 Tiers 3 and 4 generate byte-identical manifests. With A–D active at all three top tiers and twelve settings to draw from, placement saturates by tier 3 and the density lever has nothing left to buy — so P1M1's exit clause about tier bands is carried to P1M4 rather than declared met (`KNOWN-ISSUES.md` #32).
 
 `symptoms`, `gates` and `information` now take a world path, because P1M1's exit asks them about generated worlds and all three were hard-coded to the committed one.
+
+### The audit check that hid it, and the third verdict
+
+The staleness audit passed on `knownNow.length > knownStale.length || feed.as_of !== probe`. **The right-hand side is true whenever staleness is non-zero**, so the check could not fail, and its evidence line reported the disruptions concealed at one arbitrary instant — printing `hides 0 disruption(s)` on a world where staleness was inert *and* on one where it hid a third of them.
+
+> **A line that says the same thing in both cases carries no information at all.** It was the one place this defect was visible, and it was visible for months.
+
+It now measures how many of an operator's disruptions the lag withholds *past the moment a warning could still help*, and the two worlds finally read differently: `0/127` against `54/127`. That 43 % agrees with `npm run lead`'s 41 %, reached by a different calculation.
+
+`INRT` joins `ok` and `MISS` as a third verdict, and deliberately does not fail the audit. **Absent and inert are different problems needing different fixes** — the first is a projection that did not do what it was told, the second is two of the world's parameters that do not fit together. The committed world reports two inert conflicts and still passes gate 4, which is the honest reading: its projections are correct and its Tier-2 realtime component is decorative.
+
+The general lesson is the one this project keeps relearning in new places: *a test that cannot fail is not a test*, and the tell is an evidence line whose value never changes. Both of P1M1's audit defects had that shape, and neither was caught by asserting the audit passes — because both did pass. `src/projections/test/audit-evidence.test.ts` now asserts that the audit **distinguishes**, constructing each pair of cases and requiring different answers.
+
+### Decisions taken, 2026-09-05
+
+* **The Information formula does not change.** The four candidates span 0.202–0.229 against a standard error of 0.027 — inside one σ, on a measurement built to separate them. `SCORING.md`'s item keeps its OPEN label: what is settled is that there is no evidence for a change, not what the family should weigh.
+* **`P0a`'s ambiguity floor holds at "publish it, subtract nothing", and moves to P1M2.** It measures 1 % on every generated world and does not grow with tier, because the ambiguity comes from `A-granularity` and the generator will not place that where there is no station to collapse. The case the warning was about is Site granularity over larger stations, and station size is a property of the network.
+* **`D-staleness`'s value range needs deriving from the world, not listing as constants** — `KNOWN-ISSUES.md` #34, P1M4. Filtering inexpressible values leaves one usable setting out of three, so staleness is a switch rather than a ladder. Explicitly *not* settled by picking numbers that make the tier ladder look reasonable.
+
+### And the one found while chasing the others
+
+The content hash never covered the `operators` table — every conflict the world declares. Generated Tier-3 and Tier-5 worlds reported the same hash while publishing different time encodings, and `--verify`, which CI runs, could not have seen a change to the generator's output. `content_hash.py` carried a comment saying precisely what would go wrong if a table were added without being added to its list, and then a table was.
+
+The committed world's hash moved to `f6028eedd79e3cb5`; hashing the same bundle under the old table list still gives `54737165504f34b4`, so **the world is unchanged and every score addressed by the old hash refers to the same city.** The test that now guards it reads the bundle's own schema rather than a checked-in list, so the next table to be added fails it instead of being forgotten.

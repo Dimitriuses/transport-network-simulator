@@ -25,12 +25,30 @@ export interface AuditFinding {
   readonly conflict: string;
   readonly present: boolean;
   readonly evidence: string;
+  /**
+   * Present in the data, and incapable of changing any outcome.
+   *
+   * A third verdict, added at P1M1, because two were not enough. `D-staleness`
+   * at 300 s against a world whose shortest announcement lead is also 300 s
+   * *is* in the feed — the timestamps really do lag — and conceals nothing from
+   * anybody, because every disruption is still knowable before the traveller
+   * must act. The audit called it `ok` for the whole of Phase 0 and catalogue D
+   * was decorative (`KNOWN-ISSUES.md` #19).
+   *
+   * Deliberately **not** MISS. Absent and inert are different problems: the
+   * first is a projection that did not do what it was told, the second is two
+   * world parameters that do not fit together. Reporting them the same way
+   * would hide which one you have.
+   */
+  readonly inert?: boolean;
 }
 
 export interface AuditReport {
   readonly declared: readonly string[];
   readonly findings: readonly AuditFinding[];
   readonly missing: readonly string[];
+  /** Present but incapable of changing an outcome. See `AuditFinding.inert`. */
+  readonly inert: readonly string[];
   readonly ok: boolean;
 }
 
@@ -127,8 +145,8 @@ function checkOperator(
   const { timetable, resolution } = projectOperator(world, operatorId, tau);
   const findings: AuditFinding[] = [];
 
-  const add = (conflict: string, present: boolean, evidence: string): void => {
-    findings.push({ conflict: `${conflict}:${operatorId}`, present, evidence });
+  const add = (conflict: string, present: boolean, evidence: string, inert = false): void => {
+    findings.push({ conflict: `${conflict}:${operatorId}`, present, evidence, inert });
   };
 
   // A-granularity: one published stop must stand for several quays.
@@ -237,17 +255,41 @@ function checkOperator(
     const probe = 12 * 3600;
     const feed = projectRealtime(world, operatorId, disruptions, m.realtime, probe);
     const mine = new Set(resolution.tripToJourney.values());
-    const knownNow = disruptions.filter((d) => d.announcedAtS <= probe && mine.has(d.journeyId));
+    // What the feed can show at `probe`, given its lag. The un-lagged set is no
+    // longer needed: counting disruptions concealed at one instant was the old
+    // staleness check, and it could not tell an inert setting from a working
+    // one (KNOWN-ISSUES.md #19).
     const knownStale = disruptions.filter(
       (d) => d.announcedAtS <= probe - m.realtime.staleness_s && mine.has(d.journeyId),
     );
 
     if (m.realtime.staleness_s > 0) {
+      // **What matters is not that the feed lags, but whether the lag outlasts
+      // the warning.** A disruption is announced `lead` seconds before its
+      // journey was due to start; a feed lagging `s` reveals it `s` late. If
+      // `s < lead` the player still learns in time and the conflict has cost
+      // margin rather than information.
+      //
+      // The old check asked `knownNow > knownStale || feed.as_of !== probe`,
+      // and the right-hand side is true whenever staleness is non-zero — so it
+      // passed unconditionally, and its evidence line reported the number of
+      // disruptions concealed at one arbitrary instant. It printed "hides 0"
+      // for months on a world where staleness was inert, and printed the same
+      // "hides 0" on a world where it demonstrably hid a great deal. A line
+      // that says the same thing in both cases carries no information at all.
+      const startOf = new Map(world.journeys.map((j) => [j.id, j.startS]));
+      const ours = disruptions.filter((d) => mine.has(d.journeyId));
+      const tooLate = ours.filter(
+        (d) => (startOf.get(d.journeyId) ?? 0) - d.announcedAtS <= m.realtime.staleness_s,
+      );
+      const lagging = feed.as_of !== probe;
       add(
         "D-staleness",
-        knownNow.length > knownStale.length || feed.as_of !== probe,
-        `feed is stamped τ−${m.realtime.staleness_s}s, and hides ` +
-          `${knownNow.length - knownStale.length} disruption(s) that are already true`,
+        lagging,
+        `feed is stamped τ−${m.realtime.staleness_s}s, and withholds ` +
+          `${tooLate.length}/${ours.length} disruption(s) past the moment a warning ` +
+          `could still help`,
+        lagging && tooLate.length === 0,
       );
     }
 
@@ -320,11 +362,17 @@ export function auditWorld(world: World, tau = 0): AuditReport {
 
   const present = new Set(findings.filter((f) => f.present).map((f) => f.conflict));
   const missing = declared.filter((c) => !present.has(c));
+  const inert = findings.filter((f) => f.inert && f.present).map((f) => f.conflict);
 
   return {
     declared,
     findings: findings.sort((a, b) => (a.conflict < b.conflict ? -1 : 1)),
     missing,
+    inert,
+    // `inert` does not fail the audit. A conflict that is present but incapable
+    // is a world whose *parameters* disagree, not a projection that misbehaved,
+    // and it needs a different fix — see `KNOWN-ISSUES.md` #19 and #32. It is
+    // reported loudly and separately instead.
     ok: missing.length === 0 && findings.every((f) => f.present),
   };
 }

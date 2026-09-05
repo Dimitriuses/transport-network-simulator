@@ -477,10 +477,21 @@ Silent events rose from 9.4 per run to 13.9; in-time warnings fell from 18.5 to 
 
 ### What this leaves
 
-* **`SCORING.md`'s OPEN item is answerable now, and the answer is none of its four options.** Its premise — that the formula is why catalogue D does not score — is refuted. The recommendation is to keep the current formula and close the item, but it is a spec-level decision and is flagged rather than taken.
-* **The real defect is a generator rule that did not exist**: *a setting must be capable of expressing itself given the rest of the world's parameters.* `REQUIRES` (#30) handles capabilities — can this operator express this conflict at all. Staleness needs the numeric cousin: `staleness_s` below `DEFAULT_POLICY.noticeLeadS[0]` is plausible, declared, audited present, and inert. That rule is **not yet implemented** and is the remaining P1M1 work on this issue.
+* **`SCORING.md`'s OPEN item is answerable now, and the answer is none of its four options.** Its premise — that the formula is why catalogue D does not score — is refuted. **Ratified 2026-09-05: the formula does not change and the item keeps its OPEN label** — the four candidates differ by less than one σ, so there is no evidence for a change, while the question of what the family *should* weigh is still undecided.
+* **The real defect was a generator rule that did not exist**, and it now does: *a setting must be capable of expressing itself given the rest of the world's parameters.* `REQUIRES` (#30) handles capabilities — can this operator express this conflict at all. Staleness needed the numeric cousin, and `generate._expressible` supplies it. **The two numbers now come from one place**: `DEFAULT_DISRUPTION_POLICY` moved from `src/core` to `@tns/schema` and ships in `contract/catalogue.json`, so the generator compares staleness against the same `noticeLeadS` the simulator draws from, rather than against a second copy of it.
 * **The committed world understates its own tier**, and by a lot. Its two staleness settings are both inert, so Tier 2's realtime component is decorative. That is not a scoring bug; it is `#32`'s problem in another form — the tier ladder needs levers, and this is one nobody knew was disconnected.
-* **The defect audit's staleness evidence is weak.** It reports "hides 0 disruption(s) that are already true" at a single τ, and printed exactly that for the Tier-5 world where staleness demonstrably hides a great deal. The line is not wrong, it is uninformative — and it was the one place this defect was visible for months. Worth strengthening; recorded here rather than fixed, since the check needs a definition of what τ to ask at.
+* **The defect audit's staleness evidence was weak, and is now fixed.** It passed on `knownNow.length > knownStale.length || feed.as_of !== probe`, and the right-hand side is true whenever staleness is non-zero — so the check could not fail, and its evidence line reported the number of disruptions concealed at one arbitrary instant. It printed `hides 0 disruption(s)` on a world where staleness was inert *and* on one where it hid a third of them. **A line that says the same thing in both cases carries no information at all**, and it was the one place this defect was visible for months.
+
+  It now measures what matters — how many of this operator's disruptions the lag withholds *past the moment a warning could still help* — and the two worlds finally read differently:
+
+  ```
+  INRT  D-staleness:nordline   feed is stamped τ−90s,  withholds  0/127 disruption(s)…
+  ok    D-staleness:nordline   feed is stamped τ−900s, withholds 54/127 disruption(s)…
+  ```
+
+  43 % against `npm run lead`'s independent prediction of 41 %, from a different calculation.
+
+* **`INRT` is a third verdict, deliberately not `MISS`.** Absent and inert are different problems needing different fixes: the first is a projection that did not do what it was told, the second is two of the world's parameters that do not fit together. Conflating them would hide which one you have. An inert conflict is listed loudly and **does not fail the audit** — the committed world reports two of them and still passes gate 4, which is the honest reading: its projections are correct and its Tier-2 realtime component is decorative.
 
 ---
 
@@ -807,7 +818,7 @@ Filtering settings that cannot express themselves (`#19`) leaves `D-staleness` w
 
 That is the right trade — a declared conflict that exists beats three settings of which two are decorative — but it removes a rung the ladder appeared to have. After the filter, tiers 3 and 4 remain identical and tier 5 differs from them in a single setting (nordline's time encoding).
 
-**The catalogue's `generate` list for `D-staleness` should be re-derived against `noticeLeadS` rather than left as `[60, 300, 900]`,** which was chosen when nobody was comparing the two. Values spanning 450–900 s would give the ladder real rungs, all of them inside the plausibility ceiling and all of them capable of hiding something. **Not done here:** the spacing is a difficulty decision, and picking numbers that make the tier ladder look reasonable is choosing the answer first — the same reasoning that keeps the clearance thresholds unadjusted in `SCORING.md`.
+**The catalogue's `generate` list for `D-staleness` should be re-derived against `noticeLeadS` rather than left as `[60, 300, 900]`,** which was chosen when nobody was comparing the two. That is now `#34`, kept separate because it is a design question rather than a defect.
 
 ---
 
@@ -830,3 +841,26 @@ The `operators` table was added later and never added to the list. It holds ever
 **Fixed** by adding `("operators", "id")` to `TABLES`.
 
 **The committed world's hash changed, and the world did not.** Hashing the current bundle under the old table list reproduces `54737165504f34b4` exactly; under the new one it is `f6028eedd79e3cb5`. Recorded scores are still comparable — what changed is what the identifier covers, not the city. Every score addressed by the old hash refers to the same world.
+
+
+---
+
+## 34. A conflict's settings are chosen without reference to the world they act on — `open`
+
+Raised 2026-09-05, from `#19`. `D-staleness` is the case that exposed it, and it is unlikely to be the only one.
+
+The catalogue offers `[60, 300, 900]` seconds. Two of the three conceal nothing on any world whose shortest announcement lead is 300 s, so the expressibility filter drops them and **staleness becomes a switch: off, or at the plausibility ceiling.** That is more honest than generating a conflict that does nothing, and it is a narrower ladder than the catalogue appears to offer — it costs `#32` a rung it needed.
+
+**The generalisation, which is the actual issue.** A setting's *values* were chosen for plausibility alone — "what could a real operator do?" — and plausibility is necessary but not sufficient. Whether a value does anything depends on parameters chosen elsewhere: staleness against `noticeLeadS`, coordinate offset against the walking threshold and the density of alternative boarding points, delay units against the size of the delays. **Each of those pairs currently lives in two files and is compared in neither.** The expressibility filter compares one of them.
+
+**Direction, from the ratification of 2026-09-05:** the ranges should be *derived* from the world's own parameters rather than listed as constants — defined in advance from the complexity of the world being generated, so that a tier's settings span a range that is both plausible and capable. Needs more study before anything is implemented.
+
+Questions it has to answer, none of them settled:
+
+* **What is a rung?** Equal spacing in the setting is not equal spacing in effect: staleness of 600 s conceals ~20 % of disruptions and 900 s ~41 %, so the *effect* is roughly linear in the setting here — but only because leads are drawn uniformly. Nothing guarantees that for another conflict.
+* **Derived from what, exactly?** For staleness the answer is clean — some fraction of the announcement-lead range above its minimum. For `C-coordinate-offset` the equivalent parameter is not obvious, which is a reason to be careful about generalising from one worked example.
+* **What happens at the top?** A range derived from the world can exceed the plausibility ceiling. The ceiling wins; the realism constraint is not negotiable, and a tier that would need an implausible setting is a tier the catalogue cannot currently reach (`#32`).
+
+**Explicitly not done by picking numbers that make the tier ladder look reasonable** — that is choosing the answer first, the same reasoning that keeps the clearance thresholds unadjusted in `SCORING.md`.
+
+**Owner:** P1M4, with `#32` and `#24`. All three are about what a declared difficulty means, and this one supplies a lever the other two need.

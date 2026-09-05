@@ -389,6 +389,10 @@ The third is the most faithful to what the family is for and the most work. The 
 
 **This item stays open, with its four options unchanged**, because it is still true that nobody has decided what the family should weigh — and it is now known that this decision cannot be made on the committed world's numbers. The evidence for it must come from a world where a realtime conflict actually hides something, which is a world with staleness at the 900 s ceiling. The instrument is written and takes a world path.
 
+**Ratified 2026-09-05: the formula does not change, and this item keeps its OPEN label.** Measured on such a world — generated Tier 5, staleness at the ceiling — the *current* formula moves by **0.2173 at 8.1σ**, and the three candidates span 0.202–0.229 against a standard error of 0.027. The differences between them are inside one σ on a measurement built to separate them. There is no evidence for a change, and a change would make every recorded score incomparable in exchange for nothing measured.
+
+What stays open is the question, not the defect: nobody has decided what the family *should* weigh, and a future world may separate the candidates where this one does not. `npm run information` is the instrument, and it takes a world path.
+
 ---
 
 ## OPEN — the reachable ceiling has a second, smaller floor under it — *owned by P1M1*
@@ -418,7 +422,9 @@ The first is right if the floor stays small and computable. It becomes wrong if 
 
 The floor does not grow with tier, and it is *smaller* than the hand-built world's 2 %. The reason is structural rather than lucky: the ambiguity comes from `A-granularity` on nordline, which collapses two stations, and the generator will not place that conflict on an operator with no station to collapse (`KNOWN-ISSUES.md` #30). The number is bounded by the network's shape, not by how hard the tier is.
 
-**This weakens the objection to option 1 without answering it.** The scenario that motivated the warning — Site granularity over larger stations — is a property of the *network*, and P1M2 is what generates networks. The floor is worth re-measuring there before the option is chosen, and `npm run identifiability` takes a world path so that costs nothing. Until then the honest position is option 2, which is also the status quo: the figure is published beside capture and nobody subtracts it.
+**This weakens the objection to option 1 without answering it.** The scenario that motivated the warning — Site granularity over larger stations — is a property of the *network*, and P1M2 is what generates networks. The floor is worth re-measuring there before the option is chosen, and `npm run identifiability` takes a world path so that costs nothing.
+
+**Ratified 2026-09-05: hold at option 2 and re-measure at P1M2.** The status quo — publish the figure beside capture, subtract nothing — stands until generated *networks* exist to test the case the warning was about. Deciding now on evidence from one city's shape would be answering a question the measurement has not reached. **Reassigned from P1M1 to P1M2.**
 
 ---
 
