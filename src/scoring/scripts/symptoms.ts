@@ -33,6 +33,7 @@ import { loadWorld } from "@tns/core";
 import { runOpenLoop } from "@tns/server";
 import { conflictVariants, valueCleanWorld, scoreRun } from "@tns/scoring";
 import type { World } from "@tns/schema";
+import { progress } from "./progress.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..", "..");
@@ -117,12 +118,17 @@ console.log("  between a world with it and a world without? A conflict that move
 console.log("  the score and nothing a player can see is arbitrary, not difficult.");
 console.log("");
 
-const baseline = await observe(reseed(valueCleanWorld(world)));
 const variants = conflictVariants(world);
+// One simulated day per variant, plus the baseline. Each is a real run against
+// a real player over HTTP, so this is minutes rather than seconds.
+const bar = progress(variants.length + 1, "running");
+const baseline = await observe(reseed(valueCleanWorld(world)));
+bar.step("honest-values baseline");
 
 const results: { conflict: string; changed: string[]; costS: number }[] = [];
 for (const v of variants) {
   const seen = await observe(reseed(v.world));
+  bar.step(v.conflict);
   const before = new Set(baseline.signs);
   const after = new Set(seen.signs);
   const changed = [
@@ -137,6 +143,8 @@ for (const v of variants) {
     seen.capture !== null && baseline.capture !== null ? baseline.capture - seen.capture : 0;
   results.push({ conflict: v.conflict, changed, costS });
 }
+
+bar.done();
 
 results.sort((a, b) => b.costS - a.costS || (a.conflict < b.conflict ? -1 : 1));
 

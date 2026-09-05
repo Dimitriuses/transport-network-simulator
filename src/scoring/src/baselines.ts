@@ -1014,6 +1014,11 @@ export interface AblationReport {
  * saw. Cross-operator conflicts such as `A-id-collision` have no single
  * manifest setting and are skipped by both, identically.
  */
+/** How many calibrations `ablate` will run, for sizing a progress bar. */
+export function ablateStepCount(world: World, seeds = 1): number {
+  return (2 + conflictVariants(world).length) * Math.max(1, seeds);
+}
+
 export function conflictVariants(world: World): { conflict: string; world: World }[] {
   const clean = withNoConflicts(world);
   const out: { conflict: string; world: World }[] = [];
@@ -1039,16 +1044,23 @@ export function conflictVariants(world: World): { conflict: string; world: World
   return out;
 }
 
-export function ablate(world: World, seeds = 1): AblationReport {
+export function ablate(
+  world: World,
+  seeds = 1,
+  /** Report-only, called once per calibration. Must not influence the result. */
+  onStep?: (label: string) => void,
+): AblationReport {
   // Fixed offsets, so a re-run compares like with like. Averaging matters here
   // for the reason P0M9 measured: with only the disruptions changing, conflict
   // cost varies by 36 % of its own mean, which is larger than the differences
   // between most of the conflicts being attributed.
   const seedList = Array.from({ length: Math.max(1, seeds) }, (_, i) => world.manifest.seed + i * 7919);
-  const meanGap = (w: World): number => {
-    const xs = seedList.map(
-      (seed) => calibrate({ ...w, manifest: { ...w.manifest, seed } }).gapP0aP2rt,
-    );
+  const meanGap = (w: World, label = ""): number => {
+    const xs = seedList.map((seed) => {
+      const gap = calibrate({ ...w, manifest: { ...w.manifest, seed } }).gapP0aP2rt;
+      onStep?.(label);
+      return gap;
+    });
     return xs.reduce((a, b) => a + b, 0) / xs.length;
   };
   // Measured on the realtime-aware lazy integrator against an optimum held to
@@ -1064,9 +1076,9 @@ export function ablate(world: World, seeds = 1): AblationReport {
   // granularity off as well changes how many stops exist, and a lazy solver
   // given more stops finds more apparent interchanges to get wrong — which
   // varies the opportunity set and the difficulty together (KNOWN-ISSUES.md #14).
-  const baseGap = meanGap(world);
+  const baseGap = meanGap(world, "declared world");
   const clean = withNoConflicts(world);
-  const cleanGap = meanGap(clean);
+  const cleanGap = meanGap(clean, "honest values");
 
   // **Leave-one-in, not leave-one-out.** Removing a single conflict attributes
   // almost nothing here, and that is a true fact about the world rather than a
@@ -1082,7 +1094,7 @@ export function ablate(world: World, seeds = 1): AblationReport {
   // the redundancy itself, and it is worth seeing rather than hiding.
   const entries: AblationEntry[] = [];
   for (const { conflict, world: only } of conflictVariants(world)) {
-    entries.push({ conflict, costS: meanGap(only) - cleanGap });
+    entries.push({ conflict, costS: meanGap(only, conflict) - cleanGap });
   }
 
   entries.sort((a, b) => b.costS - a.costS);

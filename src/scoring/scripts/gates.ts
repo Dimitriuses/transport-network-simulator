@@ -15,8 +15,16 @@ import { fileURLToPath } from "node:url";
 
 import { loadWorld } from "@tns/core";
 import { runOpenLoop } from "@tns/server";
-import { ablate, calibrate, scoreRun, auditInformationSets, valueCleanWorld } from "@tns/scoring";
+import {
+  ablate,
+  ablateStepCount,
+  calibrate,
+  scoreRun,
+  auditInformationSets,
+  valueCleanWorld,
+} from "@tns/scoring";
 import { auditIdentifiability } from "@tns/projections";
+import { progress } from "./progress.ts";
 import type { World } from "@tns/schema";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -92,10 +100,15 @@ console.log("");
 // ---------------------------------------------------------------------------
 
 const modes = ["null", "blind", "naive", "competent"];
+// Each mode is a full simulated day against a real player over HTTP. Sizing the
+// bar here rather than counting as we go keeps the estimate honest from the
+// first step.
+const solutionsBar = progress(modes.length, "solutions");
 const results: Result[] = [];
 let port = 9400;
 for (const m of modes) {
   results.push(await measure(m, port));
+  solutionsBar.step(m);
   port += 20;
 }
 
@@ -123,6 +136,8 @@ const competent = results.find((r) => r.mode === "competent")!;
 //
 // 1a and 1b are computed from the world alone, need no solution, and run per
 // generated world. 1c cannot be computed at all and is a decision.
+solutionsBar.done();
+
 const cal = calibrate(world);
 console.log("  GATE 1 — buildable");
 console.log("");
@@ -245,13 +260,17 @@ const reseed = (w: World, seed: number): World => ({
   manifest: { ...w.manifest, seed },
 });
 
+const gate3Bar = progress(GATE3_SEEDS * 2, "gate 3 runs");
 const declaredRuns: Result[] = [];
 const cleanRuns: Result[] = [];
 for (let i = 0; i < GATE3_SEEDS; i++) {
   const seed = world.manifest.seed + i * 7919;
   declaredRuns.push(await measure("naive", 9500 + i * 40, reseed(world, seed)));
+  gate3Bar.step(`seed ${seed}, declared`);
   cleanRuns.push(await measure("naive", 9520 + i * 40, reseed(valueCleanWorld(world), seed)));
+  gate3Bar.step(`seed ${seed}, honest values`);
 }
+gate3Bar.done();
 
 const avg = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
 const sd = (xs: readonly number[]) => {
@@ -322,7 +341,9 @@ console.log("");
 // what the gate decides on — see the criterion below.
 // Retained as a diagnostic, on journey time alone, so the two are comparable
 // against every number recorded before P0M8.
-const ab = ablate(world, GATE3_SEEDS);
+const ablationBar = progress(ablateStepCount(world, GATE3_SEEDS), "ablating");
+const ab = ablate(world, GATE3_SEEDS, (label) => ablationBar.step(label));
+ablationBar.done();
 const captureCost = ab.baselineGapS - ab.cleanGapS;
 
 // **The criterion is journey time against headroom, measured on `P2rt`**

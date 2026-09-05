@@ -11,7 +11,8 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadWorld } from "@tns/core";
-import { probeCatalogue, NOISE_FLOOR_S } from "@tns/scoring";
+import { probeCatalogue, probeStepCount, NOISE_FLOOR_S } from "@tns/scoring";
+import { progress } from "./progress.ts";
 import type { ProbePoint } from "@tns/scoring";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -24,10 +25,17 @@ if (!existsSync(worldPath)) {
 }
 
 const world = loadWorld(worldPath);
-const report = probeCatalogue(world, {
+const options = {
   seeds: Number(process.argv[3] ?? 5),
   ...(process.argv[4] ? { operator: process.argv[4] } : {}),
-});
+};
+
+// This is the slowest instrument in the project — several hundred calibrations
+// on a 98-query world. It printed nothing until it finished, which is
+// indistinguishable from hanging.
+const bar = progress(probeStepCount(world, options), "probing");
+const report = probeCatalogue(world, { ...options, onStep: (label) => bar.step(label) });
+bar.done();
 
 const mins = (s: number): string => `${(s / 60).toFixed(2)}m`;
 

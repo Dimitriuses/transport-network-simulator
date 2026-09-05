@@ -19,6 +19,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadWorld } from "@tns/core";
 import { calibrate, valueCleanWorld } from "@tns/scoring";
+import { progress } from "./progress.ts";
 import type { World } from "@tns/schema";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -46,13 +47,16 @@ interface Row {
   conflict: number;
 }
 
+const bar = progress(seeds * 2, "calibrating");
 const rows: Row[] = [];
 for (let i = 0; i < seeds; i++) {
   // Arbitrary but fixed, and spread so consecutive runs do not draw adjacent
   // streams from the same generator.
   const seed = world.manifest.seed + i * 7919;
   const c = calibrate(reseed(world, seed));
+  bar.step(`seed ${seed}, declared`);
   const clean = calibrate(reseed(valueCleanWorld(world), seed));
+  bar.step(`seed ${seed}, honest values`);
   rows.push({
     seed,
     p0p1: c.gapP0P1,
@@ -61,6 +65,8 @@ for (let i = 0; i < seeds; i++) {
     conflict: c.gapP0aP2rt - clean.gapP0aP2rt,
   });
 }
+
+bar.done();
 
 const m = (s: number) => `${(s / 60).toFixed(2)}m`;
 const stats = (xs: readonly number[]) => {

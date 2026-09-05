@@ -250,6 +250,28 @@ export interface ProbeOptions {
   readonly operator?: string;
   /** How many disruption seeds to average each measurement over. */
   readonly seeds?: number;
+  /**
+   * Called once per calibration, for progress reporting.
+   *
+   * Report only — it must not influence what is measured, and nothing here
+   * passes it anything it could act on.
+   */
+  readonly onStep?: (label: string) => void;
+}
+
+/**
+ * How many calibrations `probeCatalogue` will run, so a caller can size a
+ * progress bar before the work starts.
+ *
+ * One baseline plus every (sweep, operator, value) triple, all times the seed
+ * count. Kept beside the loop that consumes it, because a total computed
+ * somewhere else drifts the first time the loop changes.
+ */
+export function probeStepCount(world: World, options: ProbeOptions = {}): number {
+  const seeds = Math.max(1, options.seeds ?? 1);
+  const operators = options.operator !== undefined ? 1 : world.manifest.operators.length;
+  const settings = SWEEPS.reduce((n, sweep) => n + sweep.values.length * operators, 0);
+  return (1 + settings) * seeds;
 }
 
 export interface ProbeReport {
@@ -301,10 +323,12 @@ export function probeCatalogue(world: World, options: ProbeOptions = {}): ProbeR
   // conflict cost varies by 36 % of its own mean, which is larger than most of
   // the differences this sweep is trying to resolve. One run per setting would
   // produce a curve made of noise.
-  const gapsFor = (w: World): { mean: number; sd: number } => {
-    const xs = seedList.map(
-      (seed) => calibrate({ ...w, manifest: { ...w.manifest, seed } }).gapP0aP2rt,
-    );
+  const gapsFor = (w: World, label: string): { mean: number; sd: number } => {
+    const xs = seedList.map((seed) => {
+      const gap = calibrate({ ...w, manifest: { ...w.manifest, seed } }).gapP0aP2rt;
+      options.onStep?.(label);
+      return gap;
+    });
     const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
     const sd = Math.sqrt(xs.reduce((a, b) => a + (b - mean) * (b - mean), 0) / xs.length);
     return { mean, sd };
@@ -313,7 +337,7 @@ export function probeCatalogue(world: World, options: ProbeOptions = {}): ProbeR
   // The entity set is held at the declared world's, so a sweep varies the
   // conflict and nothing else (`KNOWN-ISSUES.md` #14).
   const clean = valueCleanWorld(world);
-  const base = gapsFor(clean);
+  const base = gapsFor(clean, "honest-values baseline");
 
   const operators = (
     options.operator !== undefined ? [options.operator] : world.manifest.operators.map((o) => o.id)
@@ -328,7 +352,7 @@ export function probeCatalogue(world: World, options: ProbeOptions = {}): ProbeR
     for (const op of operators) {
       for (const value of sweep.values) {
         const variant = withSetting(clean, op, sweep.group, sweep.key, value);
-        const g = gapsFor(variant);
+        const g = gapsFor(variant, `${sweep.conflict} on ${op} at ${String(value)}`);
         points.push({
           operator: op,
           value,

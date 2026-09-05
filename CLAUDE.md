@@ -26,7 +26,15 @@ Milestones are numbered `P<phase>M<milestone>`. [`docs/BUILD-LOG.md`](docs/BUILD
 
 `npm run demo` runs the whole loop; `npm run calibrate` reports the three-gap difficulty calibration; `npm run audit` checks every declared conflict is actually present; `npm run world:build` regenerates the world bundle (content-hashed, and CI checks it). `npm run gates` runs the three proof gates; `npm run probe` sweeps each conflict's strength on each operator; `npm run horizon` separates what a lazy integrator loses to conflicts from what it loses to not knowing yet; `npm run stability` recalibrates across seeds and reports the spread.
 
-**The world is 38 sites, 50 quays, 10 lines and 132 scored queries as of P0M9, and every instrument is about six times slower for it.** Run the probe in the background.
+**The world is 38 sites, 50 quays, 10 lines and 98 scored journeys, and the instruments take minutes.** `npm run probe` is the slowest — several hundred calibrations.
+
+**The slow instruments report progress on stderr**, with a bar and an estimate of the time left. Progress never goes to stdout, so redirecting a report keeps it clean and still shows the bar on screen:
+
+```
+npm run probe > probe.txt        # bar on screen, report in the file
+```
+
+Without a terminal — piped, in CI, or a background job — it prints a plain line every fifteen seconds instead of a carriage-return bar, which is what makes a backgrounded run legible. `TNS_PROGRESS=off` silences it.
 
 **Never quote a single calibration as a world's difficulty.** `npm run probe` and `npm run stability` average over seeds and report the spread; `npm run gates` does not yet. Across seeds, with only the disruptions changing, headroom has a standard deviation of 31 % of its mean and conflict cost 36 %. One run is a draw from that distribution, not a measurement of the city.
 
