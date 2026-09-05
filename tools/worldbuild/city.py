@@ -666,3 +666,48 @@ def _scored() -> tuple[tuple[str, float, float, float, float, int], ...]:
 
 
 QUERIES: tuple[tuple[str, float, float, float, float, int], ...] = _scored()
+
+
+def operator_reach() -> dict[str, int]:
+    """Line-stops served, per operator.
+
+    **Coverage, not frequency.** P0M10 measured both and found coverage decides
+    whether a conflict lands on a journey's critical path: trips per day were
+    balanced 44/40/17 across the three operators while line-stops were 39/10/9,
+    and every conflict bit hardest on the operator with the line-stops.
+    """
+    reach: dict[str, int] = {}
+    for line in LINES:
+        reach[line.operator] = reach.get(line.operator, 0) + len(line.quays)
+    return reach
+
+
+def operator_collapsible_sites() -> dict[str, int]:
+    """Sites where an operator serves several quays *of its own*.
+
+    **A conflict an operator cannot express is a conflict the world declares
+    and does not have.** `A-granularity: site` means publishing one stop where
+    there are several quays; an operator whose every stop is the only quay at
+    its site publishes the same thing either way, and the defect audit reports
+    it MISS. Phase 0 met this as Sudbahn — conflicts placed where nothing
+    expressed them — and the generator needs enough about the network to avoid
+    repeating it (`docs/BUILD-LOG.md`, P0M10).
+    """
+    quay_site = {q.id: q.site_id for q in QUAYS}
+
+    # The site having several quays is not enough: the projection groups only
+    # the quays *this operator* serves, so an operator calling at one platform
+    # of a four-platform interchange publishes one stop for one quay either
+    # way. Counted per operator, so a site two of its own lines both call at is
+    # one site and not two.
+    served: dict[str, dict[str, set[str]]] = {}
+    for line in LINES:
+        for q in line.quays:
+            site = quay_site.get(q)
+            if site is None:
+                continue
+            served.setdefault(line.operator, {}).setdefault(site, set()).add(q)
+
+    return {
+        op: sum(1 for quays in sites.values() if len(quays) > 1) for op, sites in served.items()
+    }

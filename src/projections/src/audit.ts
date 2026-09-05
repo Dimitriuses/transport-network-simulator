@@ -47,6 +47,75 @@ function decimals(n: number): number {
   return dot < 0 ? 0 : s.length - dot - 1;
 }
 
+/** Flat-earth metres. Only `+ - * / sqrt`, per the determinism rules. */
+function metres(aLat: number, aLon: number, bLat: number, bLon: number): number {
+  const dLat = (aLat - bLat) * 111_320;
+  // cos(50.45°) to six places, precomputed: Math.cos is not reproducible.
+  const dLon = (aLon - bLon) * 111_320 * 0.637424;
+  return Math.sqrt(dLat * dLat + dLon * dLon);
+}
+
+/** The same world with some of one operator's geometry settings overridden. */
+function withGeometry(
+  world: World,
+  operatorId: string,
+  patch: Partial<OperatorManifest["geometry"]>,
+): World {
+  return {
+    ...world,
+    manifest: {
+      ...world.manifest,
+      operators: world.manifest.operators.map((o) =>
+        o.id === operatorId
+          ? {
+              ...o,
+              manifest: {
+                ...(o.manifest as OperatorManifest),
+                geometry: { ...(o.manifest as OperatorManifest).geometry, ...patch },
+              },
+            }
+          : o,
+      ),
+    },
+  };
+}
+
+/**
+ * How far each published position sits from where the same operator would have
+ * put it with `patch` applied — keyed by stop id, so a Site-granularity feed is
+ * compared against itself rather than against a quay list of another length.
+ *
+ * **This is the correction that matters here.** The check used to pair
+ * `stops[i]` with `quays[i]` positionally, and under Site granularity those are
+ * two unrelated lists: it reported 668 m of "offset" for a 130 m setting, which
+ * is a distance between arbitrary points in the city. Eighth instance in this
+ * project of a right number compared against the wrong thing.
+ */
+export function displacements(
+  world: World,
+  operatorId: string,
+  tau: number,
+  patch: Partial<OperatorManifest["geometry"]>,
+): number[] {
+  const actual = projectOperator(world, operatorId, tau).timetable.stops;
+  const base = projectOperator(withGeometry(world, operatorId, patch), operatorId, tau).timetable
+    .stops;
+  const byId = new Map(base.map((s) => [s.stop_id, s]));
+  const out: number[] = [];
+  for (const s of actual) {
+    const b = byId.get(s.stop_id);
+    if (b) out.push(metres(s.lat, s.lon, b.lat, b.lon));
+  }
+  return out;
+}
+
+/** Median of a list that this function is allowed to reorder. */
+function median(xs: number[]): number {
+  if (xs.length === 0) return 0;
+  const sorted = [...xs].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)]!;
+}
+
 function checkOperator(
   world: World,
   operatorId: string,
@@ -120,20 +189,16 @@ function checkOperator(
     );
   }
 
-  // C-coordinate-offset: published positions must be systematically displaced.
+  // C-coordinate-offset: published positions must be systematically displaced —
+  // measured against this operator's own unoffset positions, so that a Site
+  // source or a truncated precision is not counted as offset it did not cause.
   if (m.geometry.offset_m !== 0) {
-    const own = new Set(resolution.quayToStop.keys());
-    const quays = world.quays.filter((q) => own.has(q.id));
-    const drifts = timetable.stops.map((s, i) => {
-      const q = quays[i];
-      return q ? Math.abs(s.lat - q.lat) * 111_320 : 0;
-    });
-    const median = drifts.sort((a, b) => a - b)[Math.floor(drifts.length / 2)] ?? 0;
+    const drift = median(displacements(world, operatorId, tau, { offset_m: 0 }));
     add(
       "C-coordinate-offset",
-      median > m.geometry.offset_m * 0.5,
-      `published positions sit a median ${median.toFixed(0)} m from their quays ` +
-        `(manifest declares ${m.geometry.offset_m} m)`,
+      drift > m.geometry.offset_m * 0.5,
+      `published positions sit a median ${drift.toFixed(0)} m from where this ` +
+        `operator would put them unoffset (manifest declares ${m.geometry.offset_m} m)`,
     );
   }
 

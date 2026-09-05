@@ -1135,3 +1135,65 @@ A fourth question fell out and is recorded as an **OPEN** in `docs/SCORING.md`: 
 
 **The honest alternative.** If realistic conflicts cannot reach 20 % even with a sound instrument and a big enough world, the response is the one this roadmap has committed to from the start: **narrow the claim rather than pad the catalogue.** That would not end the project. It would move its centre of gravity from journey-time capture to the Information family and to the engineering effort of getting there — which is arguably where an integration challenge belongs anyway, and would itself be a finding worth publishing.
 ---
+
+---
+
+## P1M1 — Projection generation *(in progress)*
+
+**Delivered:** a generator that produces per-operator manifests from the §2.1 catalogue for any tier, and worlds built from them that pass every per-world instrument.
+
+**Corrected:** five things, four of which were only visible once a generator existed to produce combinations nobody had chosen by hand.
+
+### One catalogue, three consumers
+
+`build.py` held `DEFAULTS` and `CONFLICT_NAMES`; `probe.ts` held `SWEEPS`; the generator needed both, in Python. Three copies of one list, already drifted. `src/schema/src/catalogue.ts` is now the source, emitted to `contract/catalogue.json` and CI drift-checked, read by `tools/worldbuild/catalogue.py`. `SWEEPS` derives from it and adds only the diagnostic values *beyond* the plausibility ceiling, which the probe sweeps and a generator never does.
+
+### What the generator had to honour, and what it got wrong anyway
+
+Placement weighted by reach, values only from `generate`, the least-reaching operator left honest as a reference — all three from Phase 0 measurements. Then the first two generated worlds failed on things Phase 0 had never had occasion to state.
+
+**Realism is a property of the combination.** One operator drew a lat/lon swap, a 130 m offset and a 3-decimal truncation. Each was inside its own ceiling. The published stops sat **2,200 km** from their quays, and the world declared three geometry conflicts while containing one — nothing subtler survives underneath a swap. The catalogue gained an `excludes` relation, and `npm run realism` measures the *composed* displacement on the world itself, which is the only defence that works against combinations nobody anticipated. `D-no-delays` excludes `C-delay-unit` for the same reason: an operator publishing no delay has no delay unit to get wrong.
+
+> **A conflict that masks another wastes it and teaches one lesson instead of two.**
+
+**A conflict must be one the operator can express.** `A-granularity:ostline` was declared and absent: publishing at Site granularity means one stop where there are several quays, and ostline serves a single quay at every station it calls at. Phase 0's Sudbahn finding in a new form — then a conflict that *cost* nothing, here one that *exists* nowhere, and both make a world quietly easier than its tier claims.
+
+The first attempt at the fix was wrong instructively. Counting stations that *have* several quays gave ostline 1 and would have kept the bug; the projection groups only the quays *that operator serves*, so what matters is whether it serves several. Corrected: nordline 2, ostline 0, sudbahn 1 — matching the audit exactly.
+
+### The eighth "right number compared against the wrong thing"
+
+The audit's offset evidence paired `timetable.stops[i]` with `quays[i]` positionally. Under Quay granularity those lists happen to correspond; under Site granularity they are published *sites* against canonical *quays*, different lengths and no correspondence, so the drift was a distance between two arbitrary points in the city — **668 m reported for a 130 m setting**, true figure 111 m.
+
+It only ever produced a false *pass*, which is the worse direction: a world whose offset conflict had silently vanished would still have audited `ok`. Displacement is now measured against *the same operator's own output with the conflict off*, keyed by stop id — a definition that needs no correspondence between published and canonical entities and so survives any granularity.
+
+**First one of these found by a generator rather than by reading.**
+
+### Documentation, finally served
+
+`docs_url` was advertised in the brief for the whole of Phase 0 and returned 404. Each operator now serves an OpenAPI 3.1 document generated from its own manifest at request time — one source for behaviour and description, so they cannot drift.
+
+The decision inside it is which properties an operator states:
+
+> **Format and units are documented. Accuracy, freshness and completeness are not.**
+
+An operator can only document what it *intends*. It states its time encoding and its identifier scheme; it does not state that its survey is 130 m out or that its cancelled trips vanish, because it does not know or would not say. Sections A and B become readable rather than archaeological — which was never the skill being taught — and every conflict about whether the data is *true* stays discoverable only by measurement.
+
+### Catalogue D does not score, and the reason is not the one recorded
+
+`KNOWN-ISSUES.md` #19 had said the Information family's insensitivity was in the scoring formula. P1M1 implemented all four of `SCORING.md`'s candidate directions as pure functions of the same run and scored them side by side across twelve paired seeds. **Every effect landed inside its own standard error and an order of magnitude below the seed-to-seed noise** — including two candidates built to be markedly more sensitive than the current one. That is not what a formula problem looks like.
+
+`npm run lead` found what it is. `DEFAULT_POLICY.noticeLeadS` is `[300, 1800]`; the committed world declares staleness of **90 s and 300 s**. A feed conceals only a disruption whose announcement lead is shorter than its own lag, and no disruption in this world has a lead below 300 s. **Both settings hide exactly zero, by construction.**
+
+The defect audit had been printing this for months, in a line nobody read closely: *"feed is stamped τ−300s, and hides 0 disruption(s) that are already true."*
+
+> **Two numbers, each defensible alone, chosen in different files by people who never compared them.** `noticeLeadS` was picked so short leads would punish a slow polling cadence; the staleness settings were picked for plausibility. Their *relationship* decides whether the conflict exists, and nothing owned it.
+
+The fix needs no unrealistic setting: 900 s is already the ceiling, already carries its stated cause, and hides 41 % of disruptions. The committed world simply never drew it. And a third generator rule follows, the numeric cousin of the expressibility rule above — **a setting must be capable of expressing itself given the rest of the world's parameters**, which for staleness means a comparison against `noticeLeadS`.
+
+### Also
+
+`python -m worldbuild --out path` silently built a world called `--out`, discarding the rest of the arguments; two tier builds reported plausible content hashes while writing to a junk file, and the audit that followed read a stale bundle and was believed. Unknown options now exit 2. The same silent default cost a whole measurement in Phase 0.
+
+Tiers 3 and 4 generate byte-identical manifests. With A–D active at all three top tiers and twelve settings to draw from, placement saturates by tier 3 and the density lever has nothing left to buy — so P1M1's exit clause about tier bands is carried to P1M4 rather than declared met (`KNOWN-ISSUES.md` #32).
+
+`symptoms`, `gates` and `information` now take a world path, because P1M1's exit asks them about generated worlds and all three were hard-coded to the committed one.

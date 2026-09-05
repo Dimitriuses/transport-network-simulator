@@ -149,13 +149,33 @@ Harmless while the only players are ours. It becomes real the first time a world
 
 ---
 
-## 11. Operator API documentation is not generated — `open`
+## 11. Operator API documentation is not generated — `fixed at P1M1`
 
 `PLAYER-CONTRACT.md` §6.1 has every operator advertise a `docs_url`, and `DATA-MODEL.md` §5 specifies that operator documentation is generated from the same schema source as behaviour — so that divergence between them is deliberate rather than accidental (catalogue §2.1 F). The brief advertises the URL; nothing serves it.
 
 A player currently has to discover each operator's schema by fetching and reading. That is *harder* than intended and hard in the wrong way — endpoint archaeology rather than reconciliation. It also teaches the opposite of what §2.1 F is for: a world whose documentation is absent trains players to ignore documentation.
 
-**Owner:** P1M1, which is where generated projections and their documentation should arrive together. **Accurate documentation first**; defects only once #12 is resolved.
+**Fixed** at P1M1. `src/projections/src/docs.ts` generates an OpenAPI 3.1 document per operator from that operator's own manifest, and `GET /docs` serves it. Accurate only — defects wait for #12 and for something able to measure them.
+
+**Generated at request time rather than baked into the bundle**, so behaviour and description have exactly one source and cannot drift by accident. Phase 3 will need somewhere to keep an intended-but-untrue version; until then there is nothing to keep.
+
+**The line it draws, and why it is a decision rather than a detail.** What an operator documents changes how hard a world is, so the rule is stated in `docs.ts` and enforced by `src/projections/test/docs.test.ts`:
+
+> **Format and units are documented. Accuracy, freshness and completeness are not.**
+
+An operator can only document what it *intends*. A real agency states its time encoding, its identifier scheme and whether a position means a station or a boarding point — deliberate choices its own engineers had to make. None documents that its survey is 130 m out, that its feed lags five minutes, or that cancelled trips vanish: it does not know, or would not say. Applied to the catalogue:
+
+| documented | not documented |
+|---|---|
+| `A-granularity`, `A-id-scheme`, `A-coordinate-source` | `A-naming`, `A-coordinate-precision` |
+| `B-time-encoding` | `C-coordinate-offset`, `C-latlon-order` |
+| `C-delay-unit`, `D-no-delays` | `D-staleness`, `D-silent-cancellation` |
+
+Sections A and B become *readable* rather than archaeological; every conflict about whether the data is **true** stays discoverable only by measurement, which is where §2.1 says the difficulty lives.
+
+**It changes no measurement taken so far**, and that is itself the limitation: none of the reference solutions reads documentation, so nothing in the instrument set can see whether documenting a conflict made it easier. That is #12.
+
+`npm run docs [world] [operator]` prints what a player would read.
 
 ---
 
@@ -381,7 +401,7 @@ Gate 3 now takes the paired difference: `sd(clean_i − declared_i) / sqrt(n)`. 
 
 ---
 
-## 19. The Information family is insensitive to every declared conflict — `open`
+## 19. The Information family is insensitive to every declared conflict — `resolved at P1M1; the premise was wrong`
 
 Measured at P0M10, twelve seeds, paired: the naive solution scores **0.768** on this world and **0.767** with honest values. The declared conflicts move it by one thousandth.
 
@@ -399,6 +419,68 @@ What does not move is the **score**. `F1(recall, precision) × (0.5 + 0.5 × tim
 **Why it matters beyond Gate 3.** `CORECONCEPT.md` treats realtime truthfulness (catalogue D) as a first-class source of difficulty, and `SCORING.md` gives the Information family 40 % of the balanced profile. If no declared conflict can move it, then either the family is not measuring what it was meant to, or catalogue D is not load-bearing — and those call for opposite responses, exactly as the identity fork does.
 
 **Owner: P1M1**, assigned 2026-09-04. Catalogue D cannot be validated in a generated world until a realtime conflict can move this family, and P1M1's exit now names it. Sharpened rather than resolved by the Gate 3 change in `PHASES.md`: Returning the criterion to journey time removes the *dependency* on this family without answering the question it raises: whether the Information family **should** be movable by a realtime conflict, and what is wrong with either the family or catalogue D if it is not.
+
+---
+
+### The diagnosis above is wrong, and P1M1 measured what is actually happening
+
+**It is not the formula.** `npm run information` implements all four of `SCORING.md`'s candidate directions as pure functions of the same run and scores them side by side, declared world against honest-values world, paired by seed. Twelve seeds on the committed world:
+
+| formula | declared | honest | effect | se | noise |
+|---|---|---|---|---|---|
+| current — `F1 x (0.5 + 0.5 x timeliness)` | 0.7044 | 0.7023 | −0.0020 | 0.0145 | 0.0546 |
+| no floor — `F1 x timeliness` | 0.6577 | 0.6600 | +0.0023 | 0.0163 | 0.0486 |
+| per event | 0.5274 | 0.5315 | +0.0041 | 0.0186 | 0.0673 |
+| cost weighted | 0.4924 | 0.4712 | −0.0212 | 0.0201 | 0.1102 |
+
+Every effect is inside its own standard error and an order of magnitude below the seed-to-seed noise. **Two of these formulas were built to be far more sensitive than the current one and they detect nothing either** — which is not what a formula problem looks like. And the world is not short of material: 30.5 material events per run, 9.4 of them silent, 2.6 late.
+
+**`D-staleness` on this world cannot hide anything, and the reason is arithmetic.** `npm run lead` measures the gap between the instant the world announces a disruption and the instant the affected service was due to leave, against each staleness setting:
+
+```
+    minimum       5.1m        staleness   hides   share
+    10th %        7.4m              60s       0     0%
+    median       16.8m             300s       0     0%
+    90th %       26.5m             900s     118    41%   <- the ceiling
+    maximum      30.0m
+```
+
+`DEFAULT_POLICY.noticeLeadS` is `[300, 1800]`. The committed world declares staleness of **90 s and 300 s**. A feed can only conceal a disruption whose announcement lead is shorter than its own lag, and **no disruption in this world has a lead shorter than 300 s** — so both settings hide exactly zero, by construction. The defect audit had been printing this for months: *"feed is stamped τ−300s, and hides 0 disruption(s) that are already true."*
+
+**This is the project's signature failure in a new place: two numbers, each fine alone, chosen in different files by people who never compared them.** `noticeLeadS` lives in `src/core/src/disruptions.ts` and was picked so that short leads "punish a slow polling cadence"; the staleness settings live in the catalogue and were picked for plausibility. Their *relationship* decides whether the conflict exists at all, and nothing owned it.
+
+**What follows, and what does not:**
+
+* The four candidate formulas are **not discriminated by this evidence**. Choosing between them on these numbers would be choosing noise. The `SCORING.md` OPEN item stays open, and its options are unchanged — but "the formula is why catalogue D does not score" is struck.
+* **The fix is on the world side, and does not require cranking anything past realism.** 900 s is already the plausibility ceiling, already carries its stated cause ("a 5-minute rebuild behind a cache"), and hides 41 % of disruptions. The generator's `generate` list offers it; the committed world simply never drew it.
+* **A third generator rule follows**, and it is the numeric cousin of #30: *a setting must be capable of expressing itself given the rest of the world's parameters.* Staleness below the minimum announcement lead is plausible, declared, audited present — and inert. `REQUIRES` handles capabilities; this needs a threshold comparison against `noticeLeadS`.
+* **`D-silent-cancellation` is a separate question** and is not answered here. On the committed world it sits on Sudbahn, which reaches nine line-stops of fifty-eight, and produces six events.
+
+### That measurement, taken
+
+The same comparison on the generated Tier-5 world — staleness at the 900 s ceiling, realtime conflicts on nordline, which reaches 39 line-stops of 58 — twelve paired seeds:
+
+| formula | declared | honest | effect | se | σ |
+|---|---|---|---|---|---|
+| **current** | 0.4553 | 0.6726 | **+0.2173** | 0.0267 | **8.1** |
+| no floor | 0.4274 | 0.6297 | +0.2023 | 0.0262 | 7.7 |
+| per event | 0.2812 | 0.4943 | +0.2132 | 0.0269 | 7.9 |
+| cost weighted | 0.2133 | 0.4421 | +0.2288 | 0.0385 | 5.9 |
+
+Silent events rose from 9.4 per run to 13.9; in-time warnings fell from 18.5 to 9.4; late ones rose from 2.6 to 6.2.
+
+**The current formula moves by 0.217 — more than a fifth of the family's range — at 8.1σ.** It is not insensitive. The title of this issue is wrong and the diagnosis under it was wrong twice: once in the original guesses, once in the P0M10 correction that replaced them.
+
+**Two things changed between the two worlds**, so the 0.217 is an upper bound on either alone: staleness rose 300 s → 900 s, *and* the realtime conflicts moved from Sudbahn (9 line-stops) to Nordline (39). Placement was already known to dominate (P0M10). But the strength half is settled by arithmetic rather than statistics and needs no further run: **at 90 s or 300 s, zero disruptions are concealed on any operator**, because no disruption in this world has an announcement lead below 300 s. No placement rescues a setting that hides nothing.
+
+**And no candidate formula is better.** The four effects span 0.202–0.229 against a standard error of ~0.027 — differences well inside one σ, on a measurement designed to separate them. There is no evidence for changing the formula, and changing it would make every recorded score incomparable in exchange for nothing measured.
+
+### What this leaves
+
+* **`SCORING.md`'s OPEN item is answerable now, and the answer is none of its four options.** Its premise — that the formula is why catalogue D does not score — is refuted. The recommendation is to keep the current formula and close the item, but it is a spec-level decision and is flagged rather than taken.
+* **The real defect is a generator rule that did not exist**: *a setting must be capable of expressing itself given the rest of the world's parameters.* `REQUIRES` (#30) handles capabilities — can this operator express this conflict at all. Staleness needs the numeric cousin: `staleness_s` below `DEFAULT_POLICY.noticeLeadS[0]` is plausible, declared, audited present, and inert. That rule is **not yet implemented** and is the remaining P1M1 work on this issue.
+* **The committed world understates its own tier**, and by a lot. Its two staleness settings are both inert, so Tier 2's realtime component is decorative. That is not a scoring bug; it is `#32`'s problem in another form — the tier ladder needs levers, and this is one nobody knew was disconnected.
+* **The defect audit's staleness evidence is weak.** It reports "hides 0 disruption(s) that are already true" at a single τ, and printed exactly that for the Tier-5 world where staleness demonstrably hides a great deal. The line is not wrong, it is uninformative — and it was the one place this defect was visible for months. Worth strengthening; recorded here rather than fixed, since the check needs a definition of what τ to ask at.
 
 ---
 
@@ -633,3 +715,118 @@ Five seconds is ample on a warm developer machine. On a cold runner, starting a 
 **And the failure is now diagnosable.** The tests spawned players with stderr discarded, so a player that crashed on startup was indistinguishable from one that was merely slow — the CI log said only "never became ready", which sends you looking at the simulator. Stderr is inherited now, and both timeout messages say what they last saw.
 
 **A note on the class of bug.** This is not a determinism failure and could not have been one: `PLAYER_BOOT_BUDGET_MS` is real time, at the boundary, and never enters the model. But it is the same shape as the rest of this milestone — *a number that was fine for the case it was written for and silently wrong for another*.
+
+---
+
+## 28. The offset audit compared each published stop with an unrelated quay — `fixed at P1M1`
+
+`C-coordinate-offset`'s evidence line paired `timetable.stops[i]` with `quays[i]` positionally:
+
+```ts
+const quays = world.quays.filter((q) => own.has(q.id));
+const drifts = timetable.stops.map((s, i) => Math.abs(s.lat - quays[i].lat) * 111_320);
+```
+
+Under `granularity: quay` those two lists happen to correspond. Under `granularity: site` they are different lists of different lengths — published *sites* against canonical *quays* — so the drift was a distance between two arbitrary points in the city. On the generated Tier-2 world it reported **668 m for a 130 m setting**; the true figure is 111 m.
+
+It only ever produced a false *pass*, because the check is `drift > offset_m * 0.5` and the noise is large. That is the worse direction: a world whose offset conflict had silently vanished would still have audited `ok`.
+
+**Fixed** by measuring displacement against *the same operator's own output with the conflict off*, keyed by stop id — `displacements()` in `src/projections/src/audit.ts`. That definition needs no correspondence between published and canonical entities, so it survives any granularity, and it isolates the setting under test from every other thing the operator does to geometry.
+
+**Eighth instance of the recurring pattern**, and the first found by a generator rather than by reading: *a right number compared against the wrong thing.*
+
+---
+
+## 29. Realism was enforced per setting, and a generated world left the realistic band anyway — `fixed at P1M1`
+
+Every catalogue setting carries a plausibility ceiling with a stated real-world cause, and `src/scoring/test/realism.test.ts` enforces them. The first generated Tier-2 world satisfied all of them and published stops **2,200 km from their quays**.
+
+`nordline` had drawn three geometry settings at once — `C-latlon-order: lon_lat`, `C-coordinate-offset: 130`, `A-coordinate-precision: 3`. A lat/lon swap at 50.45 N, 30.51 E relocates a stop to Kazakhstan. The offset and the truncation were still declared, still audited, and completely unobservable underneath it: **the world declared three geometry conflicts and contained one.**
+
+Two things were wrong, and both are now fixed:
+
+* **Realism is a property of the combination.** A per-setting ceiling cannot see a total. `npm run realism` measures the composed displacement — every geometry setting an operator applies, against the quay each stop actually is — and holds *that* to the same 150 m ceiling. It runs on a world, so it catches combinations nobody anticipated, which is the specific risk `ROADMAP.md` names for generated worlds.
+* **A conflict that masks another teaches one lesson instead of two.** The catalogue gained an `excludes` relation, and the generator honours it symmetrically. `C-latlon-order` excludes the three settings that merely nudge geometry; `D-no-delays` excludes `C-delay-unit`, because an operator that never publishes a delay has no delay unit to get wrong — which the generated Tier-3 world had also declared and not contained.
+
+**The user constraint this serves**, ratified at P0M8 and now covering combinations as well as settings: *two operators can disagree about where a stop is; at 500 m apart that is a broken map, not a disagreement, and it teaches something other than integration.*
+
+---
+
+## 30. A conflict placed where the operator cannot express it — `fixed at P1M1`
+
+The generated Tier-2 world declared `A-granularity:ostline` and the defect audit reported it MISS: "every published stop maps to exactly one quay". Publishing at Site granularity means one stop where there are several quays, and `ostline` serves a single quay at every station it calls at — so Site and Quay granularity publish exactly the same thing.
+
+This is Phase 0's Sudbahn finding in a new form. Then it was a conflict placed where it *cost* nothing; here it is one that *exists* nowhere. The effect is the same and slightly worse: **a world quietly easier than its declared tier.**
+
+**Fixed** by giving the generator enough about the network to know what an operator can express. `OperatorSpec` gained `collapsible_sites` — stations where the operator serves more than one of *its own* quays — and `generate.REQUIRES` maps a conflict to the capability it needs.
+
+The first attempt at that count was wrong in an instructive way: it counted stations that *have* several quays, which gave `ostline` 1 and would have kept the bug. The projection groups only the quays that operator serves, so what matters is whether it serves several of them. Corrected, the counts are nordline 2, ostline 0, sudbahn 1 — matching the audit exactly.
+
+**Standing risk:** `REQUIRES` covers `A-granularity` because that is the case the audit caught. Others may exist, and one is already visible in a weaker form: on the generated Tier-3 world `A-coordinate-source:ostline` displaces **1 of 10** published positions, because a site centroid and a quay position coincide wherever a station has one quay. The audit passes it — its bar is "more than zero" — and it is *present*, merely thin.
+
+That is a different failure from this one and needs a different instrument: **present but negligible** is what `npm run symptoms` and the ablation are for, not the audit. Recorded here so the two are not confused. Tightening the audit's bar instead would be the wrong fix, since it would start rejecting conflicts that are genuinely present.
+
+---
+
+## 31. `python -m worldbuild --out path` silently built a world called `--out` — `fixed at P1M1`
+
+The CLI takes a positional output path. Passing `--out ../worlds/gen-t2.world.db` made `--out` the path and discarded the rest, so two `--tier` builds reported plausible content hashes while writing to a junk file in `tools/` — and the audit that followed read a **stale bundle** and was believed.
+
+Unknown options and surplus arguments now exit 2 with usage. The same silent default cost a whole measurement in Phase 0, when `refplayer/scripts/serve.ts` treated an unrecognised mode as `naive` (`#17`).
+
+---
+
+## 32. Tiers 3 and 4 generate the same world — `open`
+
+With the generator wired up, the manifests for seed 481516 are:
+
+| Tier | Declared conflicts | Manifests |
+|---|---|---|
+| 0 | 0 | clean |
+| 1 | 2 | cosmetic only |
+| 2 | 8 | |
+| 3 | 13 | |
+| 4 | 13 | **byte-identical to tier 3** |
+| 5 | 13 | same settings, stronger values (staleness 300→900 s) |
+
+Tiers 3–5 activate the same catalogue sections (A–D), so the only levers between them are `TIER_DENSITY` and the strength bias. 0.6 → 0.7 is a small step, and with twelve settings, one clean reference operator and the new exclusions, the placement is close to saturated by tier 3 — so the density lever has nothing left to buy.
+
+**This matters to P1M1's exit and blocks P1M4's.** The exit asks that a generated world's ablation profile fall within the band its declared tier targets; if two tiers produce the same world, no band can separate them, and "two worlds at the same declared tier are equally hard" is trivially true for the wrong reason.
+
+Levers that exist and are not yet used:
+
+* **How many operators are dirty.** Every tier here leaves exactly one honest operator, because the rule is "the least-reaching one". A higher tier could leave a *smaller* honest operator, or none above some tier — though `#15` and the competent solution's consensus frame argue for keeping one.
+* **Where the conflicts sit relative to the scored journeys.** P0M10 measured this as the dominant factor and the generator only approximates it by reach.
+* **Catalogue sections E and F**, which arrive in Phase 3 and are the honest way to extend the top of the ladder.
+
+**Owner:** P1M4, with `#24` — both are about what a declared difficulty means. Recording it here because the generator now makes it concrete rather than hypothetical.
+
+### Made narrower, not wider, by fixing #19
+
+Filtering settings that cannot express themselves (`#19`) leaves `D-staleness` with **one** usable value out of three: 60 s and 300 s both sit at or below the minimum announcement lead and conceal nothing, so only 900 s survives. Staleness is now on or off with nothing in between.
+
+That is the right trade — a declared conflict that exists beats three settings of which two are decorative — but it removes a rung the ladder appeared to have. After the filter, tiers 3 and 4 remain identical and tier 5 differs from them in a single setting (nordline's time encoding).
+
+**The catalogue's `generate` list for `D-staleness` should be re-derived against `noticeLeadS` rather than left as `[60, 300, 900]`,** which was chosen when nobody was comparing the two. Values spanning 450–900 s would give the ladder real rungs, all of them inside the plausibility ceiling and all of them capable of hiding something. **Not done here:** the spacing is a difficulty decision, and picking numbers that make the tier ladder look reasonable is choosing the answer first — the same reasoning that keeps the clearance thresholds unadjusted in `SCORING.md`.
+
+---
+
+## 33. The content hash did not cover the operator manifests — `fixed at P1M1`
+
+`content_hash.py` lists the tables it hashes, with a comment above the list:
+
+> Adding a table means adding it here, deliberately — a table that is not hashed is a table whose reproducibility nobody is checking.
+
+The `operators` table was added later and never added to the list. It holds every operator's manifest — **every conflict the world declares, and therefore the whole of what makes it hard.**
+
+**Found by accident.** The generated Tier-3 and Tier-5 worlds reported the same content hash, `1888c5797d7d74d4`, while their manifests plainly differed: nordline published `epoch_ms` in one and `local_naive` in the other. Two worlds of different declared difficulty, indistinguishable to the hash that exists to name a world unambiguously.
+
+**What it meant:**
+
+* `python -m worldbuild --verify` — what CI runs — could not detect a change to the conflict configuration. The reproducibility check had a blind spot precisely where P1M1's generator writes.
+* `DATA-MODEL.md` §6 says the hash is "a SHA-256 over a canonical serialisation of **every** table". It covered ten of eleven. Spec and code disagreed and the code was wrong.
+* A world could be silently re-tiered with no artefact recording that anything changed.
+
+**Fixed** by adding `("operators", "id")` to `TABLES`.
+
+**The committed world's hash changed, and the world did not.** Hashing the current bundle under the old table list reproduces `54737165504f34b4` exactly; under the new one it is `f6028eedd79e3cb5`. Recorded scores are still comparable — what changed is what the identifier covers, not the city. Every score addressed by the old hash refers to the same world.

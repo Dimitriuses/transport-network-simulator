@@ -16,7 +16,7 @@ import math
 import sqlite3
 from pathlib import Path
 
-from . import city
+from . import catalogue, city, generate
 from .content_hash import content_hash
 
 ENGINE_VERSION = "0.1.0"
@@ -138,46 +138,52 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 # Default settings. Anything an operator does differently is a declared
 # conflict, named here so the manifest and the audit agree on vocabulary.
-DEFAULTS: dict[str, dict[str, object]] = {
-    "identity": {"granularity": "quay", "id_scheme": "prefixed"},
-    "naming": {"variant": "official"},
-    "geometry": {"precision": 6, "source": "quay", "latlon_order": "lat_lon", "offset_m": 0},
-    "time": {"encoding": "iso_offset"},
-    "realtime": {
-        "staleness_s": 0,
-        "cancellations": "explicit",
-        "delay_unit": "seconds",
-        "publishes_delays": True,
-    },
-}
-
-CONFLICT_NAMES: dict[tuple[str, str], str] = {
-    ("identity", "granularity"): "A-granularity",
-    ("identity", "id_scheme"): "A-id-scheme",
-    ("naming", "variant"): "A-naming",
-    ("geometry", "precision"): "A-coordinate-precision",
-    ("geometry", "source"): "A-coordinate-source",
-    ("geometry", "latlon_order"): "C-latlon-order",
-    ("geometry", "offset_m"): "C-coordinate-offset",
-    ("time", "encoding"): "B-time-encoding",
-    ("realtime", "staleness_s"): "D-staleness",
-    ("realtime", "cancellations"): "D-silent-cancellation",
-    ("realtime", "delay_unit"): "C-delay-unit",
-    ("realtime", "publishes_delays"): "D-no-delays",
-}
+# The conflict-free manifest and the catalogue names, read from the artefact
+# `src/schema` generates rather than restated here. Two copies of the same facts
+# either side of the TypeScript/Python seam is the arrangement that drifts, and
+# these had already been edited independently more than once.
+DEFAULTS: dict[str, dict[str, object]] = catalogue.load().defaults()
+CONFLICT_NAMES: dict[tuple[str, str], str] = catalogue.load().conflict_names()
 
 
-def _declared_conflicts() -> list[str]:
+def operators_for(tier: int | None, seed: int) -> tuple[dict, ...]:
+    """The operator manifests this build should use.
+
+    `tier is None` keeps the hand-authored manifests in `city.OPERATORS`, which
+    is what the committed world uses and what Phase 0 measured. Passing a tier
+    generates them instead (`generate.py`), which is P1M1.
+
+    Both paths return the same shape, so nothing downstream — the builder, the
+    projections, the defect audit — can tell which it was given.
+    """
+    if tier is None:
+        return city.OPERATORS
+    reach = city.operator_reach()
+    collapsible = city.operator_collapsible_sites()
+    specs = tuple(
+        generate.OperatorSpec(
+            o["id"],
+            o["name"],
+            o["dialect"],
+            reach.get(o["id"], 0),
+            collapsible.get(o["id"], 0),
+        )
+        for o in city.OPERATORS
+    )
+    return generate.generate_manifests(specs, tier, seed)
+
+
+def _declared_conflicts(operators: tuple[dict, ...]) -> list[str]:
     """Every way an operator departs from the default, as catalogue names."""
     found: set[str] = set()
-    for op in city.OPERATORS:
+    for op in operators:
         for group, defaults in DEFAULTS.items():
             for key, default in defaults.items():
                 if op.get(group, {}).get(key, default) != default:
                     found.add(f"{CONFLICT_NAMES[(group, key)]}:{op['id']}")
     # Two operators using bare integer ids collide with each other. That is a
     # distinct conflict from either of them merely being unprefixed.
-    bare = [o["id"] for o in city.OPERATORS if o["identity"]["id_scheme"] == "bare_int"]
+    bare = [o["id"] for o in operators if o["identity"]["id_scheme"] == "bare_int"]
     if len(bare) > 1:
         found.add("A-id-collision:" + "+".join(sorted(bare)))
     return sorted(found)
@@ -207,7 +213,8 @@ def _pattern_stops(
     return rows
 
 
-def build(out_path: Path, seed: int = 481516) -> Path:
+def build(out_path: Path, seed: int = 481516, tier: int | None = None) -> Path:
+    operators = operators_for(tier, seed)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.exists():
         out_path.unlink()
@@ -233,7 +240,7 @@ def build(out_path: Path, seed: int = 481516) -> Path:
                 # The active conflict list is derived from the operator
                 # manifests rather than written separately, so the two cannot
                 # drift apart.
-                ("active_conflicts", ",".join(_declared_conflicts())),
+                ("active_conflicts", ",".join(_declared_conflicts(operators))),
                 ("walk_speed_mps", str(city.WALK_SPEED_MPS)),
                 ("max_walk_m", str(city.MAX_WALK_M)),
             ],
@@ -243,7 +250,7 @@ def build(out_path: Path, seed: int = 481516) -> Path:
             "INSERT INTO operators (id, name, manifest) VALUES (?, ?, ?)",
             [
                 (o["id"], o["name"], json.dumps(o, sort_keys=True, separators=(",", ":")))
-                for o in city.OPERATORS
+                for o in operators
             ],
         )
 

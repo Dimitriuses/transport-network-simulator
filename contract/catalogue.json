@@ -1,0 +1,202 @@
+{
+  "$comment": "GENERATED FILE — DO NOT EDIT. Source: src/schema/src/catalogue.ts. Regenerate: npm run contract:generate",
+  "contract_version": "0.3",
+  "settings": [
+    {
+      "conflict": "A-granularity",
+      "section": "A",
+      "group": "identity",
+      "key": "granularity",
+      "off": "quay",
+      "structural": true,
+      "generate": [
+        "site"
+      ]
+    },
+    {
+      "conflict": "A-id-scheme",
+      "section": "A",
+      "group": "identity",
+      "key": "id_scheme",
+      "off": "prefixed",
+      "cosmetic": true,
+      "generate": [
+        "bare_int"
+      ]
+    },
+    {
+      "conflict": "A-naming",
+      "section": "A",
+      "group": "naming",
+      "key": "variant",
+      "off": "official",
+      "cosmetic": true,
+      "generate": [
+        "abbreviated",
+        "colloquial"
+      ]
+    },
+    {
+      "conflict": "A-coordinate-precision",
+      "section": "A",
+      "group": "geometry",
+      "key": "precision",
+      "off": 6,
+      "plausible": {
+        "max": 3,
+        "because": "3 dp is ~110 m; 2 dp is ~1.1 km and no feed ships it"
+      },
+      "generate": [
+        5,
+        4,
+        3
+      ]
+    },
+    {
+      "conflict": "A-coordinate-source",
+      "section": "A",
+      "group": "geometry",
+      "key": "source",
+      "off": "quay",
+      "generate": [
+        "site"
+      ]
+    },
+    {
+      "conflict": "B-time-encoding",
+      "section": "B",
+      "group": "time",
+      "key": "encoding",
+      "off": "iso_offset",
+      "generate": [
+        "epoch_s",
+        "epoch_ms",
+        "local_naive"
+      ]
+    },
+    {
+      "conflict": "C-coordinate-offset",
+      "section": "C",
+      "group": "geometry",
+      "key": "offset_m",
+      "off": 0,
+      "plausible": {
+        "max": 150,
+        "because": "station centroid vs quay at a large interchange"
+      },
+      "generate": [
+        30,
+        60,
+        130
+      ]
+    },
+    {
+      "conflict": "C-latlon-order",
+      "section": "C",
+      "group": "geometry",
+      "key": "latlon_order",
+      "off": "lat_lon",
+      "excludes": [
+        "C-coordinate-offset",
+        "A-coordinate-precision",
+        "A-coordinate-source"
+      ],
+      "generate": [
+        "lon_lat"
+      ]
+    },
+    {
+      "conflict": "C-delay-unit",
+      "section": "C",
+      "group": "realtime",
+      "key": "delay_unit",
+      "off": "seconds",
+      "generate": [
+        "minutes"
+      ]
+    },
+    {
+      "conflict": "D-staleness",
+      "section": "D",
+      "group": "realtime",
+      "key": "staleness_s",
+      "off": 0,
+      "plausible": {
+        "max": 900,
+        "because": "a 5-minute rebuild behind a cache; 30 min is an outage"
+      },
+      "generate": [
+        60,
+        300,
+        900
+      ]
+    },
+    {
+      "conflict": "D-silent-cancellation",
+      "section": "D",
+      "group": "realtime",
+      "key": "cancellations",
+      "off": "explicit",
+      "generate": [
+        "silent_drop"
+      ]
+    },
+    {
+      "conflict": "D-no-delays",
+      "section": "D",
+      "group": "realtime",
+      "key": "publishes_delays",
+      "off": true,
+      "excludes": [
+        "C-delay-unit"
+      ],
+      "generate": [
+        false
+      ]
+    }
+  ],
+  "tier_sections": {
+    "0": [],
+    "1": [
+      "A"
+    ],
+    "2": [
+      "A",
+      "B",
+      "C"
+    ],
+    "3": [
+      "A",
+      "B",
+      "C",
+      "D"
+    ],
+    "4": [
+      "A",
+      "B",
+      "C",
+      "D"
+    ],
+    "5": [
+      "A",
+      "B",
+      "C",
+      "D"
+    ]
+  },
+  "tier_cosmetic_only": [
+    1
+  ],
+  "disruption_policy": {
+    "delayRate": 0.18,
+    "cancellationRate": 0.06,
+    "delayRangeS": [
+      120,
+      900
+    ],
+    "noticeLeadS": [
+      300,
+      1800
+    ]
+  }
+}

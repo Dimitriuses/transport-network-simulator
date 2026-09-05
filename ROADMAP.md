@@ -47,9 +47,20 @@ Milestones are numbered **`P<phase>M<milestone>`** — `P1M2` is the third miles
 
 ---
 
-### P1M1 — Projection generation
+### P1M1 — Projection generation — **in progress**
 
 Per-operator manifests sampled from the §2.1 catalogue, parameterised by tier. The manifest shape already exists and is declarative, so this generates configuration rather than inventing a mechanism.
+
+**Done so far:**
+
+* ✅ **One catalogue, three consumers.** `src/schema/src/catalogue.ts` replaces the three drifted copies in `build.py`, `probe.ts` and the generator; emitted to `contract/catalogue.json`, CI drift-checked, read by `tools/worldbuild/catalogue.py`.
+* ✅ **The generator.** `tools/worldbuild/generate.py`; `python -m worldbuild <path> --tier N`. Placement weighted by reach, values only from `generate`, the least-reaching operator left honest as a reference.
+* ✅ **Two rules the first generated worlds forced.** A conflict may not be generated beside one it masks (`excludes`), and may not be placed on an operator that cannot express it (`REQUIRES`). Both were found by auditing generated worlds — `KNOWN-ISSUES.md` #29, #30.
+* ✅ **`npm run realism`.** Composed published geometry against the plausibility ceiling, measured on the world, because per-setting ceilings cannot see a total.
+* ✅ **`docs_url` served** (`KNOWN-ISSUES.md` #11), accurate only, generated from each operator's own manifest. The rule for what an operator documents is in `CORECONCEPT.md` §2.1 F: format and units yes, accuracy and freshness no.
+* ✅ **Every tier audits clean.** Tiers 0–5 generate worlds whose defect audit reports no MISS, whose composed geometry is plausible, and whose identifiability audit passes.
+
+**Still open in this milestone:** `KNOWN-ISSUES.md` #19 and the `P0a` ambiguity floor, both below, and both **decisions rather than implementations** — `npm run information` and `npm run identifiability` now produce the evidence for them.
 
 **What Phase 0 established that this must honour:**
 
@@ -65,6 +76,8 @@ Also serves each operator's `docs_url`, currently advertised and unserved (`KNOW
 * **`SCORING.md` — `P0a` has an ambiguity floor under it.** `capture` normalises against `P0a`, which routes on the canonical world and therefore knows things no player can. On this world that is 2 % and ignorable; a generated world publishing at Site granularity over larger stations could make it much worse, with nothing to stop it. The choice is recorded there, with the warning attached: subtracting the floor means a player scores *better* on a world whose ambiguity is *worse*.
 
 **Exit:** generated manifests produce worlds whose defect audit passes, whose identifiability audit and symptom check pass, and whose ablation profile falls within the band their declared tier targets; every operator serves documentation matching its own behaviour; and a realtime conflict moves the Information family.
+
+**One exit clause is now known to be unreachable in this milestone.** Tiers 3 and 4 generate byte-identical manifests (`KNOWN-ISSUES.md` #32): with A–D active at all three top tiers and twelve settings to draw from, placement saturates and the density lever has nothing left to buy. No tier *band* can separate worlds that are the same world. Defining those bands is P1M4's job and needs levers this milestone does not have — how many operators are dirty, where conflicts sit relative to the scored journeys, and catalogue sections E and F. **The clause is carried to P1M4 rather than declared met.**
 
 ---
 

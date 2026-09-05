@@ -37,7 +37,13 @@ import { progress } from "./progress.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..", "..");
-const worldPath = join(repoRoot, "worlds", "m1.world.db");
+// World first, seed second, matching `headroom`, `calibrate` and `realism`.
+// P1M1's exit requires this check against *generated* worlds, not only the
+// committed one, and a hard-coded path made that impossible.
+const arg = process.argv[2];
+const worldPath =
+  arg && !/^\d+$/.test(arg) ? resolve(repoRoot, arg) : join(repoRoot, "worlds", "m1.world.db");
+const seedArg = arg && /^\d+$/.test(arg) ? arg : process.argv[3];
 
 if (!existsSync(worldPath)) {
   console.error(`No world bundle at ${worldPath}. Build it: npm run world:build`);
@@ -45,7 +51,7 @@ if (!existsSync(worldPath)) {
 }
 
 const world = loadWorld(worldPath);
-const seed = Number(process.argv[2] ?? world.manifest.seed);
+const seed = Number(seedArg ?? world.manifest.seed);
 const reseed = (w: World): World => ({ ...w, manifest: { ...w.manifest, seed } });
 
 /**

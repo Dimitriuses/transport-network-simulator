@@ -23,10 +23,14 @@ import { z } from "zod";
 import { stringify } from "yaml";
 
 import {
+  CATALOGUE,
+  DEFAULT_DISRUPTION_POLICY,
   CONTRACT_VERSION,
-  Identity,
   Health,
+  Identity,
   Problem,
+  TIER_COSMETIC_ONLY,
+  TIER_SECTIONS,
 } from "../src/index.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -166,6 +170,51 @@ for (const [name, doc] of DOCUMENTS) {
   } else {
     writeFileSync(path, next, "utf8");
     console.log(`wrote: contract/${name}`);
+  }
+}
+
+// ---- the conflict catalogue ------------------------------------------------
+//
+// Python consumes this: `tools/worldbuild` needs the conflict-free defaults,
+// the catalogue names, the plausibility ceilings and the cosmetic/structural
+// labels, and holding a second copy of them in Python is how the two drift.
+// JSON rather than YAML because nothing reads it by hand.
+{
+  const path = join(outDir, "catalogue.json");
+  const next =
+    JSON.stringify(
+      {
+        $comment:
+          "GENERATED FILE — DO NOT EDIT. Source: src/schema/src/catalogue.ts. " +
+          "Regenerate: npm run contract:generate",
+        contract_version: CONTRACT_VERSION,
+        settings: CATALOGUE,
+        tier_sections: TIER_SECTIONS,
+        tier_cosmetic_only: TIER_COSMETIC_ONLY,
+        // The generator has to hold `D-staleness` against `noticeLeadS`: a lag
+        // shorter than the shortest announcement lead conceals nothing, on any
+        // operator. Emitted so the comparison happens against one number rather
+        // than two copies of it (KNOWN-ISSUES.md #19).
+        disruption_policy: DEFAULT_DISRUPTION_POLICY,
+      },
+      null,
+      2,
+    ) + "\n";
+
+  if (check) {
+    const current = existsSync(path) ? readFileSync(path, "utf8") : "";
+    if (current !== next) {
+      drift++;
+      console.error(
+        "drift: contract/catalogue.json does not match src/schema.\n" +
+          "  Run: npm run contract:generate",
+      );
+    } else {
+      console.log("ok: contract/catalogue.json");
+    }
+  } else {
+    writeFileSync(path, next, "utf8");
+    console.log("wrote: contract/catalogue.json");
   }
 }
 

@@ -383,6 +383,12 @@ Measured at P0M10 with `npm run symptoms`. Switching `D-silent-cancellation:sudb
 
 The third is the most faithful to what the family is for and the most work. The fourth should not be chosen by default — which is what happens if none of the others is.
 
+**All four were implemented and measured at P1M1, and the evidence does not choose between them.** `npm run information` scores every candidate on the same runs, declared world against honest-values world, paired across twelve seeds. Every effect landed inside its own standard error and an order of magnitude below the seed-to-seed noise — *including the two built to be markedly more sensitive than the current one*.
+
+**So the premise of this item is wrong.** The insensitivity is not in the formula. `npm run lead` shows why: `DEFAULT_POLICY.noticeLeadS` is `[300, 1800]`, and the committed world declares staleness of 90 s and 300 s, so no feed lag in it is ever longer than the shortest announcement lead. `D-staleness` conceals nothing on this world, by construction, and no formula can weigh a difference that was never produced. `KNOWN-ISSUES.md` #19 carries the measurement.
+
+**This item stays open, with its four options unchanged**, because it is still true that nobody has decided what the family should weigh — and it is now known that this decision cannot be made on the committed world's numbers. The evidence for it must come from a world where a realtime conflict actually hides something, which is a world with staleness at the 900 s ceiling. The instrument is written and takes a world path.
+
 ---
 
 ## OPEN — the reachable ceiling has a second, smaller floor under it — *owned by P1M1*
@@ -402,6 +408,17 @@ The first is right if the floor stays small and computable. It becomes wrong if 
 **That last sentence is the reason not to implement it reflexively.**
 
 **Assigned to P1M1 on 2026-09-04.** Two per cent is ignorable on the hand-built world; a *generated* one publishing at Site granularity over larger stations could make the floor much larger with nothing to stop it, and P1M1 is where such worlds first appear. `npm run identifiability` measures it per world.
+
+**Measured at P1M1, on the generated worlds themselves.** Every tier from 0 to 5, built by `python -m worldbuild <path> --tier N`:
+
+| tier | worst one traveller cannot predict | across the scored population |
+|---|---|---|
+| 1 | 0.00m (0 %) | 0.00m (0 %) |
+| 2, 3, 4, 5 | 0.85m (10 %) | **0.08m (1 %)** |
+
+The floor does not grow with tier, and it is *smaller* than the hand-built world's 2 %. The reason is structural rather than lucky: the ambiguity comes from `A-granularity` on nordline, which collapses two stations, and the generator will not place that conflict on an operator with no station to collapse (`KNOWN-ISSUES.md` #30). The number is bounded by the network's shape, not by how hard the tier is.
+
+**This weakens the objection to option 1 without answering it.** The scenario that motivated the warning — Site granularity over larger stations — is a property of the *network*, and P1M2 is what generates networks. The floor is worth re-measuring there before the option is chosen, and `npm run identifiability` takes a world path so that costs nothing. Until then the honest position is option 2, which is also the status quo: the figure is published beside capture and nobody subtracts it.
 
 ---
 

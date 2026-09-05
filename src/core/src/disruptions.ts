@@ -13,6 +13,7 @@
 // metric would be measuring nothing: everything would be knowable from the
 // start, and polling would be a formality.
 
+import { DEFAULT_DISRUPTION_POLICY, type DisruptionPolicy } from "@tns/schema";
 import { makeRng } from "./rng.ts";
 
 export type DisruptionKind = "delay" | "cancellation";
@@ -26,29 +27,11 @@ export interface Disruption {
   readonly announcedAtS: number;
 }
 
-export interface DisruptionPolicy {
-  /** Share of journeys that run late. */
-  readonly delayRate: number;
-  /** Share of journeys that never run at all. */
-  readonly cancellationRate: number;
-  /** Delay is drawn uniformly from [min, max] seconds. */
-  readonly delayRangeS: readonly [number, number];
-  /**
-   * How long before a journey's scheduled departure the world learns of its
-   * disruption, drawn uniformly from [min, max] seconds.
-   *
-   * Short leads are the interesting ones: they leave a player just enough time
-   * to notice and warn somebody, and punish a slow polling cadence.
-   */
-  readonly noticeLeadS: readonly [number, number];
-}
-
-export const DEFAULT_DISRUPTION_POLICY: DisruptionPolicy = {
-  delayRate: 0.18,
-  cancellationRate: 0.06,
-  delayRangeS: [120, 900],
-  noticeLeadS: [300, 1800],
-};
+// The policy itself lives in `@tns/schema` (`policy.ts`), not here: the
+// generator has to hold `D-staleness` against `noticeLeadS`, and while the two
+// numbers sat in different packages nothing could compare them. Re-exported so
+// every existing import keeps working.
+export { DEFAULT_DISRUPTION_POLICY, type DisruptionPolicy } from "@tns/schema";
 
 export interface JourneyRef {
   readonly id: string;

@@ -24,7 +24,15 @@ Milestones are numbered `P<phase>M<milestone>`. [`docs/BUILD-LOG.md`](docs/BUILD
 
 **Conflict strengths have enforced ceilings.** Each catalogue setting in `SWEEPS` carries the strongest value two real operators could differ by and the cause that produces it — a coordinate offset past ~150 m is a broken map rather than a disagreement. Tests enforce it. Every failing-gate pressure in this project has pointed at "make the conflict bigger"; that route is closed deliberately.
 
+**And ceilings are per setting, which P1M1 found is not sufficient.** The generator drew three geometry conflicts for one operator, each inside its ceiling, and published stops 2,200 km from their quays — declaring three geometry conflicts and containing one, because nothing subtler survives underneath a lat/lon swap. **Realism and measurability are properties of the combination.** The catalogue now carries an `excludes` relation, and `npm run realism` measures the composed consequence on the world itself, which is the only defence that works against combinations nobody anticipated.
+
+**The catalogue is one source of truth for three consumers** — `src/schema/src/catalogue.ts`, emitted to `contract/catalogue.json` (CI drift-checked) and read by `tools/worldbuild/catalogue.py`. Add a setting there, never in the probe or the builder.
+
 `npm run demo` runs the whole loop; `npm run calibrate` reports the three-gap difficulty calibration; `npm run audit` checks every declared conflict is actually present; `npm run world:build` regenerates the world bundle (content-hashed, and CI checks it). `npm run gates` runs the three proof gates; `npm run probe` sweeps each conflict's strength on each operator; `npm run horizon` separates what a lazy integrator loses to conflicts from what it loses to not knowing yet; `npm run stability` recalibrates across seeds and reports the spread.
+
+**Added at P1M1**, and all of them take a world path so they can be pointed at a *generated* bundle: `npm run realism` measures each operator's composed published geometry against the plausibility ceiling; `npm run docs` prints what a player reads at an operator's `docs_url`; `npm run information` scores the four candidate Information formulas side by side against the declared and honest worlds. Generated worlds are built with `python -m worldbuild <path> --tier N`.
+
+**Every per-world instrument must run against every generated world**, not as a release check. The audit, the realism check, the identifiability audit and the symptom check each caught something on a generated world that nobody had thought to look for — see `KNOWN-ISSUES.md` #28–#31.
 
 **The world is 38 sites, 50 quays, 10 lines and 98 scored journeys, and the instruments take minutes.** `npm run probe` is the slowest — several hundred calibrations.
 

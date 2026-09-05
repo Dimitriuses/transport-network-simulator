@@ -19,5 +19,8 @@ export * from "./contract/identity.ts";
 export * from "./contract/plan.ts";
 export * from "./contract/replan.ts";
 export * from "./simtime.ts";
+// Values, not only types: the generator and the probe both read these.
+export * from "./catalogue.ts";
+export * from "./policy.ts";
 export type * from "./world.ts";
 export type * from "./runlog.ts";

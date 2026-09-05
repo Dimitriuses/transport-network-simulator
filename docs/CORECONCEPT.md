@@ -111,6 +111,17 @@ There are two kinds of difference between operators, and they are **not** equall
 
 The generator is therefore defined as *sampling from a catalogue of semantic conflicts*, parameterised by difficulty — not as a randomiser of field names.
 
+### Two constraints on sampling, both found by measurement
+
+**A conflict must stay something two real operators would do.** Ratified at P0M8. Two operators can disagree about where a stop is; at 500 m apart that is a broken map rather than a disagreement, and it teaches something other than integration. Every catalogue setting carries the strongest value a real pair could differ by and the cause that produces it, and tests enforce it — because every failing-gate pressure this project has met points at "make the conflict bigger", and that route is deliberately closed.
+
+**Realism and measurability are properties of the *combination*, not of each setting.** Found at P1M1, and the reason the paragraph above is not sufficient on its own. The generator drew a lat/lon swap, a 130 m offset and a 3-decimal truncation for one operator, each inside its own ceiling, and published stops 2,200 km from their quays: the world declared three geometry conflicts and contained one, since nothing subtler is observable underneath a swap. Two defences follow:
+
+* **A conflict that masks another may not be generated beside it.** The catalogue carries an `excludes` relation — `C-latlon-order` excludes everything that merely nudges geometry; `D-no-delays` excludes `C-delay-unit`, because an operator that publishes no delay has no delay unit to get wrong. *A conflict that masks another teaches one lesson instead of two.*
+* **The composed consequence is measured on the world itself**, by `npm run realism`, so a combination nobody anticipated is still caught. A generator reaches combinations nobody thought about; that is what it is for.
+
+**And a conflict must be one the operator can express.** `A-granularity: site` publishes one stop where there are several quays, and an operator calling at a single platform of every station it serves publishes that already. Declared and absent is a world quietly easier than its tier claims — `KNOWN-ISSUES.md` #30, and Phase 0's Sudbahn finding in a new form.
+
 ### Catalogue of semantic conflicts
 
 #### A. Identity and reference
@@ -201,6 +212,14 @@ This framing decides several things that would otherwise be arguable.
 **Defects must be verifiable, not merely present.** "This field is undocumented" teaches nothing except that documentation is unreliable in general. "The overview says delays are in minutes and the field reference says seconds, and one API call settles it" teaches the habit precisely. Every documentation defect should have an observation that resolves it.
 
 **Do not make the reader hunt.** A field buried on an obscure page is search cost, not thinking cost. That is the cosmetic/semantic line from the top of this section, and burying things falls on the wrong side of it.
+
+**What an operator documents, decided at P1M1.** The accurate default arrived with the generator, and it needed a rule for *which* of an operator's properties it states:
+
+> **Format and units are documented. Accuracy, freshness and completeness are not.**
+
+An operator can only document what it *intends*. A real agency states its time encoding, its identifier scheme, and whether a position means a station or a boarding point — deliberate choices its own engineers had to make. None documents that its survey is 130 m out, that its feed lags five minutes, or that cancelled trips vanish without notice: it does not know, or would not say.
+
+The effect on this catalogue is that **A and B become readable and C's value errors and all of D do not.** Identifier schemes and time encodings stop being archaeology, which was never the skill being taught; every conflict about whether the data is *true* stays discoverable only by measurement, which is where the difficulty is meant to live. `KNOWN-ISSUES.md` #11 carries the per-conflict table, and `src/projections/test/docs.test.ts` enforces it.
 
 ### Why a multi-page wiki, specifically
 

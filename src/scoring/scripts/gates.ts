@@ -29,7 +29,11 @@ import type { World } from "@tns/schema";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..", "..");
-const worldPath = join(repoRoot, "worlds", "m1.world.db");
+// Takes a world path so the gates can be run against a generated bundle, which
+// is what P1M1 and P1M4 need of them. Defaults to the committed world.
+const worldPath = process.argv[2]
+  ? resolve(repoRoot, process.argv[2])
+  : join(repoRoot, "worlds", "m1.world.db");
 
 if (!existsSync(worldPath)) {
   console.error(`No world bundle at ${worldPath}. Build it: npm run world:build`);

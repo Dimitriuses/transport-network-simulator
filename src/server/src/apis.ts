@@ -10,7 +10,7 @@ import { createServer, type Server, type ServerResponse } from "node:http";
 import { createHash } from "node:crypto";
 import type { World } from "@tns/schema";
 import { renderSimTime, parseEpoch, CONTRACT_VERSION } from "@tns/schema";
-import { projectOperator, projectRealtime, type Projection } from "@tns/projections";
+import { projectOperator, projectRealtime, operatorDocs, type Projection } from "@tns/projections";
 import type { Disruption } from "@tns/core";
 
 export interface OperatorCall {
@@ -81,6 +81,12 @@ export function startOperatorApi(
     return entry;
   };
 
+  // Independent of τ, unlike every other response here: an operator's
+  // documentation describes its format, and its format does not change during a
+  // run. Built once so the snapshot rule holds trivially.
+  const docs = operatorDocs(world, operatorId);
+  const docsHash = createHash("sha256").update(JSON.stringify(docs)).digest("hex").slice(0, 16);
+
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
     const tau = readTau();
@@ -116,6 +122,19 @@ export function startOperatorApi(
         bytes: Buffer.byteLength(entry.body),
         bodyHash: entry.hash,
       });
+      return;
+    }
+
+    // The brief advertises this URL for every operator (PLAYER-CONTRACT.md
+    // §6.1) and until P1M1 nothing served it. Generated from the same manifest
+    // that drives the projection, so behaviour and description cannot drift —
+    // and describing format only, never accuracy (see `docs.ts`).
+    //
+    // Logged like any other call: reading the documentation is part of what a
+    // player did, and `OBSERVABILITY.md` should be able to see that it happened.
+    if (req.method === "GET" && url.pathname === "/docs") {
+      const bytes = send(res, 200, docs);
+      onCall({ tau, endpoint: "GET /docs", status: 200, bytes, bodyHash: docsHash });
       return;
     }
 

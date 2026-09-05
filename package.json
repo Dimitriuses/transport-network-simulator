@@ -22,6 +22,8 @@
     "demo": "node src/server/src/demo.ts",
     "calibrate": "node src/scoring/scripts/calibrate.ts",
     "audit": "node src/projections/scripts/audit.ts",
+    "realism": "node src/projections/scripts/realism.ts",
+    "docs": "node src/projections/scripts/docs.ts",
     "gates": "node src/scoring/scripts/gates.ts",
     "ablate": "node src/scoring/scripts/gates.ts",
     "conformance": "node src/conformance/scripts/check.ts",
@@ -31,6 +33,8 @@
     "failures": "node src/scoring/scripts/failures.ts",
     "identifiability": "node src/scoring/scripts/identifiability.ts",
     "symptoms": "node src/scoring/scripts/symptoms.ts",
+    "information": "node src/scoring/scripts/information.ts",
+    "lead": "node src/scoring/scripts/lead.ts",
     "headroom": "node src/scoring/scripts/headroom.ts"
   },
   "devDependencies": {

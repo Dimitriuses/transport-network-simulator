@@ -14,155 +14,42 @@
 // and it is large enough to swamp anything measured without subtracting it.
 
 import type { World } from "@tns/schema";
+import { CATALOGUE, type CatalogueSetting } from "@tns/schema";
 import { calibrate, STRUCTURAL_CONFLICTS } from "./baselines.ts";
 
-/** A manifest setting, and the values worth trying. */
-export interface Sweep {
-  readonly conflict: string;
-  readonly group: string;
-  readonly key: string;
-  /**
-   * True when the setting changes *which entities exist* rather than their
-   * values — how many stops an operator publishes, not where they are.
-   *
-   * The distinction decides what may be switched off when attributing conflict
-   * cost. A lazy solver's error rate scales with how much data it is given, so
-   * a comparison that changes the number of published stops changes the
-   * opportunity set and the difficulty at the same time, and cannot attribute
-   * to either (`KNOWN-ISSUES.md` #14).
-   *
-   * Changing a *value* is different, and is the phenomenon rather than a
-   * confound: a coordinate offset moves stops and therefore changes which pairs
-   * look like interchanges, but that IS how a geometric conflict acts on a
-   * geometric solver. Holding it constant would hold the conflict constant.
-   */
-  readonly structural?: boolean;
-  /**
-   * Texture rather than content: a difference an adapter settles once and for
-   * all (`CORECONCEPT.md` §2.1).
-   *
-   * A cosmetic conflict measuring zero is the expected result, not a finding.
-   * Reporting it beside the semantic ones as "inert" invites the conclusion
-   * that the catalogue is thin, when what it actually shows is that the
-   * catalogue is correctly labelled.
-   *
-   * Note this is about *formatting* identity, not about identity being
-   * ambiguous: two operators using `7` for different places is semantic and
-   * stays so. Bare integers versus prefixed strings is a parser.
-   */
-  readonly cosmetic?: boolean;
-  /**
-   * The strongest setting that still describes something that happens between
-   * two real transport operators, and the reason it does.
-   *
-   * **A conflict pushed past this stops teaching integration.** Two agencies can
-   * disagree about where a stop is; at 500 m apart that is not a disagreement,
-   * it is a broken map, and a player who learns to expect it learns the wrong
-   * lesson. The probe reports beyond this band because knowing where a conflict
-   * *would* bite is diagnostic — but nothing may be generated there, and Gate 3
-   * may not be passed by going there.
-   *
-   * Absent means the setting is categorical: it either happens or it does not,
-   * and every listed value is something a real operator does.
-   */
-  readonly plausible?: { readonly max: unknown; readonly because: string };
-  /** The value at which the conflict is absent. */
-  readonly off: unknown;
-  /** Values to try, weakest first. */
-  readonly values: readonly unknown[];
+/**
+ * A manifest setting, and the values worth trying.
+ *
+ * **Derived from `CATALOGUE`** in `src/schema`, which is the one place the
+ * conflict-free defaults, the catalogue names, the plausibility ceilings and
+ * the cosmetic/structural labels are written down. The probe adds only the
+ * thing that is its own: values to sweep *beyond* what a generator may use,
+ * because knowing where a conflict would bite is diagnostic even when nothing
+ * may be generated there.
+ */
+export interface Sweep extends CatalogueSetting {
+  /** Values to try, weakest first. May exceed the plausible ceiling. */
+  readonly values: readonly (string | number | boolean)[];
 }
 
-export const SWEEPS: readonly Sweep[] = [
-  // --- A: identity -------------------------------------------------------
-  // The only setting that changes how many stops exist, and therefore the only
-  // one held constant when attributing (see `structural` above).
-  {
-    conflict: "A-granularity",
-    group: "identity",
-    key: "granularity",
-    off: "quay",
-    values: ["site"],
-    structural: true,
-  },
-  // Cosmetic, reclassified at P0M10. Both have measured exactly zero on every
-  // operator at every setting since P1M0. Kept because a world where every
-  // operator formats ids the same way and spells every place identically is
-  // not recognisable as the real problem.
-  {
-    conflict: "A-id-scheme",
-    group: "identity",
-    key: "id_scheme",
-    off: "prefixed",
-    values: ["bare_int"],
-    cosmetic: true,
-  },
-  {
-    conflict: "A-naming",
-    group: "naming",
-    key: "variant",
-    off: "official",
-    values: ["abbreviated", "colloquial"],
-    cosmetic: true,
-  },
-  {
-    conflict: "A-coordinate-precision",
-    group: "geometry",
-    key: "precision",
-    off: 6,
-    values: [5, 4, 3, 2],
-    // 4 dp is ~11 m and common in older exports; 3 dp is ~110 m and rare but
-    // real. 2 dp is ~1.1 km, which no transit feed ships.
-    plausible: { max: 3, because: "3 dp is ~110 m; 2 dp is ~1.1 km and no feed ships it" },
-  },
-  { conflict: "A-coordinate-source", group: "geometry", key: "source", off: "quay", values: ["site"] },
+/**
+ * Extra settings the probe sweeps that a generator may not use.
+ *
+ * Each is past its plausibility ceiling and is reported with a `!` marker.
+ * A conflict at 500 m is not two operators disagreeing about a stop, it is a
+ * broken map — but measuring what it would cost says how far from biting the
+ * realistic settings are.
+ */
+const DIAGNOSTIC_VALUES: Record<string, readonly (string | number)[]> = {
+  "A-coordinate-precision": [2],
+  "C-coordinate-offset": [260, 500],
+  "D-staleness": [1800],
+};
 
-  // --- C: units and value semantics --------------------------------------
-  {
-    conflict: "C-coordinate-offset",
-    group: "geometry",
-    key: "offset_m",
-    off: 0,
-    values: [30, 60, 130, 260, 500],
-    // Kerbside pole vs platform centre is 5-30 m; a station centroid published
-    // for a specific quay is 20-150 m at a large interchange; geocoding from a
-    // street address is 10-100 m; a stop that physically moved and was never
-    // updated is 10-200 m. Past ~150 m the two operators are not disagreeing
-    // about one stop any more, they are describing different places.
-    plausible: { max: 150, because: "station centroid vs quay at a large interchange" },
-  },
-  { conflict: "C-latlon-order", group: "geometry", key: "latlon_order", off: "lat_lon", values: ["lon_lat"] },
-  { conflict: "C-delay-unit", group: "realtime", key: "delay_unit", off: "seconds", values: ["minutes"] },
-
-  // --- B: time -----------------------------------------------------------
-  {
-    conflict: "B-time-encoding",
-    group: "time",
-    key: "encoding",
-    off: "iso_offset",
-    values: ["epoch_s", "epoch_ms", "local_naive"],
-  },
-
-  // --- D: realtime truthfulness ------------------------------------------
-  {
-    conflict: "D-staleness",
-    group: "realtime",
-    key: "staleness_s",
-    off: 0,
-    values: [60, 300, 900, 1800],
-    // A feed rebuilt on a 5-minute cron and served through a CDN with its own
-    // TTL plausibly lags 10-15 minutes. Half an hour is an outage, not a
-    // publishing cadence, and an operator would notice.
-    plausible: { max: 900, because: "a 5-minute rebuild behind a cache; 30 min is an outage" },
-  },
-  {
-    conflict: "D-silent-cancellation",
-    group: "realtime",
-    key: "cancellations",
-    off: "explicit",
-    values: ["silent_drop"],
-  },
-  { conflict: "D-no-delays", group: "realtime", key: "publishes_delays", off: true, values: [false] },
-];
+export const SWEEPS: readonly Sweep[] = CATALOGUE.map((setting) => ({
+  ...setting,
+  values: [...setting.generate, ...(DIAGNOSTIC_VALUES[setting.conflict] ?? [])],
+}));
 
 type ManifestBag = Record<string, Record<string, unknown>>;
 

@@ -10,3 +10,4 @@ export * from "./project.ts";
 export * from "./realtime.ts";
 export * from "./audit.ts";
 export * from "./identifiability.ts";
+export * from "./docs.ts";

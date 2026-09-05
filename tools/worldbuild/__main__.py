@@ -1,6 +1,7 @@
 """CLI.
 
     python -m worldbuild [out_path]     build the world bundle
+    python -m worldbuild [out] --tier N  generate the projection manifests
     python -m worldbuild --verify       rebuild and check the content is unchanged
 
 `--verify` is what CI runs. It deliberately compares *content*, not file bytes:
@@ -51,8 +52,30 @@ def main() -> int:
     if args and args[0] == "--verify":
         return verify(Path(args[1]) if len(args) > 1 else DEFAULT_OUT)
 
+    # `--tier N` generates the per-operator manifests instead of using the
+    # hand-authored ones (ROADMAP.md P1M1). Absent, the committed world is
+    # built exactly as Phase 0 measured it.
+    tier: int | None = None
+    if "--tier" in args:
+        i = args.index("--tier")
+        tier = int(args[i + 1])
+        args = args[:i] + args[i + 2 :]
+
+    # An unrecognised flag is a mistake, not a filename. Silently treating
+    # `--out foo` as "build a world called --out" is how this milestone spent a
+    # rebuild writing to the wrong path and auditing the stale bundle; the same
+    # silent default cost `refplayer/serve.ts` a whole measurement in Phase 0.
+    unknown = [a for a in args if a.startswith("-")]
+    if unknown:
+        print(f"unknown option: {unknown[0]}", file=sys.stderr)
+        print("usage: python -m worldbuild [out_path] [--tier N] | --verify", file=sys.stderr)
+        return 2
+    if len(args) > 1:
+        print(f"expected at most one output path, got {len(args)}", file=sys.stderr)
+        return 2
+
     out = Path(args[0]) if args else DEFAULT_OUT
-    path = build(out)
+    path = build(out, tier=tier)
     print(f"built {path}  content {content_hash_of(str(path))[:16]}")
     return 0
 

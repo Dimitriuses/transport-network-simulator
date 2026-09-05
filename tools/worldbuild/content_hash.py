@@ -23,6 +23,13 @@ import sqlite3
 # is not hashed is a table whose reproducibility nobody is checking.
 TABLES: tuple[tuple[str, str], ...] = (
     ("manifest", "key"),
+    # The operator manifests: every conflict the world declares, and therefore
+    # the whole of what makes it hard. **Missing from this list until P1M1**,
+    # which meant two worlds with entirely different conflicts hashed the same
+    # and `--verify` could not see a change to the generator's output. The
+    # comment above had said exactly what would go wrong, and the table was
+    # added later without being added here (`KNOWN-ISSUES.md` #33).
+    ("operators", "id"),
     ("sites", "id"),
     ("quays", "id"),
     ("lines", "id"),
