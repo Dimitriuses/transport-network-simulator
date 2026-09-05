@@ -185,25 +185,33 @@ Gate **1c** (discoverable) is deliberately not in the exit criteria: nothing com
 
 ## Phase 0 — result, 2026-09-04
 
-*Measured with `npm run gates` at 8 seeds. **All gates pass.***
+*Measured with `npm run gates`. **All gates pass.** Re-measured at P1M2 after `KNOWN-ISSUES.md` #19 was fixed in the world — the two staleness settings had been inert.*
 
 | Gate | Result |
 |---|---|
 | **1a — solvable** | PASS. 6.20m of reachable headroom in 8.37m total; ambiguity no solver can resolve is 0.13m, **2 %** against a 25 % bar. |
-| **1b — not trivial** | PASS. A lazy integrator captures **0.200** of the reachable headroom. |
+| **1b — not trivial** | PASS. A lazy integrator captures **0.186** of the reachable headroom. |
 | **1c — discoverable** | PASS **by decision**. Scope, not evidence — see below. |
-| **2 — discriminating** | PASS. Four solutions, four distinct scores, **0.934** of spread. |
-| **3 — conflicts doing the work** | PASS. Conflicts cost **3.04m, 36 % of headroom**, against a ratified 20 % bar. |
+| **2 — discriminating** | PASS. Four solutions, four distinct scores, in the order `REFERENCE-POLICY.md` §8 wants. |
+| **3 — conflicts doing the work** | PASS. Conflicts cost **3.01m, 36 % of headroom**, against a ratified 20 % bar. |
 
 ```
 mode        capture   information   headline   arrived
 null         -1.000         0.000     -0.600     89/98
 blind        -0.232         0.000     -0.139     80/98
-naive        -0.232         0.771      0.169     80/98
-competent     0.054         0.755      0.334     83/98
+naive        -0.232         0.537      0.076     80/98
+competent     0.032         0.592      0.256     84/98
 ```
 
-Attribution is spread rather than resting on one defect — `C-coordinate-offset` 0.88m, `B-time-encoding` 0.75m, `A-coordinate-precision` 0.49m, `C-delay-unit` 0.31m, `D-staleness` 0.13m — and every setting sits inside its declared realistic range. The defect audit confirms all fifteen conflicts present.
+Attribution is spread rather than resting on one defect — `C-coordinate-offset` 0.83m, `B-time-encoding` 0.81m, `A-coordinate-precision` 0.51m, `C-delay-unit` 0.34m, `D-staleness` 0.26m — and every setting sits inside its declared realistic range. The defect audit confirms all fifteen conflicts present, and none inert.
+
+**What P1M2 changed, and why it is an improvement rather than a drift.** Both staleness settings were raised from 90 s and 300 s to **900 s**. The old values were below the shortest announcement lead the world draws, so neither concealed anything from anybody and catalogue D was decorative (`KNOWN-ISSUES.md` #19). The consequences:
+
+* **Gate 3 on journey time is unchanged** — 3.01m against 3.04m, still 36 % of headroom. Staleness costs a traveller very little travel time, which is exactly what P0M8 said and why the gate was returned to journey time.
+* **Gate 3's whole-score diagnostic nearly doubled**, from 0.129 to **0.245 at 6.5σ**, because the Information family finally moves: 0.578 on this world against 0.738 with honest values.
+* **Both reference players score lower**, naive 0.169 → 0.076 and competent 0.334 → 0.256, and the ordering Gate 2 needs still holds. The world got harder in the family that was doing nothing.
+
+The content hash moved from `f6028eedd79e3cb5` to `ce3925325dbd8b0a`. **Scores recorded before P1M2 are not comparable on catalogue D**, though the journey-time gaps are identical.
 
 ### What this does not say
 

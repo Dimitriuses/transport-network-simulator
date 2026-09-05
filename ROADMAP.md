@@ -15,10 +15,10 @@ Milestones are numbered **`P<phase>M<milestone>`** — `P1M2` is the third miles
 | Gate | Result |
 |---|---|
 | 1a — solvable | PASS. 6.20m reachable of 8.37m headroom; unresolvable ambiguity 2 % against a 25 % bar |
-| 1b — not trivial | PASS. A lazy integrator captures 0.200 of reachable headroom |
+| 1b — not trivial | PASS. A lazy integrator captures 0.186 of reachable headroom |
 | 1c — discoverable | PASS **by decision** — scope, not evidence |
-| 2 — discriminating | PASS. 0.934 of spread, four distinct scores |
-| 3 — conflicts doing the work | PASS. 3.04m, **36 % of headroom**, bar 20 % |
+| 2 — discriminating | PASS. Four distinct scores, in the order §8 wants |
+| 3 — conflicts doing the work | PASS. 3.01m, **36 % of headroom**, bar 20 % |
 
 **What Phase 0 leaves Phase 1**, and it is worth stating plainly because it shapes every milestone below:
 

@@ -1297,3 +1297,31 @@ Six seeds each, against the hand-built city:
 A generated world is at least as stable as the one every Phase 0 result was measured on, and has more headroom. **The often-quoted "31 % of its mean and conflict cost 36 %" is superseded** — it was measured at P0M9 on the 132-journey set, 88 % of which could not reward integration at all. Fixing the query set halved the scatter and doubling the traveller count halved it again, exactly as P0M9 predicted.
 
 `P0a`'s ambiguity floor, assigned here, measures **1 % of headroom** on the generated network — below the hand-built city's 2 %, and it did not grow. The decision still waits: the case the warning was about is Site granularity over *larger* stations, `NetworkSpec` can now build those, and one city's shape is weaker evidence than it looks.
+
+---
+
+## P1M2 addendum — `KNOWN-ISSUES.md` #19, finished
+
+**The entry said `resolved` and was not.** P1M1 refuted the diagnosis, fixed the instruments and added the generator rule; it never changed the world. One of #19's own bullets said so — *"the committed world understates its own tier, and by a lot"* — while its header claimed resolution. A reader asked which was true, and the header was wrong.
+
+**What was left:** `city.py` declared staleness of 90 s on nordline and 300 s on sudbahn, both at or below the 300 s shortest announcement lead the world draws, so neither concealed anything from anybody. Both are now **900 s** — the plausibility ceiling, carrying its own stated cause, and the only value in the catalogue's `generate` list that survives the expressibility filter, so it is what a generated world of this tier now produces anyway.
+
+**The Information family now registers a realtime conflict**, which is the question #19 exists to ask. Twelve paired seeds:
+
+| staleness | declared | honest | effect | se | σ |
+|---|---|---|---|---|---|
+| 90 s / 300 s | 0.7044 | 0.7023 | −0.0020 | 0.0145 | **0.1** |
+| 900 s / 900 s | 0.5545 | 0.7023 | **+0.1479** | 0.0259 | **5.7** |
+
+The counts confirm the mechanism rather than a coincidence: in-time warnings fell 18.5 → 12.9 per run and late ones rose 2.6 → 8.2, while silent stayed at 9.4. **A stale feed converts warnings that arrive in time into warnings that arrive late** — precisely what staleness is, and nothing else in the manifest does that.
+
+**Gates re-run, all still pass**, and the shape of the change is the interesting part:
+
+* **Gate 3 on journey time barely moved** — 3.01m against 3.04m, still 36 % of headroom. That is not a disappointment; it is P0M8's finding holding up. Staleness costs a traveller almost no travel time, which is exactly why Gate 3 was returned to journey time and why the whole-score version was a *diluted* gate rather than a broader one.
+* **Gate 3's whole-score diagnostic nearly doubled** — 0.129 to **0.245 at 6.5σ** — because the family that was contributing nothing now contributes.
+* **Both reference players score lower**: naive 0.169 → 0.076, competent 0.334 → 0.256, ordering intact. The world got harder in the one family that had been decorative.
+* **The journey-time calibration is byte-identical**: 8.37 / 5.17 / 3.20 m, 33 fallbacks. `P0`, `P1` and `P2` all plan on the published timetable and none reads the realtime feed, so staleness cannot reach them. It reaches `P2rt`, the Information family, and a player.
+
+**Content hash `f6028eedd79e3cb5` → `ce3925325dbd8b0a`.** Unlike #33, this is a real change of world: scores recorded before P1M2 are not comparable on catalogue D, though the journey-time gaps happen to be identical.
+
+**The lesson is about the record, not the code.** A status label is a claim, and this one was contradicted by the entry's own body for two milestones without anybody noticing — including the person who wrote both. When a fix has parts, the header should say which parts.

@@ -401,7 +401,9 @@ Gate 3 now takes the paired difference: `sd(clean_i − declared_i) / sqrt(n)`. 
 
 ---
 
-## 19. The Information family is insensitive to every declared conflict — `resolved at P1M1; the premise was wrong`
+## 19. The Information family is insensitive to every declared conflict — `fixed at P1M2; the premise was wrong`
+
+> **Status, because this entry was mislabelled between P1M1 and P1M2 and misled a reader.** P1M1 refuted the diagnosis, fixed the instruments and added the generator rule, and the header said `resolved` — but **the committed world itself was never changed**, so on the world every Phase 0 result was measured on, catalogue D still did nothing. The entry claimed resolution while one of its own bullets said the opposite. Both are now true and the world is fixed; the trail below is kept in order.
 
 Measured at P0M10, twelve seeds, paired: the naive solution scores **0.768** on this world and **0.767** with honest values. The declared conflicts move it by one thousandth.
 
@@ -479,7 +481,7 @@ Silent events rose from 9.4 per run to 13.9; in-time warnings fell from 18.5 to 
 
 * **`SCORING.md`'s OPEN item is answerable now, and the answer is none of its four options.** Its premise — that the formula is why catalogue D does not score — is refuted. **Ratified 2026-09-05: the formula does not change and the item keeps its OPEN label** — the four candidates differ by less than one σ, so there is no evidence for a change, while the question of what the family *should* weigh is still undecided.
 * **The real defect was a generator rule that did not exist**, and it now does: *a setting must be capable of expressing itself given the rest of the world's parameters.* `REQUIRES` (#30) handles capabilities — can this operator express this conflict at all. Staleness needed the numeric cousin, and `generate._expressible` supplies it. **The two numbers now come from one place**: `DEFAULT_DISRUPTION_POLICY` moved from `src/core` to `@tns/schema` and ships in `contract/catalogue.json`, so the generator compares staleness against the same `noticeLeadS` the simulator draws from, rather than against a second copy of it.
-* **The committed world understates its own tier**, and by a lot. Its two staleness settings are both inert, so Tier 2's realtime component is decorative. That is not a scoring bug; it is `#32`'s problem in another form — the tier ladder needs levers, and this is one nobody knew was disconnected.
+* **The committed world understates its own tier**, and by a lot. Its two staleness settings are both inert, so Tier 2's realtime component is decorative. That is not a scoring bug; it is `#32`'s problem in another form — the tier ladder needs levers, and this is one nobody knew was disconnected. **This was the part left undone at P1M1, and it is the fix below.**
 * **The defect audit's staleness evidence was weak, and is now fixed.** It passed on `knownNow.length > knownStale.length || feed.as_of !== probe`, and the right-hand side is true whenever staleness is non-zero — so the check could not fail, and its evidence line reported the number of disruptions concealed at one arbitrary instant. It printed `hides 0 disruption(s)` on a world where staleness was inert *and* on one where it hid a third of them. **A line that says the same thing in both cases carries no information at all**, and it was the one place this defect was visible for months.
 
   It now measures what matters — how many of this operator's disruptions the lag withholds *past the moment a warning could still help* — and the two worlds finally read differently:
@@ -904,3 +906,21 @@ Reading milliseconds as seconds *is* failing to parse a shape, and it produced e
 ```
 
 One row at +120 against a field of +16 to +28 is not a conflict doing its job. **A conflict that removes most of the query set has stopped being a conflict and become a wall.**
+
+
+### The world, fixed at P1M2
+
+`city.py` raised both staleness settings to **900 s** — nordline from 90, sudbahn from 300. That is the plausibility ceiling, it carries its own stated cause (a five-minute rebuild behind a cache with its own TTL), and it is the only value in the catalogue's `generate` list that survives the expressibility filter, so it is what a generated world of this tier now produces.
+
+**The Information family now registers a realtime conflict**, which is the thing this issue exists to ask about. Twelve paired seeds, same player, declared world against one with honest values:
+
+| staleness | declared | honest | effect | se | σ |
+|---|---|---|---|---|---|
+| 90 s / 300 s — before | 0.7044 | 0.7023 | −0.0020 | 0.0145 | **0.1** |
+| 900 s / 900 s — after | 0.5545 | 0.7023 | **+0.1479** | 0.0259 | **5.7** |
+
+The counts say it is the right mechanism rather than a coincidence: in-time warnings fell from 18.5 per run to 12.9 and late ones rose from 2.6 to 8.2, while silent stayed at 9.4 — a stale feed converts *warnings that arrive in time* into *warnings that arrive late*, which is precisely what staleness is. The honest-world column is unchanged, as it must be: a world with honest values has staleness 0 either way.
+
+**The journey-time calibration is untouched** — 8.37 / 5.17 / 3.20 m and 33 fallbacks, identical before and after. That is not a surprise and is worth stating: `P0`, `P1` and `P2` all plan on the published timetable and none of them reads the realtime feed, so staleness cannot reach them. It reaches `P2rt`, the Information family, and a player.
+
+**The committed world's content hash moved** from `f6028eedd79e3cb5` to `ce3925325dbd8b0a`. Unlike `#33`, this is a genuine change of world rather than of what the hash covers: **scores recorded against the old hash are not comparable on catalogue D**, though the journey-time gaps happen to be identical.

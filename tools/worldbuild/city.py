@@ -93,11 +93,25 @@ OPERATORS: tuple[dict, ...] = (
             "offset_m": 130,
         },
         "time": {"encoding": "epoch_s"},
-        # Ninety seconds behind, and delays truncated to whole minutes — so a
+        # Fifteen minutes behind, and delays truncated to whole minutes — so a
         # player that trusts the figure is wrong by up to a minute even when
         # the feed has caught up (catalogue C and D).
+        #
+        # **Was ninety seconds until P1M2, and that hid nothing at all.** A feed
+        # conceals a disruption only when its lag outlasts that disruption's
+        # announcement lead, and `DEFAULT_DISRUPTION_POLICY.noticeLeadS` starts
+        # at 300 s — so a 90 s lag was always overtaken before anybody had to
+        # act on it. The defect audit called it `INRT`, the Information family
+        # could not see it, and catalogue D was decorative on this world for the
+        # whole of Phase 0 (`KNOWN-ISSUES.md` #19).
+        #
+        # 900 s is the plausibility ceiling and carries its own cause — a
+        # five-minute rebuild behind a cache with its own TTL. It is also the
+        # only value in the catalogue's `generate` list that survives the
+        # expressibility filter, so this is what a generated world of this tier
+        # would produce.
         "realtime": {
-            "staleness_s": 90,
+            "staleness_s": 900,
             "cancellations": "explicit",
             "delay_unit": "minutes",
             "publishes_delays": True,
@@ -149,11 +163,15 @@ OPERATORS: tuple[dict, ...] = (
             "offset_m": 0,
         },
         "time": {"encoding": "local_naive"},
-        # Five minutes behind, and cancelled trains simply stop appearing
+        # A quarter-hour behind, and cancelled trains simply stop appearing
         # rather than being marked — the "ghost trip" failure, which is
         # indistinguishable from a feed that has not caught up (catalogue D).
+        #
+        # **Was 300 s until P1M2**, which is exactly the shortest announcement
+        # lead the world draws — so it, too, concealed nothing from anybody.
+        # See the note on nordline above and `KNOWN-ISSUES.md` #19.
         "realtime": {
-            "staleness_s": 300,
+            "staleness_s": 900,
             "cancellations": "silent_drop",
             "delay_unit": "seconds",
             "publishes_delays": True,

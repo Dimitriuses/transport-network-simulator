@@ -8,7 +8,7 @@ A simulation game about integration engineering. A generated city, several indep
 
 **Current state: Phase 0 complete. All gates pass as of 2026-09-04.**
 
-P0M0–P0M6 delivered one hand-built Tier-2 world and were recorded as passing all three gates. P1M0 found that result had been measured with a blind instrument, Phase 0 was reopened, and P0M7–P0M10 rebuilt the instruments, the world and the references. `npm run gates` now reports **all gates pass**: 1a solvable, 1b not trivial, 1c PASS *by decision*, 2 discriminating at 0.934 of spread, 3 at **36 % of headroom** against a ratified 20 % bar.
+P0M0–P0M6 delivered one hand-built Tier-2 world and were recorded as passing all three gates. P1M0 found that result had been measured with a blind instrument, Phase 0 was reopened, and P0M7–P0M10 rebuilt the instruments, the world and the references. `npm run gates` reports **all gates pass**: 1a solvable, 1b not trivial, 1c PASS *by decision*, 2 discriminating, 3 at **36 % of headroom** against a ratified 20 % bar. Re-measured at P1M2, when `KNOWN-ISSUES.md` #19 was fixed in the world itself — both staleness settings had been below the shortest announcement lead and so concealed nothing, leaving catalogue D decorative.
 
 **Two things that PASS does not say.** Gate 1c is scope rather than evidence — nothing is known about whether a stranger can discover this world's conflicts (`docs/KNOWN-ISSUES.md` #3), and the playtest is still owed. And the competent reference solution is a **regression detector, not a gate instrument**: it was written by people who had seen the world.
 
