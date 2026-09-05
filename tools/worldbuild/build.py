@@ -16,7 +16,7 @@ import math
 import sqlite3
 from pathlib import Path
 
-from . import catalogue, city, generate
+from . import catalogue, city, generate, network
 from .content_hash import content_hash
 
 ENGINE_VERSION = "0.1.0"
@@ -146,7 +146,9 @@ DEFAULTS: dict[str, dict[str, object]] = catalogue.load().defaults()
 CONFLICT_NAMES: dict[tuple[str, str], str] = catalogue.load().conflict_names()
 
 
-def operators_for(tier: int | None, seed: int) -> tuple[dict, ...]:
+def operators_for(
+    tier: int | None, seed: int, net: network.Network | None = None
+) -> tuple[dict, ...]:
     """The operator manifests this build should use.
 
     `tier is None` keeps the hand-authored manifests in `city.OPERATORS`, which
@@ -158,8 +160,13 @@ def operators_for(tier: int | None, seed: int) -> tuple[dict, ...]:
     """
     if tier is None:
         return city.OPERATORS
-    reach = city.operator_reach()
-    collapsible = city.operator_collapsible_sites()
+    # Reach and expressibility are properties of *this* network, not of the
+    # hand-authored one. Reading them from `city` while building a generated
+    # world would place conflicts by the wrong operator's coverage — and
+    # placement was the dominant factor P0M10 measured.
+    net = net or network.Network(city.SITES, city.QUAYS, city.LINES)
+    reach = network.operator_reach(net)
+    collapsible = network.operator_collapsible_sites(net)
     specs = tuple(
         generate.OperatorSpec(
             o["id"],
@@ -171,6 +178,21 @@ def operators_for(tier: int | None, seed: int) -> tuple[dict, ...]:
         for o in city.OPERATORS
     )
     return generate.generate_manifests(specs, tier, seed)
+
+
+def queries_for(
+    net: network.Network, scored_ids: frozenset[str] | None = None
+) -> tuple[tuple[str, float, float, float, float, int], ...]:
+    """The scored query set for this network.
+
+    The hand-authored city keeps its own, which is hand-picked plus a filtered
+    generated pool and is what every Phase 0 result was measured on. A generated
+    network has no such list and cannot borrow one: its sites are somewhere else
+    entirely.
+    """
+    if net.sites is city.SITES:
+        return city.QUERIES
+    return network.generate_queries(net, scored_ids=scored_ids)
 
 
 def _declared_conflicts(operators: tuple[dict, ...]) -> list[str]:
@@ -189,15 +211,31 @@ def _declared_conflicts(operators: tuple[dict, ...]) -> list[str]:
     return sorted(found)
 
 
-def _quay_by_id() -> dict[str, city.Quay]:
-    return {q.id: q for q in city.QUAYS}
+def network_for(
+    generate: bool, seed: int, spec: network.NetworkSpec | None = None
+) -> network.Network:
+    """The city this build should use.
+
+    `generate=False` keeps the hand-authored one in `city`, which is what the
+    committed world is and what every Phase 0 result was measured on. Passing
+    `True` generates the sites, quays and lines instead (`ROADMAP.md` P1M2).
+
+    Both paths return the same shape, so nothing downstream — the builder, the
+    projections, the audits — can tell which it was given. That is the same
+    contract `operators_for` established at P1M1, for the same reason: an
+    instrument that behaves differently on a generated world cannot be used to
+    judge one.
+    """
+    if not generate:
+        return network.Network(city.SITES, city.QUAYS, city.LINES)
+    return network.generate_network(spec or network.NetworkSpec(), seed)
 
 
 def _pattern_stops(
-    quay_ids: tuple[str, ...], speed_mps: float, dwell_s: int
+    net: network.Network, quay_ids: tuple[str, ...], speed_mps: float, dwell_s: int
 ) -> list[tuple[int, str, int, int]]:
     """Build (seq, quay_id, arrive_offset, depart_offset) for one direction."""
-    quays = _quay_by_id()
+    quays = {q.id: q for q in net.quays}
     rows: list[tuple[int, str, int, int]] = []
     t = 0
     for seq, qid in enumerate(quay_ids):
@@ -213,8 +251,17 @@ def _pattern_stops(
     return rows
 
 
-def build(out_path: Path, seed: int = 481516, tier: int | None = None) -> Path:
-    operators = operators_for(tier, seed)
+def build(
+    out_path: Path,
+    seed: int = 481516,
+    tier: int | None = None,
+    generate_network: bool = False,
+    spec: network.NetworkSpec | None = None,
+    scored_ids: frozenset[str] | None = None,
+) -> Path:
+    net = network_for(generate_network, seed, spec)
+    queries = queries_for(net, scored_ids)
+    operators = operators_for(tier, seed, net)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.exists():
         out_path.unlink()
@@ -256,18 +303,18 @@ def build(out_path: Path, seed: int = 481516, tier: int | None = None) -> Path:
 
         db.executemany(
             "INSERT INTO sites (id, name, lat, lon) VALUES (?, ?, ?, ?)",
-            [(s.id, s.name, s.lat, s.lon) for s in city.SITES],
+            [(s.id, s.name, s.lat, s.lon) for s in net.sites],
         )
         db.executemany(
             "INSERT INTO quays (id, site_id, name, lat, lon) VALUES (?, ?, ?, ?, ?)",
-            [(q.id, q.site_id, q.name, q.lat, q.lon) for q in city.QUAYS],
+            [(q.id, q.site_id, q.name, q.lat, q.lon) for q in net.quays],
         )
         db.executemany(
             "INSERT INTO lines (id, name, operator) VALUES (?, ?, ?)",
-            [(ln.id, ln.name, ln.operator) for ln in city.LINES],
+            [(ln.id, ln.name, ln.operator) for ln in net.lines],
         )
 
-        for ln in city.LINES:
+        for ln in net.lines:
             for heading, quay_ids in (
                 ("outbound", ln.quays),
                 ("inbound", tuple(reversed(ln.quays))),
@@ -277,7 +324,7 @@ def build(out_path: Path, seed: int = 481516, tier: int | None = None) -> Path:
                     "INSERT INTO patterns (id, line_id, heading) VALUES (?, ?, ?)",
                     (pattern_id, ln.id, heading),
                 )
-                stops = _pattern_stops(quay_ids, ln.speed_mps, ln.dwell_s)
+                stops = _pattern_stops(net, quay_ids, ln.speed_mps, ln.dwell_s)
                 db.executemany(
                     "INSERT INTO pattern_stops "
                     "(pattern_id, seq, quay_id, arrive_offset_s, depart_offset_s) "
@@ -297,8 +344,8 @@ def build(out_path: Path, seed: int = 481516, tier: int | None = None) -> Path:
 
         # Walking links between quays, both directions, within the cap.
         walk_rows = []
-        for a in city.QUAYS:
-            for b in city.QUAYS:
+        for a in net.quays:
+            for b in net.quays:
                 if a.id == b.id:
                     continue
                 metres = haversine_m(a.lat, a.lon, b.lat, b.lon)
@@ -313,16 +360,16 @@ def build(out_path: Path, seed: int = 481516, tier: int | None = None) -> Path:
             "INSERT INTO queries "
             "(id, origin_lat, origin_lon, dest_lat, dest_lon, depart_after_s) "
             "VALUES (?, ?, ?, ?, ?, ?)",
-            list(city.QUERIES),
+            list(queries),
         )
 
         access_rows = []
-        for qid, olat, olon, dlat, dlon, _ in city.QUERIES:
+        for qid, olat, olon, dlat, dlon, _ in queries:
             for endpoint, lat, lon in (
                 ("origin", olat, olon),
                 ("destination", dlat, dlon),
             ):
-                for q in city.QUAYS:
+                for q in net.quays:
                     metres = haversine_m(lat, lon, q.lat, q.lon)
                     if metres <= city.MAX_WALK_M:
                         access_rows.append((qid, endpoint, q.id, round(metres)))

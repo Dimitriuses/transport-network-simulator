@@ -864,3 +864,43 @@ Questions it has to answer, none of them settled:
 **Explicitly not done by picking numbers that make the tier ladder look reasonable** — that is choosing the answer first, the same reasoning that keeps the clearance thresholds unadjusted in `SCORING.md`.
 
 **Owner:** P1M4, with `#32` and `#24`. All three are about what a declared difficulty means, and this one supplies a lever the other two need.
+---
+
+## 35. The lazy integrator read milliseconds as seconds and collapsed — `fixed at P1M2`
+
+`naiveDecodeTime` in `src/scoring/src/baselines.ts` treated **any** published number as epoch seconds. `B-time-encoding: epoch_ms` publishes milliseconds, so nordline's departures landed 125 days out, `P2` could never board one, and it produced no workable plan on **158 of 200** journeys.
+
+The consequence reached the calibration as a result nothing else explained:
+
+```
+    P0-P1    10.87m  headroom available to any player
+    P0-P2    11.33m  what the conflicts cost a lazy integrator
+    P1-P2    -0.45m  whether integrating lazily beats not integrating
+  ! P1-P2 is negative: a lazy integration is *worse* than not integrating.
+```
+
+**The function contradicted its own docstring**, which is what makes this a bug rather than a design choice:
+
+> It handles the *shapes* competently — a number is epoch seconds, a string with an offset is RFC 3339 — because failing to parse at all would make P2 collapse rather than degrade, and a collapsed baseline measures nothing.
+>
+> What it gets wrong is the thing that looks like it needs no decision: a timestamp with **no offset**.
+
+Reading milliseconds as seconds *is* failing to parse a shape, and it produced exactly the collapse the comment forbids. The intended defect is the missing offset, and it still is.
+
+**Fixed** by telling the two apart on magnitude, which is what "competent at shapes" requires and what every real integrator does: a timetable spans days, so a value that would be a month out read as seconds is milliseconds. The two encodings differ by a factor of a thousand, so nothing real sits in the gap.
+
+**Why nothing found it for the whole of Phase 0.** The hand-built world uses `epoch_s` and `local_naive`; it never uses `epoch_ms`. The catalogue offered the value, no world had ever selected it, and the first generated world did. This is the risk `ROADMAP.md` names in as many words — *a generator will produce combinations nobody thought about* — landing on the reference solutions rather than on the world.
+
+**The committed world is unaffected**, which was checked rather than assumed: `npm run calibrate` on `m1` gives 33 fallbacks and gaps of 8.37 / 5.17 / 3.20 m before and after, identical. Every Phase 0 result remains comparable.
+
+**`npm run fallback` exists because of this**, and is the instrument that found it. It switches each declared conflict on alone over an otherwise clean world and counts the journeys where `P2` gives up. The aggregate could not say which conflict was responsible, and the manifest could only have supported a guess:
+
+```
+    conflict                          fell back    over clean    P1-P2
+    no conflicts                         38/200                   7.47m
+    B-time-encoding:nordline            158/200         +120     -0.89m
+    A-coordinate-source:nordline         66/200          +28      5.99m
+    ...
+```
+
+One row at +120 against a field of +16 to +28 is not a conflict doing its job. **A conflict that removes most of the query set has stopped being a conflict and become a wall.**

@@ -1221,3 +1221,79 @@ The general lesson is the one this project keeps relearning in new places: *a te
 The content hash never covered the `operators` table — every conflict the world declares. Generated Tier-3 and Tier-5 worlds reported the same hash while publishing different time encodings, and `--verify`, which CI runs, could not have seen a change to the generator's output. `content_hash.py` carried a comment saying precisely what would go wrong if a table were added without being added to its list, and then a table was.
 
 The committed world's hash moved to `f6028eedd79e3cb5`; hashing the same bundle under the old table list still gives `54737165504f34b4`, so **the world is unchanged and every score addressed by the old hash refers to the same city.** The test that now guards it reads the bundle's own schema rather than a checked-in list, so the next table to be added fails it instead of being forgotten.
+
+---
+
+## P1M2 — Network generation
+
+**Delivered:** a whole generated city — sites, quays, lines and a scored query set — behind one command. `npm run world:generate -- worlds/x.world.db --tier 3 --seed N`.
+
+**Corrected:** three things, every one of them found by generating a world nobody had authored by hand.
+
+### Generated from roles, not as a graph
+
+`PHASES.md` says the generator's specification is whatever we found ourselves doing by hand. Reading the hand-built city back, it is not an arbitrary graph that happened to work — it is six structural roles, each present for a reason Phase 0 measured:
+
+| role | why it exists |
+|---|---|
+| a hub with several quays | makes Site/Quay granularity real, and is the only thing that lets `A-granularity` be placed at all |
+| radials through it, on alternating stands | so some transfers are free and others a walk |
+| an orbital that avoids it | the only link between two arms; a real decision rather than a detour |
+| a chord on operator B bypassing it | **the headroom** |
+| operator B's stops a short walk from A's, in *separate Sites* | undeclared interchanges: `P0` may use them, `P1` may not |
+| a low-reach regional third | a third dialect, deliberately marginal |
+
+**Remove the fifth and headroom goes to zero**, and no scored journey on the network can reward integration. It is not a parameter; it is the reason the world exists. `undeclared_interchanges()` enumerates them rather than counting, so a generator can be checked on *which* it produced.
+
+Coordinates use only `+ - * / sqrt` — arms point along the eight compass directions, whose unit vectors are `0`, `±1` and `±1/sqrt(2)` — and are rounded to six decimals before storage. `math.cos(math.radians(45))` would have been a platform-dependent float in a content-hashed bundle.
+
+### The scored set, selected rather than pasted
+
+P0M9's lesson is that a query set which cannot reward integration measures risk appetite. The criterion is `npm run headroom`, and it needs the router, and the router needs a built world. The hand-authored city resolves that cycle by pasting a list into `city.py`; a generated world cannot, because every seed would need its own paste.
+
+So the build runs twice: once with all 900 candidates so the criterion has something to judge, once with the 200 it selected. `headroom --json` emits the classification, `select_scored` decides the mix, and the ids land beside the bundle as `<name>.scored.json`. **The criterion is not reimplemented in Python** — `CLAUDE.md` is explicit that duplicating the router to break the cycle would guarantee the two drift apart.
+
+The mix is 70 % improvable and 30 % deliberately not. Not 100 %: *a set where every journey needs integration would not notice a solution that breaks the easy ones.*
+
+### Three defects, and the instrument built to find one of them
+
+**`epoch_ms` collapsed the lazy integrator** (`KNOWN-ISSUES.md` #35). `naiveDecodeTime` read every published number as epoch seconds, so nordline's departures landed 125 days out, `P2` could never board one, and it gave up on **158 of 200** journeys. `P1 − P2` came out **negative** — integrating lazily worse than not integrating — which no tier is supposed to mean.
+
+The function contradicted its own docstring, which is what made it a bug rather than a design choice: it claims to handle *shapes* competently precisely so that `P2` degrades rather than collapses, and names the missing offset as the intended defect. Reading milliseconds as seconds is a shape failure.
+
+> **Nothing found it for the whole of Phase 0 because the hand-built world never used `epoch_ms`.** The catalogue had always offered the value; no world had ever selected it. This is the risk `ROADMAP.md` names in as many words — *a generator will produce combinations nobody thought about* — landing on the reference solutions rather than on the world.
+
+The aggregate could not say which conflict was responsible, and the manifest could only have supported a guess. So `npm run fallback` switches each declared conflict on alone over an otherwise clean world and counts where `P2` gives up:
+
+```
+    conflict                          fell back    over clean    P1-P2
+    no conflicts                         38/200                   7.47m
+    B-time-encoding:nordline            158/200         +120     -0.89m
+    A-coordinate-source:nordline         66/200          +28      5.99m
+    ...
+```
+
+One row at +120 against a field of +16 to +28. **A conflict that removes most of the query set has stopped being a conflict and become a wall.**
+
+The committed world is unaffected — checked, not assumed: `m1` calibrates to 33 fallbacks and 8.37 / 5.17 / 3.20 m before and after.
+
+**Two quays 7.1 m apart collapsed the matching tolerance.** `naiveMatchThresholdM` derives `P2`'s stop matching from the closest genuine pair, strictly below it, so it can never fuse two quays that really are different places. The generator placed tram *sites* 70 m from bus sites and then displaced both *quays* by up to 34 m in independent random directions, which sometimes cancelled nearly the whole gap — tolerance 6 m, and no operator's published position matched any other's.
+
+Fixed by placing dependent quays relative to the **quay** they interchange with rather than to its site: the distance that matters is quay to quay, because that is the walk a player discovers and the number the tolerance comes from. `NetworkSpec.min_quay_separation_m` states the invariant and `generate_network` checks it before returning, naming the offending pair.
+
+**Quays sat exactly on their Site centroids**, so `A-coordinate-source: site` published precisely what `quay` publishes and the audit reported MISS. The third form of `KNOWN-ISSUES.md` #30, and the one its "standing risk" paragraph predicted. A Site is a station complex and a Quay a boarding point within it; placing them identically is wrong as modelling before it is wrong as a conflict.
+
+### What it measures
+
+Six seeds each, against the hand-built city:
+
+| | hand-built, 98 queries | generated, 200 queries |
+|---|---|---|
+| P0-P1 headroom | 7.66m, sd 10 % | **10.85m, sd 7 %** |
+| P0-P2 | 4.99m, sd 15 % | 8.89m, sd 8 % |
+| P1-P2 | 2.67m, sd 17 % | 1.96m, sd 11 % |
+| conflict cost | 2.97m, sd 19 % | 2.07m, sd 23 % |
+
+A generated world is at least as stable as the one every Phase 0 result was measured on, and has more headroom. **The often-quoted "31 % of its mean and conflict cost 36 %" is superseded** — it was measured at P0M9 on the 132-journey set, 88 % of which could not reward integration at all. Fixing the query set halved the scatter and doubling the traveller count halved it again, exactly as P0M9 predicted.
+
+`P0a`'s ambiguity floor, assigned here, measures **1 % of headroom** on the generated network — below the hand-built city's 2 %, and it did not grow. The decision still waits: the case the warning was about is Site granularity over *larger* stations, `NetworkSpec` can now build those, and one city's shape is weaker evidence than it looks.

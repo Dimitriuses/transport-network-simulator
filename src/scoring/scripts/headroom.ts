@@ -31,7 +31,13 @@ import { buildIndex, route, type Access } from "@tns/router";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..", "..");
-const worldPath = process.argv[2] ?? join(repoRoot, "worlds", "m1.world.db");
+// `--json` emits the classification for a machine instead of a person, so the
+// two-phase generated build can select a query set without anyone pasting a
+// list (ROADMAP.md P1M2). Same criterion, same run — a second implementation
+// of it is exactly what `CLAUDE.md` warns would drift.
+const argv = process.argv.slice(2).filter((a) => a !== "--json");
+const asJson = process.argv.includes("--json");
+const worldPath = argv[0] ?? join(repoRoot, "worlds", "m1.world.db");
 
 if (!existsSync(worldPath)) {
   console.error(`No world bundle at ${worldPath}. Build it: npm run world:build`);
@@ -77,6 +83,21 @@ const nothing = rows.filter((r) => r.gainS !== null && r.gainS < MEANINGFUL_S);
 const unroutable = rows.filter((r) => r.gainS === null);
 
 const m = (s: number | null) => (s === null ? "  n/a" : `${(s / 60).toFixed(1)}m`);
+
+if (asJson) {
+  // Everything the selector needs, and the gains too — a caller choosing a
+  // scored set may want the strongest journeys rather than an arbitrary slice.
+  process.stdout.write(
+    JSON.stringify({
+      meaningfulS: MEANINGFUL_S,
+      total: rows.length,
+      improvable: worth.map((r) => ({ id: r.id, gainS: r.gainS })).sort((a, b) => (a.id < b.id ? -1 : 1)),
+      flat: nothing.map((r) => r.id).sort(),
+      unroutable: unroutable.map((r) => r.id).sort(),
+    }),
+  );
+  process.exit(0);
+}
 
 console.log("");
 console.log(`  REACHABLE HEADROOM — ${world.queries.length} scored queries`);

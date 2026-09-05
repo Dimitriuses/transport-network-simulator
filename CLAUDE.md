@@ -30,6 +30,8 @@ Milestones are numbered `P<phase>M<milestone>`. [`docs/BUILD-LOG.md`](docs/BUILD
 
 `npm run demo` runs the whole loop; `npm run calibrate` reports the three-gap difficulty calibration; `npm run audit` checks every declared conflict is actually present; `npm run world:build` regenerates the world bundle (content-hashed, and CI checks it). `npm run gates` runs the three proof gates; `npm run probe` sweeps each conflict's strength on each operator; `npm run horizon` separates what a lazy integrator loses to conflicts from what it loses to not knowing yet; `npm run stability` recalibrates across seeds and reports the spread.
 
+**Added at P1M2:** `npm run fallback` attributes *which conflict* makes the lazy integrator give up, by switching each one on alone over a clean world. A conflict adding a handful of fallbacks is doing its job; one that removes most of the query set has become a wall, and the aggregate calibration cannot tell you which is which. It found `KNOWN-ISSUES.md` #35 immediately.
+
 **Added at P1M1**, and all of them take a world path so they can be pointed at a *generated* bundle: `npm run realism` measures each operator's composed published geometry against the plausibility ceiling; `npm run docs` prints what a player reads at an operator's `docs_url`; `npm run information` scores the four candidate Information formulas side by side against the declared and honest worlds. Generated worlds are built with `python -m worldbuild <path> --tier N`.
 
 **Every per-world instrument must run against every generated world**, not as a release check. The audit, the realism check, the identifiability audit and the symptom check each caught something on a generated world that nobody had thought to look for — see `KNOWN-ISSUES.md` #28–#33.
@@ -40,7 +42,9 @@ Milestones are numbered `P<phase>M<milestone>`. [`docs/BUILD-LOG.md`](docs/BUILD
 
 **Two numbers that decide something together must live in one place.** `noticeLeadS` and `D-staleness` sat in different packages, and their relationship decided whether catalogue D existed at all — it did not, for the whole of Phase 0 (`KNOWN-ISSUES.md` #19). The disruption policy is now in `@tns/schema` and ships in `contract/catalogue.json`. Before adding a threshold, ask what else it is implicitly compared against.
 
-**The world is 38 sites, 50 quays, 10 lines and 98 scored journeys, and the instruments take minutes.** `npm run probe` is the slowest — several hundred calibrations.
+**The committed world is 38 sites, 50 quays, 10 lines and 98 scored journeys, and the instruments take minutes.** `npm run probe` is the slowest — several hundred calibrations.
+
+**A whole city can be generated too, since P1M2**: `npm run world:generate -- worlds/scratch/x.world.db --tier 3 --seed N`. It builds twice on purpose — once with every candidate journey so the headroom criterion has something to judge, once with the journeys it selected — because **the scored query set is not a by-product** and the criterion needs the router. The selected ids are written beside the bundle as `<name>.scored.json`, which is what makes a generated world reproducible.
 
 **The slow instruments report progress on stderr**, with a bar and an estimate of the time left. Progress never goes to stdout, so redirecting a report keeps it clean and still shows the bar on screen:
 
@@ -50,7 +54,18 @@ npm run probe > probe.txt        # bar on screen, report in the file
 
 Without a terminal — piped, in CI, or a background job — it prints a plain line every fifteen seconds instead of a carriage-return bar, which is what makes a backgrounded run legible. `TNS_PROGRESS=off` silences it.
 
-**Never quote a single calibration as a world's difficulty.** `npm run probe` and `npm run stability` average over seeds and report the spread; `npm run gates` does not yet. Across seeds, with only the disruptions changing, headroom has a standard deviation of 31 % of its mean and conflict cost 36 %. One run is a draw from that distribution, not a measurement of the city.
+**Never quote a single calibration as a world's difficulty.** `npm run probe` and `npm run stability` average over seeds and report the spread; `npm run gates` does not yet. One run is a draw from a distribution, not a measurement of the city.
+
+Measured over six seeds with only the disruptions changing, as of P1M2:
+
+| | hand-built, 98 queries | generated, 200 queries |
+|---|---|---|
+| P0-P1 headroom | 7.66m, sd 10 % | 10.85m, sd 7 % |
+| P0-P2 | 4.99m, sd 15 % | 8.89m, sd 8 % |
+| P1-P2 | 2.67m, sd 17 % | 1.96m, sd 11 % |
+| conflict cost | 2.97m, sd 19 % | 2.07m, sd 23 % |
+
+**The often-quoted "31 % of its mean and conflict cost 36 %" is superseded.** It was measured at P0M9 on the 132-journey set, 88 % of which could not reward integration at all (`KNOWN-ISSUES.md` #26). Fixing the query set halved the scatter; doubling the traveller count halved it again, which is what P0M9 predicted — resolution scales with the number of travellers.
 
 **When you add a measurement, check both sides of the comparison for matched information — and for a matched opportunity set.** Seven times now this project has credited something with an advantage the world does not owe it: five flattering a player, once flattering the reference, once a skipped leg in a replanned itinerary. `docs/BUILD-LOG.md` lists them. The generalisation that keeps recurring: *a baseline that suddenly beats its reference has been given something, and it is almost always a movement nobody was charged for.*
 

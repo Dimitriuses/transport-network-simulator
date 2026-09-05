@@ -24,7 +24,12 @@ import type { World } from "@tns/schema";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..", "..");
-const worldPath = join(repoRoot, "worlds", "m1.world.db");
+// World first, seed count second, matching the other instruments. P1M2's exit
+// asks whether a *generated* network's gaps are stable, and a hard-coded path
+// could not answer that.
+const arg = process.argv[2];
+const worldPath =
+  arg && !/^\d+$/.test(arg) ? resolve(repoRoot, arg) : join(repoRoot, "worlds", "m1.world.db");
 
 if (!existsSync(worldPath)) {
   console.error(`No world bundle at ${worldPath}. Build it: npm run world:build`);
@@ -32,7 +37,7 @@ if (!existsSync(worldPath)) {
 }
 
 const world = loadWorld(worldPath);
-const seeds = Number(process.argv[2] ?? 6);
+const seeds = Number((arg && /^\d+$/.test(arg) ? arg : process.argv[3]) ?? 6);
 
 const reseed = (w: World, seed: number): World => ({
   ...w,

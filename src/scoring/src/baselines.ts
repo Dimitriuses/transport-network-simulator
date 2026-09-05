@@ -75,6 +75,18 @@ export function naiveMatchThresholdM(world: World): number {
 }
 
 /**
+ * Past this many seconds from the world epoch, a published number is
+ * milliseconds rather than seconds.
+ *
+ * Thirty days. A transit feed spans days, so a departure a month out is not a
+ * departure; the same number read as milliseconds is well inside the window.
+ * The two encodings differ by a factor of a thousand, so the gap between "too
+ * large for seconds" and "plausible as milliseconds" is enormous and no real
+ * value sits in it.
+ */
+const MILLISECOND_CUTOFF_S = 30 * 24 * 3600;
+
+/**
  * How a lazy integrator reads a published timestamp.
  *
  * It handles the *shapes* competently — a number is epoch seconds, a string
@@ -89,8 +101,25 @@ export function naiveMatchThresholdM(world: World): number {
  */
 function naiveDecodeTime(anchor: ReturnType<typeof parseEpoch>, value: string | number): number {
   if (typeof value === "number") {
-    // Epoch seconds. τ counts from local midnight, so undo the offset.
-    return value + anchor.offsetS;
+    // Seconds or milliseconds, told apart by magnitude — which is what the
+    // "competent at shapes" claim above actually requires, and what this
+    // function did not do until P1M2.
+    //
+    // A timetable covers days. Read as seconds, anything past a month is not a
+    // departure time in a feed that spans one; read as milliseconds it lands
+    // back inside the window. Every real integrator has this heuristic, because
+    // every real integrator has met a feed that switched units.
+    //
+    // **It was not optional.** Reading `epoch_ms` as seconds put nordline's
+    // departures 125 days out, so `P2` could never board it: 158 of 200
+    // journeys had no workable plan and `P1 − P2` went *negative* — a lazy
+    // integration worse than none. That is collapse, not degradation, and the
+    // docstring above says collapse is precisely what must not happen. The
+    // hand-built world never used `epoch_ms`, so nothing found it until a
+    // generator reached that catalogue value (`KNOWN-ISSUES.md` #35).
+    const seconds = value > MILLISECOND_CUTOFF_S ? Math.round(value / 1000) : value;
+    // τ counts from local midnight, so undo the offset.
+    return seconds + anchor.offsetS;
   }
   if (/[+-]\d{2}:\d{2}$/.test(value)) return parseSimTime(anchor, value);
   // No offset. Assume UTC — the plausible, unexamined, wrong choice.

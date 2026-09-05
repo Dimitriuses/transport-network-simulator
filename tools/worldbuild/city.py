@@ -1,11 +1,15 @@
 """The hand-authored city.
 
 Deliberately hand-written, not generated. PHASES.md Phase 0: "the generator's
-specification is whatever we find ourselves doing by hand".
+specification is whatever we find ourselves doing by hand" — and at P1M2 it
+became exactly that. `network.py` generates the six structural roles this file
+arrived at by hand, and `CORECONCEPT.md` §2 now lists them. **This city stays
+hand-authored**: every Phase 0 result was measured on it, and a generated
+replacement would make them incomparable.
 
-Twenty-eight quays, two operators, five lines, no defects yet. The shape is
-chosen to exercise the structures the specifications care about rather than to
-look like a real city:
+Thirty-eight sites, fifty quays, three operators, ten lines and 98 scored
+journeys. The shape is chosen to exercise the structures the specifications care
+about rather than to look like a real city:
 
   * a Site containing several Quays (CENTRAL), so Site/Quay granularity is real
     from the first milestone rather than bolted on later (DATA-MODEL.md §2);

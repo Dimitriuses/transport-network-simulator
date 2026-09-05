@@ -21,6 +21,7 @@
     "world:build": "cd tools && uv run python -m worldbuild",
     "demo": "node src/server/src/demo.ts",
     "calibrate": "node src/scoring/scripts/calibrate.ts",
+    "world:generate": "node scripts/generate-world.mjs",
     "audit": "node src/projections/scripts/audit.ts",
     "realism": "node src/projections/scripts/realism.ts",
     "docs": "node src/projections/scripts/docs.ts",
@@ -33,6 +34,7 @@
     "failures": "node src/scoring/scripts/failures.ts",
     "identifiability": "node src/scoring/scripts/identifiability.ts",
     "symptoms": "node src/scoring/scripts/symptoms.ts",
+    "fallback": "node src/scoring/scripts/fallback.ts",
     "information": "node src/scoring/scripts/information.ts",
     "lead": "node src/scoring/scripts/lead.ts",
     "headroom": "node src/scoring/scripts/headroom.ts"

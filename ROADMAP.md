@@ -88,9 +88,30 @@ Also serves each operator's `docs_url`, currently advertised and unserved (`KNOW
 
 ---
 
-### P1M2 — Network generation
+### P1M2 — Network generation — **delivered, exit met**
 
 Routes, patterns, journeys and calendars over an existing city graph — efficient, inefficient, congested, poorly coordinated. Includes generating the demand table and the scored query set.
+
+`npm run world:generate -- worlds/scratch/x.world.db --tier 3 --seed N` builds a whole city: sites, quays, lines, and a scored query set selected by the headroom criterion.
+
+**Generated from the structural roles, not as an arbitrary graph.** `PHASES.md` says the generator's specification is whatever we found ourselves doing by hand, and the hand-built city turned out to be six roles each present for a measured reason — a hub with several quays, radials through it on alternating stands, an orbital that avoids it, a chord on a second operator that bypasses it, **undeclared interchanges where that operator's stops sit a short walk from the first's in separate Sites**, and a low-reach regional third. Remove the fifth and headroom goes to zero.
+
+**Results against the hand-built city**, six seeds each:
+
+| | hand-built, 98 queries | generated, 200 queries |
+|---|---|---|
+| P0-P1 headroom | 7.66m, sd 10 % | **10.85m, sd 7 %** |
+| P0-P2 | 4.99m, sd 15 % | 8.89m, sd 8 % |
+| P1-P2 | 2.67m, sd 17 % | 1.96m, sd 11 % |
+| conflict cost | 2.97m, sd 19 % | 2.07m, sd 23 % |
+| journeys integration can improve | — | **140 of 200 (70 %)** |
+| defect audit / realism / identifiability | pass | pass |
+
+**Three defects found, all by generating a world nobody had authored:**
+
+* `KNOWN-ISSUES.md` #35 — the lazy integrator read `epoch_ms` as epoch seconds and *collapsed*, giving up on 158 of 200 journeys and making `P1 − P2` negative. The catalogue had always offered that value; no hand-built world had ever selected it. `npm run fallback` exists because the aggregate could not say which conflict was responsible.
+* Quays placed with independent random offsets drifted to **7.1 m** apart, which collapsed `naiveMatchThresholdM` to 6 m — at which point no operator's published position matched any other's. `NetworkSpec.min_quay_separation_m` now states the invariant and the generator checks it.
+* Quays sat exactly on their Site centroids, so `A-coordinate-source: site` published what `quay` publishes and the audit reported MISS — the third form of #30, the one its "standing risk" paragraph predicted.
 
 **The query set is not a by-product, and Phase 0 learned this expensively.** P0M9 generated 132 journeys by taking every Site pair 1500 m apart, and on 88 % of them the restricted and unrestricted transfer graphs gave the same answer — nothing for integration to win, and every extra leg a player took was exposure to a cancellation nobody had announced. The competent reference solution scored *below the naive one* for that reason alone, and it took two milestones to find out why (`KNOWN-ISSUES.md` #26).
 
@@ -98,9 +119,15 @@ Routes, patterns, journeys and calendars over an existing city graph — efficie
 * **Keep some straightforward journeys.** A set where every journey needs integration would not notice a solution that breaks the easy ones.
 * **Do not fix a risk-heavy query set by removing the risk.** Lowering the cancellation rate or the planning lead would make such journeys survivable and delete the thing that makes realtime integration worth anything.
 
-**Assigned here on 2026-09-05 — `SCORING.md`, `P0a`'s ambiguity floor.** `capture` normalises against `P0a`, which routes on the canonical world and so knows which platform its train uses when no player can. Measured at 1 % on every generated world and 2 % on the hand-built one, and it does not grow with tier — but the case the warning was about is Site granularity over *larger stations*, and station size is a property of the network. Re-measure with `npm run identifiability` once generated networks exist, then choose between subtracting the floor and continuing to publish it beside capture. The warning that keeps it undecided still stands: subtracting means a player scores *better* on a world whose ambiguity is *worse*.
+**`SCORING.md`, `P0a`'s ambiguity floor — measured, still not decided.** On the generated network it is **1 % of headroom across the scored population** (0.06m of 10.85m), the same as on generated worlds over the hand-built city and below its 2 %. The case the warning was about — Site granularity over larger stations — did not appear, because the generator will not place `A-granularity` on an operator with no station to collapse. **The decision stays open**: one generated city's shape is weaker evidence than it looks, and `NetworkSpec` can now build cities with larger interchanges, which is the case worth testing before subtracting anything. Re-measure with `npm run identifiability` when the tier ladder needs it, at P1M4.
 
-**Exit:** a generated network produces headroom comparable to the hand-authored one; at least 60 % of scored journeys can be improved by integration and some deliberately cannot; and the three gaps are stable across seeds within a stated tolerance.
+**Original assignment, 2026-09-05 —** `capture` normalises against `P0a`, which routes on the canonical world and so knows which platform its train uses when no player can. Measured at 1 % on every generated world and 2 % on the hand-built one, and it does not grow with tier — but the case the warning was about is Site granularity over *larger stations*, and station size is a property of the network. Re-measure with `npm run identifiability` once generated networks exist, then choose between subtracting the floor and continuing to publish it beside capture. The warning that keeps it undecided still stands: subtracting means a player scores *better* on a world whose ambiguity is *worse*.
+
+**Exit — met.** A generated network produces headroom comparable to the hand-authored one (10.85m against 7.66m); 70 % of scored journeys can be improved by integration and 30 % deliberately cannot; and the three gaps are stable across seeds within a stated tolerance.
+
+**The tolerance, stated.** Each of the three gaps has a seed-to-seed standard deviation under 12 % of its mean, against 10-17 % for the hand-authored city — so a generated world is at least as stable as the one every Phase 0 result was measured on. That is the bar this milestone can honestly set, and it is deliberately expressed as a *comparison* rather than a round number: picking a threshold that the current measurement happens to clear is choosing the answer first.
+
+**The bar that matters is P1M4's, and it is a different quantity.** What P1M4 needs is not that one world is stable but that *two* worlds can be told apart — or shown to match. With six seeds a gap's standard error is `sd/√6`, about 3 % of its mean here, so a 10 % difference between two worlds is a three-sigma result. **That is the number to ratify when P1M4 states how close "matching" has to be**, and it is a property of the seed count as much as of the city.
 
 That last clause is a prerequisite for P1M4 rather than a nicety. Phase 0 measured the alternative: with only the disruptions changing, headroom had a standard deviation of 31 % of its mean. **A single calibration is a draw from a distribution, not a measurement of a city.**
 

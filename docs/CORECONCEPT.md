@@ -95,6 +95,26 @@ Routes can be:
 
 The network is not guaranteed to be optimal.
 
+### What a generated network must contain, established at P1M2
+
+The list above says what routes may *look* like. It does not say what a network must *have*, and building the generator found that the second question is the load-bearing one. Reading the hand-built city back — `PHASES.md` says the generator's specification is whatever we found ourselves doing by hand — it is six structural roles rather than an arbitrary graph:
+
+| role | why it exists |
+|---|---|
+| a hub with several quays | makes the Site/Quay distinction real, and is the only thing that lets `A-granularity` be placed at all |
+| radials through the hub on alternating stands | so some transfers are free and others cost a walk |
+| an orbital that never touches the hub | the only link between two arms; a real decision rather than a detour |
+| a chord on a second operator, bypassing the hub | **the headroom** |
+| that operator's stops a short walk from the first's, in *separate Sites* | undeclared interchanges: `P0` may transfer there, the reference policy may not |
+| a low-reach regional third operator | a third dialect, deliberately marginal |
+
+**The fifth is not a parameter.** The difference between the unrestricted and restricted transfer graphs *is* what a player competes for (`REFERENCE-POLICY.md` §4.1); without undeclared interchanges a network has zero headroom and no scored journey on it can reward integration, whatever else is true of it.
+
+**Two numbers about geometry are load-bearing and were invisible until a generator chose them badly:**
+
+* **A quay must never sit on its own site's centroid.** A Site is a station complex, a Quay a boarding point within it. Placing them identically makes `A-coordinate-source: site` publish exactly what `quay` publishes (`KNOWN-ISSUES.md` #30).
+* **Two distinct quays must not sit on top of each other.** The lazy integrator's stop-matching tolerance is derived from the closest genuine pair, strictly below it; let two drift to 7 m apart and the tolerance becomes 6 m, at which point no operator's published position matches any other's and `P2` degenerates into `P1`.
+
 ### Generating Information Systems
 
 Every company has its own data representation schema and its own way of being wrong.

@@ -2,6 +2,8 @@
 
     python -m worldbuild [out_path]     build the world bundle
     python -m worldbuild [out] --tier N  generate the projection manifests
+    python -m worldbuild [out] --network generate the city as well
+    python -m worldbuild [out] --seed N   which world to generate
     python -m worldbuild --verify       rebuild and check the content is unchanged
 
 `--verify` is what CI runs. It deliberately compares *content*, not file bytes:
@@ -11,6 +13,7 @@ different Python builds produce byte-different files from identical worlds.
 
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -61,6 +64,31 @@ def main() -> int:
         tier = int(args[i + 1])
         args = args[:i] + args[i + 2 :]
 
+    # `--network` generates the city itself — sites, quays, lines and the
+    # candidate query set (ROADMAP.md P1M2). Independent of `--tier`, which
+    # generates what the operators *say* about it.
+    generate_network = "--network" in args
+    if generate_network:
+        args = [a for a in args if a != "--network"]
+
+    # `--scored <file>` narrows a generated world's candidate pool to the
+    # journeys integration can actually improve. The classification comes from
+    # `npm run headroom --json`, which needs the router — see
+    # `scripts/generate-world.mjs`, which drives both phases.
+    scored_ids: frozenset[str] | None = None
+    if "--scored" in args:
+        i = args.index("--scored")
+        scored_ids = frozenset(json.loads(Path(args[i + 1]).read_text(encoding="utf-8")))
+        args = args[:i] + args[i + 2 :]
+
+    # `--seed N` picks the world. The generator needs it; the hand-authored
+    # city ignores everything but the disruption draw.
+    seed = 481516
+    if "--seed" in args:
+        i = args.index("--seed")
+        seed = int(args[i + 1])
+        args = args[:i] + args[i + 2 :]
+
     # An unrecognised flag is a mistake, not a filename. Silently treating
     # `--out foo` as "build a world called --out" is how this milestone spent a
     # rebuild writing to the wrong path and auditing the stale bundle; the same
@@ -68,14 +96,23 @@ def main() -> int:
     unknown = [a for a in args if a.startswith("-")]
     if unknown:
         print(f"unknown option: {unknown[0]}", file=sys.stderr)
-        print("usage: python -m worldbuild [out_path] [--tier N] | --verify", file=sys.stderr)
+        print(
+            "usage: python -m worldbuild [out_path] [--tier N] [--network] [--seed N] | --verify",
+            file=sys.stderr,
+        )
         return 2
     if len(args) > 1:
         print(f"expected at most one output path, got {len(args)}", file=sys.stderr)
         return 2
 
     out = Path(args[0]) if args else DEFAULT_OUT
-    path = build(out, tier=tier)
+    path = build(
+        out,
+        seed=seed,
+        tier=tier,
+        generate_network=generate_network,
+        scored_ids=scored_ids,
+    )
     print(f"built {path}  content {content_hash_of(str(path))[:16]}")
     return 0
 
