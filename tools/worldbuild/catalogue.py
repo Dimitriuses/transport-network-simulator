@@ -74,6 +74,9 @@ class Catalogue:
     tier_sections: dict[int, tuple[str, ...]]
     tier_cosmetic_only: tuple[int, ...]
     policy: DisruptionPolicy
+    #: How many settings from each section a dirty operator departs on, by tier.
+    #: A tier is a *composition*, not a density (`KNOWN-ISSUES.md` #42).
+    tier_quota: dict[int, dict[str, int]]
 
     def defaults(self) -> dict[str, dict[str, object]]:
         """A conflict-free manifest: every setting at its `off` value."""
@@ -122,6 +125,10 @@ def load() -> Catalogue:
         settings=settings,
         tier_sections={int(k): tuple(v) for k, v in raw["tier_sections"].items()},
         tier_cosmetic_only=tuple(raw["tier_cosmetic_only"]),
+        tier_quota={
+            int(k): {sec: int(n) for sec, n in v.items()}
+            for k, v in raw.get("tier_quota", {}).items()
+        },
         policy=DisruptionPolicy(
             delay_rate=pol["delayRate"],
             cancellation_rate=pol["cancellationRate"],

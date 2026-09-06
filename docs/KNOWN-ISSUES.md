@@ -1295,7 +1295,7 @@ That is the "stated tolerance" `ROADMAP.md` P1M4 asks for, and it is stated as a
 Matching profiles say two worlds are equally hard **in aggregate**. They do not say the worlds are hard **in the same way** — only a solution built for one and run on the other says that. That is the second half of P1M4's exit and the harder one, and it is not done.
 ---
 
-## 42. Two worlds at the same declared tier are not equally hard — `open`
+## 42. Two worlds at the same declared tier are not equally hard — `fixed at P1M4 by a calibration search`
 
 The first thing `npm run profile` was pointed at was P1M4's exit criterion. It fails.
 
@@ -1321,9 +1321,199 @@ That shape is itself the argument for `#24`'s profile. A scalar difficulty taken
 
 ### What would need to change
 
-* **The tier would have to be declared in terms of measured effect rather than sampled settings.** A generator that samples a catalogue at a declared density produces a distribution of difficulties, not a difficulty. Closing the loop — generate, profile, adjust, repeat — is the obvious answer and is a substantially larger mechanism than anything P1M1–P1M3 built.
+* **The tier would have to be declared in terms of measured effect rather than sampled settings.** A generator that samples a catalogue at a declared density produces a distribution of difficulties, not a difficulty. A **calibration search** — generate, profile, adjust, regenerate — is the obvious answer and is a substantially larger mechanism than anything P1M1-P1M3 built.
+
+> **Not to be confused with "closed loop"**, which in this project means passengers bound to the player's endpoint so that a player's advice changes the world (`CORECONCEPT.md` §370) — a Phase 2 runtime mode, explicitly outside the MVP. A calibration search happens at *build* time, changes nothing about how a run is scored, and leaves the MVP open loop. The reference solutions appear in it as measuring instruments, not as players.
 * **Or the tier's claim would have to weaken**, from "these two worlds are equally hard" to "these two worlds are drawn from the same difficulty distribution, whose spread is *this*". That is honest, cheap, and probably not enough for the assessment use case `ROADMAP.md` names.
 
 **Three seeds is few**, and the noise column is a standard deviation from three samples. More seeds would tighten it — and would move the verdict *against* the generator, not for it, since a better noise estimate is a smaller one.
 
 **Blocks P1M4's exit**, which is the phase exit. Recorded rather than worked around: `PHASES.md` says a failed gate must be allowed to stop the project rather than be tuned away, and a failed exit is the same thing one level up.
+
+---
+
+## 43. A tier whose quota exhausts its section has no variety — `open, and narrow`
+
+Surfaced by the determinism test the moment `#42`'s quota sampler landed: two different seeds produced the **same** Tier 1 world.
+
+Tier 1's quota asks for two settings from section A, and the catalogue holds exactly two cosmetic ones — `A-id-scheme` and `A-naming`. Every Tier 1 world therefore draws both, and the only freedom left is which naming variant. There is nothing for the seed to choose.
+
+**That is a true statement about the ladder rather than a defect in the sampler**, and it is the cost of fixing `#42`: a quota buys composition at the price of variety, and a rung whose quota equals its section's size pays the whole price. Tier 1 is the narrowest rung and pays it entirely; tiers 2–5 have room and still vary.
+
+**It matters more than "Tier 1 is dull" suggests.** `PHASES.md` wants two worlds of a tier to be different worlds of comparable difficulty, and a tier that produces one world satisfies the second half by satisfying the first vacuously — the same shape as `#32`, where equal difficulty was trivially true because the worlds were identical.
+
+**Options, none chosen:**
+
+* **More cosmetic settings.** `CORECONCEPT.md` §2.1 lists candidates already catalogued as texture — ID instability, ID reuse — that would give section A room at the cosmetic end. This is the honest fix and it is content work.
+* **Quota below section size**, so a rung always leaves a choice. Cheap, and it makes Tier 1 thinner than the ladder intends.
+* **Accept it and say so** — Tier 1 exists to be recognisable rather than varied, and one Tier 1 world may be all anybody needs.
+
+`tools/tests/test_generate.py` asserts reproducibility for every tier and variety only for the tiers that have room, naming this issue where it stops asking.
+
+---
+
+## 44. The naive player hung on a generated world — `fixed at P1M4`
+
+Found while re-testing `#42`. A generated world **hung the naive reference player outright**. `null` and `competent` finished on the same world; nothing timed out, because the player was busy rather than stuck on I/O, and no budget covers a spin.
+
+The cause is the walk back through the predecessors:
+
+```ts
+let cursor: string | null = chosen;
+while (cursor !== null) {
+  const label = best.get(cursor);
+  if (!label || !label.leg) break;
+  legs.push(label.leg);
+  cursor = label.prev;          // no guard
+}
+```
+
+Labels are relaxed as better arrivals are found and `prev` is overwritten in place, so the chain can contain `A -> B -> A`. There was nothing to stop it.
+
+**The hang is fixed.** A cycle now makes the player decline: a reconstruction that cannot produce the itinerary the search claims to have found is not a plan, and truncating the chain would hand the simulator an itinerary that does not start where the traveller does — a wrong answer dressed as a right one.
+
+### The cycle itself is not fixed, and it is common
+
+With the guard in place, `naive` on that world scores **−0.584** where it scored 0.153 before. It is declining most obligations, so **cycles are frequent rather than exceptional**.
+
+That should not be possible under strictly-improving relaxation. If `A -> B` improved `B`, then `arrive(B) > arrive(A)`; returning to `A` from `B` costs at least the minimum transfer, so it cannot improve `A`. A cycle therefore implies the improvement test is not doing what it appears to — the same shape as `#40`, where a search that looked like Dijkstra was not monotone in its own input, and quite possibly the same root cause in a different implementation.
+
+**The committed world is unaffected**: `m1` scores 0.076 for `naive`, identical before and after, and the whole suite is green. The bug needs world A's particular geometry to surface — which is exactly why it survived Phase 0.
+
+**Consequence for `#42`:** the quota sampler landed, and the profile comparison that would judge it cannot be run until this is fixed, because one of the four references is not producing plans on the world under test.
+
+
+---
+
+## 42 (continued). The cause, and what was done about it
+
+**The conflict draw is the entire source of the difference. The network draw contributes nothing measurable.** Separating the two seeds and holding one fixed at a time, on `naive`:
+
+| held fixed | varied | difference | verdict |
+|---|---|---|---|
+| conflicts | **network** | 0.002 | within noise |
+| network | **conflicts** | 0.127 | **5.2x noise** |
+
+That 0.127 is essentially the whole 0.135 the two worlds differed by. `build` now takes a `--conflict-seed` separately from `--seed`, which is what made the diagnosis possible and is also the lever a calibration search would need: the scored query set is selected on the network alone, so re-drawing the conflicts leaves it valid.
+
+**Why the conflict draw varied so much.** Each setting was drawn independently with probability `density x share`, so a tier controlled how *many* conflicts landed and not *which*. Comparing the two Tier-3 draws:
+
+* seed 481516 — `epoch_ms` on two operators, `offset 130` and `precision 3` on ostline;
+* seed 20260906 — **no coordinate offset anywhere**, and nordline on clean `iso_offset`.
+
+`C-coordinate-offset` is the most expensive conflict in the ablation, at 0.83–1.16m. One world had it and the other did not.
+
+**`TIER_QUOTA` replaces the density.** A tier now fixes its *composition* — this many identity conflicts, this many about time, this many about truthfulness — and the seed chooses which setting within a section, which operator carries it, and at what strength. Reach still decides who carries more, so P0M10's finding survives. Every seed now draws an offset, a time conflict and a cancellation setting where before the draw was a lottery.
+
+**The verdict is not in.** Running the profile comparison on the rebuilt worlds hit `#44`: the naive reference player cycles in its path reconstruction on the new world and now declines most obligations. **Three of the four anchors work; the comparison needs all four.** `#42` cannot be called fixed or unfixed until that is.
+
+---
+
+## 44 (continued). The cause: one decode written twice, and a unit error inside it
+
+The cycle was real and the guard was right, but neither was the disease. The naive player converted a published time to seconds-into-the-day in **two** places:
+
+```ts
+// alighting
+arriveAt: (v) => typeof v === "number" ? toSeconds(v + offsetS) % 86400 : ...
+// boarding
+const departS = typeof st.depart === "number" ? (st.depart + offsetS) % 86400 : ...
+```
+
+The second never calls `toSeconds`, so it never reaches `publishedEpochSeconds`. **`KNOWN-ISSUES.md` #35 unified three copies of that rule and this was a fourth** — invisible to the fix and to its test, because the test asked whether each file *mentions* the shared helper and this file does, in the other expression.
+
+While every numeric feed published `epoch_s` the two agreed and nothing noticed. On an `epoch_ms` operator they disagree by three orders of magnitude: the same value reads **10800 as a departure and 10811 as an arrival**. Arrivals then land before the departures that produced them — a **negative edge** — and a label relaxation with negative edges does not terminate. It builds a `prev` chain containing a cycle, and the reconstruction walks it forever.
+
+**And unifying them exposed a second bug underneath.** The surviving expression was `toSeconds(v + offsetS)`, which adds a count of *seconds* to a count of *milliseconds* before deciding which unit it is looking at. With both paths using it, the player stopped hanging and started scoring **−11.4** with a capture of −19.2. The offset is a wall-clock quantity and belongs on the wall clock, once the unit is known: `toSeconds(v) + offsetS`.
+
+| | `naive` on the generated world |
+|---|---|
+| before | **hangs** |
+| cycle guard only | −0.584 — declining most obligations |
+| one decode, offset applied first | −11.423 |
+| one decode, unit converted first | **0.157** |
+
+`m1` reads 0.076 at every step, because `epoch_s` values sit below the millisecond cutoff and the reordering is a no-op there. That is exactly why this survived the whole of Phase 0.
+
+**The cycle guard stays.** It is no longer reachable by this route, and a reconstruction that cannot produce the itinerary its own search claims to have found should decline rather than spin, whatever put the cycle there.
+
+`wallClockSeconds` is now a module-level export with `src/refplayer/test/wall-clock.test.ts` against it: seconds and milliseconds of one instant decode alike, a trip's stops stay in order after decoding, and a naive local time is still read in the wrong frame — the intended defect, which had to survive the fix.
+
+> The lesson is the one already written into `CLAUDE.md` and evidently not yet learned: **a rule in more than one place will drift.** #35 found three copies and unified them; the fourth was written differently enough that a text search for the shared helper found the file and missed the bug. The test that would have caught it is behavioural — *decode the same instant two ways and require the same answer* — and it exists now.
+
+---
+
+## 42 (continued). The verdict, once `#44` unblocked it
+
+The quota landed and the comparison ran. **It did not fix the exit.**
+
+| reference | before the quota | after |
+|---|---|---|
+| `null` | within noise | within noise |
+| `blind` | within noise | 1.2x noise |
+| `naive` | 2.0x noise | **5.9x noise** |
+| `competent` | 1.6x noise | **within noise** |
+
+**It moved the right thing for one solver and the wrong thing for another.** `competent` — the solution that actually reconciles — now sees the two worlds as equally hard, which is what fixing the composition was supposed to buy. `naive` sees them as further apart than before.
+
+**The absolute gap barely moved**: 0.135 before, 0.119 after. What changed is the *noise*, which fell from 0.069 to 0.020 — the quota made each world more self-consistent across seeds, so the same absolute difference is now many more multiples of it. **A tighter instrument reporting a worse verdict is the instrument working**, and it is worth saying plainly rather than reading the ratio as a regression.
+
+### What that leaves
+
+The quota fixed *composition* — every world of a tier now draws an offset, a time conflict and a cancellation setting. It did not fix **strength and placement**: within a section the seed still chooses which setting, which operator carries it, and at what rung. `naive` is far more sensitive to those than `competent` is, which is `#24`'s thesis restated as a measurement — *difficulty is a property of the (world, solver) pair*, and a generator that fixes composition alone equalises the worlds only for the solvers that composition dominates.
+
+**The remaining options are the ones already named**, now with evidence for choosing:
+
+* **A calibration search** — generate, profile, adjust, regenerate, until the profile lands on target. The only approach that can target a *profile* rather than a proxy, and the profile is what the exit is written against. It preserves variety, because it selects among candidates rather than narrowing what may be drawn. Expensive: see the cost note below.
+* **Extend the quota to strength.** Cheaper, and it treats `naive`'s sensitivity as a symptom of free choice within a rung rather than of the loop being open. It would also narrow variety further, which `#43` says is already thin at the bottom of the ladder.
+* **Weaken the claim** to "drawn from the same difficulty distribution, whose spread is *this*" — honest, cheap, and probably not enough for the assessment use case.
+
+**Still blocks P1M4's exit.**
+
+---
+
+## 42 (continued). Fixed — select the world, do not narrow the generator
+
+`npm run calibrate:tier <out> --tier N --seed S` draws several conflict sets over **one fixed city**, screens them on the sensitive reference, and ships the draw nearest the median.
+
+**A build-time search, and not the "closed loop" this project already has a meaning for** — passengers bound to the player's endpoint (`CORECONCEPT.md` §370, Phase 2, outside the MVP). Scoring is untouched, the MVP stays open loop, and the reference solutions appear as measuring instruments rather than as players.
+
+### Why selection rather than a narrower generator
+
+Both close the gap; only one keeps the variety the project asked to keep. Extending `TIER_QUOTA` to strength would buy agreement by removing choices, and `#43` already records that variety is thin at the bottom of the ladder. A search leaves every conflict available at every strength and rejects only draws that land far from the middle — so two shipped worlds may be composed quite differently and still ask the same of a solver.
+
+### What one tier actually looks like
+
+Six draws over a single city, screened on `naive`:
+
+```
+city seed 481516                    city seed 20260906
+    497354   0.097                      20260906   0.024
+    481516   0.144                      20284663   0.160
+    489435   0.177                      20276744   0.168
+    513192   0.190  <- median           20292582   0.207  <- median
+    521111   0.232                      20268825   0.211
+    505273   0.238                      20300501   0.260
+```
+
+**A tier spans 0.097 to 0.260 on one reference.** That range is the issue, stated as a measurement: shipping "the world for seed S" ships a draw from it, and nothing said which. Note city B's own seed — 20260906 — scored **0.024**, the worst of its six. The original failing comparison was an unlucky draw against a middling one.
+
+### The verdict
+
+| reference | before | after |
+|---|---|---|
+| `null` | within noise | within noise |
+| `blind` | 1.2x noise | within noise |
+| `naive` | **5.9x noise** | **within noise** |
+| `competent` | within noise | within noise |
+
+**The absolute gap is the solid part**, because it does not depend on how the noise was estimated: `naive` went from **0.119 apart to 0.022**, and `competent` from 0.033 to 0.018.
+
+### Caveats, stated rather than buried
+
+* **Three seeds is few.** The noise column is a standard deviation from three samples and moved from 0.020 to 0.065 between runs of the same shape. The *ratio* verdict is therefore soft; the fivefold fall in the absolute difference is not. Re-run with more seeds before leaning on it.
+* **The screen is one reference.** `--verify` profiles the winner against all four, and it should be used for any world that will be shipped. A world selected only for `naive` is calibrated for `naive`, which is `#24`'s trap in a new place.
+* **Cost.** Six candidates at two seeds is about ten minutes per city, plus the comparison. That is a calibration step rather than a build step, and `npm run world:generate` still produces an uncalibrated world in about a minute.
+* **The search can fail**, and must be allowed to. If no draw lands near the median that is a finding about the catalogue's reach, not a reason to widen the tolerance.
+
+**The second half of P1M4's exit is untouched:** matching profiles say the worlds are equally hard *in aggregate*, not that they are hard *in the same way*. Only a solution built for one and run on the other says that.

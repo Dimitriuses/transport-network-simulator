@@ -81,6 +81,37 @@ function simSeconds(iso: string): number {
 /** Day-of-month the world's epoch falls on. */
 const WORLD_EPOCH_DAY = 7;
 
+/**
+ * A published time, as seconds into the day this player believes it is.
+ *
+ * **One decode, used for boarding and for alighting alike.** A helper for this
+ * existed and was `void`ed while the boarding path inlined
+ * `(st.depart + offsetS) % 86400` — a fourth copy of the rule
+ * `KNOWN-ISSUES.md` #35 unified, and the one that fix did not reach because it
+ * never went through `toSeconds` at all.
+ *
+ * The consequence was not a slightly wrong time. For an `epoch_ms` operator the
+ * two disagreed by three orders of magnitude before the modulo: the same value
+ * read 10800 as a departure and 10811 as an arrival. **Arrivals then land
+ * before the departures that produced them** — a negative edge — and a label
+ * relaxation with negative edges does not terminate. It builds a `prev` chain
+ * with a cycle in it, and the path reconstruction spins (`#44`).
+ *
+ * **Convert the unit first, then apply the offset.** `toSeconds(v + offsetS)`
+ * adds a count of *seconds* to a count of *milliseconds* before deciding which
+ * unit it is looking at — harmless while every numeric feed was `epoch_s`, and
+ * a three-order-of-magnitude error the moment one published `epoch_ms`. The
+ * offset is a wall-clock quantity and belongs on the wall clock, once the unit
+ * is known.
+ *
+ * Exported so the rule can be tested rather than trusted.
+ */
+export function wallClockSeconds(value: string | number, offsetS: number): number {
+  return typeof value === "number"
+    ? (toSeconds(value) + offsetS) % 86400
+    : toSeconds(value) % 86400;
+}
+
 function toSeconds(value: string | number): number {
   if (typeof value === "number") {
     // Seconds or milliseconds, told apart by magnitude. **This was the second
@@ -137,9 +168,7 @@ function buildModel(timetables: Timetable[]): Model {
   const offsetS = normaliseOffset(timetables);
   // Epoch-second operators are on the Unix clock; string operators are on the
   // wall clock. Put both on the wall clock, using the offset inferred above.
-  const at = (v: string | number): number =>
-    typeof v === "number" ? toSeconds(v + offsetS) % 86400 : toSeconds(v) % 86400;
-  void at;
+  const at = (v: string | number): number => wallClockSeconds(v, offsetS);
   const stops: Stop[] = [];
   const stopByKey = new Map<string, Stop>();
   const operatorOfStop = new Map<string, string>();
@@ -161,10 +190,7 @@ function buildModel(timetables: Timetable[]): Model {
         const key = `${t.operator}:${st.stop_id}`;
         let list = boardings.get(key);
         if (!list) boardings.set(key, (list = []));
-        const departS =
-          typeof st.depart === "number"
-            ? (st.depart + offsetS) % 86400
-            : toSeconds(st.depart) % 86400;
+        const departS = at(st.depart);
         list.push({ trip, operator: t.operator, index, departS });
       });
     }
@@ -176,8 +202,7 @@ function buildModel(timetables: Timetable[]): Model {
     stopByKey,
     operatorOfStop,
     boardings,
-    arriveAt: (v) =>
-      typeof v === "number" ? (toSeconds(v + offsetS) % 86400) : toSeconds(v) % 86400,
+    arriveAt: at,
   };
 }
 
@@ -352,9 +377,26 @@ function plan(
   }
   if (chosen === null) return null;
 
+  // Walk the predecessors back to the origin.
+  //
+  // **Guarded against a cycle, because the chain can contain one.** Labels are
+  // relaxed as better arrivals are found and `prev` is overwritten in place, so
+  // a stop reached via another that was itself later re-reached through the
+  // first leaves `A -> B -> A`. This loop had no guard and spun forever on it:
+  // a generated world hung the naive reference player outright, while `null`
+  // and `competent` finished, and nothing timed out because the player was busy
+  // rather than stuck on I/O (`KNOWN-ISSUES.md` #44).
+  //
+  // A cycle means the reconstruction cannot produce the itinerary the search
+  // claims to have found, so the honest answer is no plan at all. Truncating
+  // the chain would hand the simulator an itinerary that does not start where
+  // the traveller does, which is a wrong answer dressed as a right one.
   const legs: Leg[] = [];
+  const seen = new Set<string>();
   let cursor: string | null = chosen;
   while (cursor !== null) {
+    if (seen.has(cursor)) return null;
+    seen.add(cursor);
     const label: Label | undefined = best.get(cursor);
     if (!label || !label.leg) break;
     legs.push(label.leg);

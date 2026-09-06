@@ -54,6 +54,11 @@ const positional = args.filter((a, i) => !a.startsWith("--") && !args[i - 1]?.st
 const out = resolve(repoRoot, positional[0] ?? "worlds/scratch/gen.world.db");
 const tier = flag("--tier", "3");
 const seed = flag("--seed", "481516");
+// Re-draws the conflicts while holding the city fixed. The scored query set is
+// selected on the network alone, so it is unaffected — which is what makes this
+// the adjustment step a closed-loop calibration would use.
+const conflictSeed = flag("--conflict-seed", null);
+const conflictArgs = conflictSeed === null ? [] : ["--conflict-seed", conflictSeed];
 
 const python = (extra) => {
   const result = spawnSync(
@@ -76,7 +81,7 @@ console.log("");
 mkdirSync(join(tmpdir(), "tns"), { recursive: true });
 const candidates = join(tmpdir(), "tns", `candidates-${seed}.world.db`);
 console.log("  1/3  building with every candidate journey");
-python([candidates, "--network", "--seed", seed, "--tier", tier]);
+python([candidates, "--network", "--seed", seed, "--tier", tier, ...conflictArgs]);
 
 // ---- phase 2: classify -----------------------------------------------------
 console.log("  2/3  routing each candidate on both transfer graphs");
@@ -124,7 +129,7 @@ const improvableSelected = scored.filter((id) =>
 
 // ---- phase 3: the real bundle ----------------------------------------------
 console.log("  3/3  rebuilding with the selected journeys");
-const built = python([out, "--network", "--seed", seed, "--tier", tier, "--scored", sidecar]);
+const built = python([out, "--network", "--seed", seed, "--tier", tier, "--scored", sidecar, ...conflictArgs]);
 
 console.log("");
 console.log(`  candidates            ${String(report.total).padStart(5)}`);

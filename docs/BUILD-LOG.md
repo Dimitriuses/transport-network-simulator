@@ -1439,3 +1439,37 @@ And it reports what no fixed threshold could: **which references clear which run
 ### Also
 
 `node:sqlite`'s experimental warning is gone (`#8`, open since Phase 0) — `--disable-warning=ExperimentalWarning` on all 23 direct-`node` scripts and every spawned child. Two lines of noise on every instrument is two lines a reader learns to skip, and #19 hid for months in a line people had learned to skip.
+
+### The calibration search — `KNOWN-ISSUES.md` #42
+
+**Select the world; do not narrow the generator.**
+
+A tier declared a *density*, the generator sampled a catalogue against it, and what came out was a distribution of difficulties rather than a difficulty. `TIER_QUOTA` fixed a tier's *composition* — every world now draws an offset, a time conflict, a cancellation setting — and did not fix strength or placement within it. `naive` still saw two Tier-3 worlds as 5.9 times their own noise apart while `competent` saw them as identical.
+
+**Six draws over one city, screened on the sensitive reference:**
+
+```
+city seed 481516                    city seed 20260906
+    497354   0.097                      20260906   0.024
+    481516   0.144                      20284663   0.160
+    489435   0.177                      20276744   0.168
+    513192   0.190  <- median           20292582   0.207  <- median
+    521111   0.232                      20268825   0.211
+    505273   0.238                      20300501   0.260
+```
+
+**A tier spans 0.097 to 0.260 on one reference.** Shipping "the world for seed S" shipped a draw from that range and nothing said which — and city B's own seed scored 0.024, the *worst* of its six. The original failing comparison was an unlucky draw against a middling one.
+
+| reference | before | after |
+|---|---|---|
+| `blind` | 1.2x noise | within noise |
+| `naive` | **5.9x noise** | **within noise** |
+| `competent` | within noise | within noise |
+
+`naive` went from **0.119 apart to 0.022** — and the absolute gap is the part worth quoting, because it does not depend on how the noise was estimated. Three seeds gives a standard deviation from three samples, and it moved from 0.020 to 0.065 between runs of the same shape.
+
+**Why a search rather than a tighter generator.** Both close the gap; only one keeps the variety. Extending the quota to strength buys agreement by removing choices, and `#43` already records variety is thin at the bottom of the ladder. A search leaves every conflict available at every strength and rejects only the draws that land far from the middle, so two shipped worlds may be composed quite differently and still ask the same of a solver.
+
+**And it is a build-time search**, not the "closed loop" this project already uses for passengers bound to the player's endpoint (`CORECONCEPT.md` §370, Phase 2). Nothing about scoring changes; the MVP stays open loop. The naming collision was mine and is corrected throughout — the concept is a *calibration search*.
+
+**The measurement moved into `@tns/scoring`** rather than being copied into the new script. That is deliberate and recent: `#19`, `#35`, `#40` and `#44` were all one rule living in more than one place, and #44 was found the same day.

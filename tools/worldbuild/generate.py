@@ -198,6 +198,46 @@ TIER_DENSITY: dict[int, float] = {0: 0.0, 1: 1.0, 2: 0.55, 3: 0.6, 4: 0.7, 5: 0.
 MAX_CONFLICT_SHARE: float = 0.5
 
 
+def _quota_for(count: int, share: float) -> int:
+    """This operator's share of a section's quota.
+
+    Scaled by reach and rounded, so the operator carrying most of the network
+    carries most of the conflicts (P0M10) while the tier's *composition* stays
+    fixed. At least one wherever the tier asks for any: a section that the tier
+    declares and no operator expresses is a tier that does not mean what it says.
+    """
+    if count <= 0:
+        return 0
+    return max(1, int(count * min(1.0, share) + 0.5))
+
+
+def _in_quota_order(
+    settings: tuple[catalogue.Setting, ...],
+    wanted: dict[str, int],
+    rng: random.Random,
+) -> list[catalogue.Setting]:
+    """Settings grouped by section, each group in a seeded order.
+
+    The *order within a section* is where the seed still has its say — which
+    identity conflict this world uses, rather than how many. Fisher-Yates over a
+    single `random()` stream, for the reason `network.py` gives.
+    """
+    by_section: dict[str, list[catalogue.Setting]] = {}
+    for setting in settings:
+        by_section.setdefault(setting.section, []).append(setting)
+
+    out: list[catalogue.Setting] = []
+    for section in sorted(by_section):
+        if wanted.get(section, 0) <= 0:
+            continue
+        pool = by_section[section]
+        for i in range(len(pool) - 1, 0, -1):
+            j = int(rng.random() * (i + 1))
+            pool[i], pool[j] = pool[j], pool[i]
+        out.extend(pool)
+    return out
+
+
 def _pick(rng: random.Random, options: tuple[object, ...], bias: float) -> object:
     """Choose from `options`, weakest first, biased towards the stronger end.
 
@@ -256,13 +296,23 @@ def generate_manifests(
 
         placed: set[str] = set()
         if op.id != reference and settings and density > 0:
-            # Weighted by reach, so the operator carrying the network carries
-            # the conflicts. Normalised against the mean so a two-operator world
-            # and a six-operator one get comparable densities.
+            # **Exactly the tier's quota from each section, not a coin per
+            # setting.** A density controls how *many* conflicts land and not
+            # *which*, so two worlds of one tier could differ by the most
+            # expensive conflict in the catalogue — one Tier 3 drew a 130 m
+            # coordinate offset, another drew no offset at all, and the
+            # reference solutions differed by five times the seed-to-seed noise
+            # (`KNOWN-ISSUES.md` #42).
+            #
+            # Reach still decides *who* carries more: the quota is scaled by
+            # this operator's share of the network, so the operator running most
+            # of the city still takes most of the conflicts — the P0M10 finding
+            # this generator was built on — but the *composition* of a tier is
+            # now fixed rather than sampled.
             share = (op.reach / total_reach) * len(operators)
-            for setting in settings:
-                if rng.random() > min(1.0, density * share):
-                    continue
+            quota = cat.tier_quota.get(tier, {})
+            wanted = {section: _quota_for(count, share) for section, count in quota.items()}
+            for setting in _in_quota_order(settings, wanted, rng):
                 # A conflict that masks another wastes it. Exclusion is
                 # symmetric, so ask in both directions.
                 blocked = any(
@@ -286,9 +336,12 @@ def generate_manifests(
                 )
                 if not usable:
                     continue
+                if wanted.get(setting.section, 0) <= 0:
+                    continue
                 value = _pick(rng, usable, bias=min(1.0, tier / 5.0))
                 manifest[setting.group][setting.key] = value
                 placed.add(setting.conflict)
+                wanted[setting.section] = wanted.get(setting.section, 0) - 1
 
         # `prefixed` ids need a prefix, and a bare-int operator must not keep
         # one: the builder reads both, and an inconsistent pair publishes ids

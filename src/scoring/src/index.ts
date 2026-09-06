@@ -12,6 +12,7 @@ export const PACKAGE_NAME = "@tns/scoring";
 export * from "./baselines.ts";
 export * from "./information.ts";
 export * from "./information-variants.ts";
+export * from "./profile.ts";
 export * from "./scorecard.ts";
 export * from "./information-set.ts";
 export * from "./belief.ts";

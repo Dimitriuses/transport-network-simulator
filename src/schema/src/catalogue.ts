@@ -255,6 +255,37 @@ export const TIER_SECTIONS: Record<number, readonly CatalogueSection[]> = {
   5: ["A", "B", "C", "D"],
 };
 
+/**
+ * How many settings from each section a dirty operator departs on, per tier.
+ *
+ * **A tier used to be a density, and a density does not control *which*
+ * conflicts land.** Each setting was drawn independently with probability
+ * `density x share`, so two worlds of the same declared tier could hold quite
+ * different conflicts: at Tier 3, one drew a 130 m coordinate offset and two
+ * operators publishing `epoch_ms`, the other drew **no offset at all**. The
+ * offset is the most expensive conflict in the ablation, so the two worlds were
+ * not equally hard — the reference solutions differed by five times the
+ * seed-to-seed noise (`KNOWN-ISSUES.md` #42), and the *network* draw accounted
+ * for none of it.
+ *
+ * A quota fixes the *shape* of a tier — this many identity conflicts, this many
+ * about time, this many about truthfulness — and leaves the seed to choose
+ * which setting within a section, which operator carries it, and at what
+ * strength. Two worlds of a tier then differ in their texture and agree in
+ * their composition, which is what "the same tier" has to mean if it is to mean
+ * anything.
+ *
+ * Sections E and F arrive in Phase 3 and are absent rather than declared.
+ */
+export const TIER_QUOTA: Record<number, Readonly<Record<CatalogueSection, number>>> = {
+  0: { A: 0, B: 0, C: 0, D: 0 },
+  1: { A: 2, B: 0, C: 0, D: 0 },
+  2: { A: 3, B: 1, C: 1, D: 0 },
+  3: { A: 3, B: 1, C: 1, D: 2 },
+  4: { A: 4, B: 1, C: 2, D: 2 },
+  5: { A: 4, B: 1, C: 2, D: 3 },
+};
+
 /** Tiers where section A appears as texture and nothing else. */
 export const TIER_COSMETIC_ONLY: readonly number[] = [1];
 

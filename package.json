@@ -28,6 +28,7 @@
     "gates": "node --disable-warning=ExperimentalWarning src/scoring/scripts/gates.ts",
     "clearance": "node --disable-warning=ExperimentalWarning src/scoring/scripts/clearance.ts",
     "profile": "node --disable-warning=ExperimentalWarning src/scoring/scripts/profile.ts",
+    "calibrate:tier": "node --disable-warning=ExperimentalWarning src/scoring/scripts/calibrate-tier.ts",
     "ablate": "node --disable-warning=ExperimentalWarning src/scoring/scripts/gates.ts",
     "conformance": "node --disable-warning=ExperimentalWarning src/conformance/scripts/check.ts",
     "probe": "node --disable-warning=ExperimentalWarning src/scoring/scripts/probe.ts",

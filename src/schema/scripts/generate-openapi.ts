@@ -30,6 +30,7 @@ import {
   Identity,
   Problem,
   TIER_COSMETIC_ONLY,
+  TIER_QUOTA,
   TIER_SECTIONS,
 } from "../src/index.ts";
 
@@ -190,6 +191,7 @@ for (const [name, doc] of DOCUMENTS) {
         contract_version: CONTRACT_VERSION,
         settings: CATALOGUE,
         tier_sections: TIER_SECTIONS,
+        tier_quota: TIER_QUOTA,
         tier_cosmetic_only: TIER_COSMETIC_ONLY,
         // The generator has to hold `D-staleness` against `noticeLeadS`: a lag
         // shorter than the shortest announcement lead conceals nothing, on any

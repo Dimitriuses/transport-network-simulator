@@ -318,10 +318,19 @@ def build(
     generate_network: bool = False,
     spec: network.NetworkSpec | None = None,
     scored_ids: frozenset[str] | None = None,
+    conflict_seed: int | None = None,
 ) -> Path:
+    # **The city and its conflicts draw from separate seeds.**
+    #
+    # One seed for both means two worlds of the same declared tier differ in
+    # their network *and* in their conflicts, and nothing can say which is
+    # responsible for a difference in difficulty (`KNOWN-ISSUES.md` #42). It is
+    # also the lever a calibration search needs: re-drawing the conflicts
+    # while holding the city fixed is the adjustment step, and re-drawing the
+    # city would invalidate the scored query set it was selected against.
     net = network_for(generate_network, seed, spec)
     queries = queries_for(net, scored_ids)
-    operators = operators_for(tier, seed, net)
+    operators = operators_for(tier, conflict_seed if conflict_seed is not None else seed, net)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.exists():
         out_path.unlink()

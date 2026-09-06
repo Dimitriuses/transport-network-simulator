@@ -81,6 +81,14 @@ def main() -> int:
         scored_ids = frozenset(json.loads(Path(args[i + 1]).read_text(encoding="utf-8")))
         args = args[:i] + args[i + 2 :]
 
+    # `--conflict-seed N` re-draws the conflicts while holding the city fixed.
+    # Absent, the conflicts follow `--seed` and the two move together.
+    conflict_seed: int | None = None
+    if "--conflict-seed" in args:
+        i = args.index("--conflict-seed")
+        conflict_seed = int(args[i + 1])
+        args = args[:i] + args[i + 2 :]
+
     # `--seed N` picks the world. The generator needs it; the hand-authored
     # city ignores everything but the disruption draw.
     seed = 481516
@@ -112,6 +120,7 @@ def main() -> int:
         tier=tier,
         generate_network=generate_network,
         scored_ids=scored_ids,
+        conflict_seed=conflict_seed,
     )
     print(f"built {path}  content {content_hash_of(str(path))[:16]}")
     return 0

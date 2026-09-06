@@ -22,13 +22,17 @@
 // tolerance nobody has measured is a guess, and this project has thrown away
 // two milestones to guesses of exactly that shape.
 
-import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadWorld } from "@tns/core";
-import { runOpenLoop } from "@tns/server";
-import { scoreRun } from "@tns/scoring";
+import {
+  REFERENCE_MODES,
+  profileWorld,
+  mean,
+  sd,
+  type DifficultyProfile,
+} from "@tns/scoring";
 import type { World } from "@tns/schema";
 import { progress } from "./progress.ts";
 
@@ -47,82 +51,32 @@ for (const p of paths) {
   }
 }
 
-/** The anchors, worst to best by construction. */
-const MODES = ["null", "blind", "naive", "competent"] as const;
-type Mode = (typeof MODES)[number];
+// The measurement lives in `@tns/scoring` because `npm run calibrate:tier`
+// needs exactly the same one, and a second copy of it would drift — the failure
+// this project has recorded four times (`KNOWN-ISSUES.md` #19, #35, #40, #44).
+const ALL_MODES = REFERENCE_MODES;
 
-/** Each reference's whole scorecard, not just its headline. */
-interface Point {
-  readonly headline: number;
-  readonly capture: number;
-  readonly information: number;
-  readonly arrived: number;
+// `--only <mode>` profiles one reference. A full profile is four solutions per
+// seed per world and takes tens of minutes; a diagnostic that only needs to
+// know whether *one* reference moved should not pay for the other three.
+const onlyArg = argv[argv.indexOf("--only") + 1];
+const MODES: readonly string[] = argv.includes("--only")
+  ? ALL_MODES.filter((m) => m === onlyArg)
+  : ALL_MODES;
+if (MODES.length === 0) {
+  console.error(`unknown reference solution: ${onlyArg}. One of ${ALL_MODES.join(", ")}.`);
+  process.exit(2);
 }
 
 const PORTS = { operator: 8900, control: 8930, player: 8940 };
 
-async function measure(world: World, mode: string): Promise<Point | null> {
-  const player = spawn(
-    process.execPath,
-    ["--disable-warning=ExperimentalWarning", join(repoRoot, "src", "refplayer", "scripts", "serve.ts")],
-    {
-      cwd: repoRoot,
-      stdio: ["ignore", "ignore", "inherit"],
-      env: {
-        ...process.env,
-        TNS_PLAYER_PORT: String(PORTS.player),
-        TNS_CONTROL_URL: `http://127.0.0.1:${PORTS.control}`,
-        TNS_PLAYER_MODE: mode,
-      },
-    },
-  );
-  try {
-    const log = await runOpenLoop({
-      world,
-      operatorPort: PORTS.operator,
-      controlPort: PORTS.control,
-      playerBaseUrl: `http://127.0.0.1:${PORTS.player}`,
-    });
-    const card = scoreRun(log, { tier: world.manifest.tier });
-    if (card.headline === null) return null;
-    return {
-      headline: card.headline,
-      // `capture` is null when nothing was comparable — treat that as a
-      // missing point rather than a zero, which would read as "no better than
-      // not integrating" and is a different claim entirely.
-      capture: card.service.capture ?? Number.NaN,
-      information: card.information.score,
-      arrived: card.service.arrived / Math.max(1, card.service.travellers),
-    };
-  } finally {
-    player.kill();
-  }
-}
-
-const mean = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
-const sd = (xs: readonly number[]) => {
-  if (xs.length < 2) return 0;
-  const m = mean(xs);
-  return Math.sqrt(xs.reduce((a, b) => a + (b - m) * (b - m), 0) / (xs.length - 1));
-};
-
-/** Every reference's points across seeds, for one world. */
-type Profile = Record<Mode, Point[]>;
+type Profile = DifficultyProfile;
 
 const bar = progress(paths.length * MODES.length * seeds, "profiling");
 
 async function profileOf(path: string): Promise<{ world: World; profile: Profile }> {
   const base = loadWorld(resolve(repoRoot, path));
-  const profile = Object.fromEntries(MODES.map((m) => [m, [] as Point[]])) as Profile;
-  for (let i = 0; i < seeds; i++) {
-    // Only the disruptions change: same city, same timetable, same conflicts.
-    const world: World = { ...base, manifest: { ...base.manifest, seed: base.manifest.seed + i * 7919 } };
-    for (const mode of MODES) {
-      const point = await measure(world, mode);
-      if (point) profile[mode].push(point);
-      bar.step(`${mode} seed ${i + 1}`);
-    }
-  }
+  const profile = await profileWorld(repoRoot, base, MODES, seeds, PORTS, (l) => bar.step(l));
   return { world: base, profile };
 }
 
@@ -139,7 +93,7 @@ for (const r of results) {
   console.log("");
   console.log("    reference    headline    capture   information   arrived");
   for (const mode of MODES) {
-    const pts = r.profile[mode];
+    const pts = r.profile[mode] ?? [];
     if (pts.length === 0) {
       console.log(`    ${mode.padEnd(12)}      n/a`);
       continue;
@@ -168,8 +122,8 @@ if (results.length === 2) {
   let worst = "";
   let worstRatio = 0;
   for (const mode of MODES) {
-    const pa = a.profile[mode];
-    const pb = b.profile[mode];
+    const pa = a.profile[mode] ?? [];
+    const pb = b.profile[mode] ?? [];
     if (pa.length === 0 || pb.length === 0) continue;
     const ha = mean(pa.map((p) => p.headline));
     const hb = mean(pb.map((p) => p.headline));
