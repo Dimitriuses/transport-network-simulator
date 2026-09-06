@@ -354,6 +354,8 @@ The non-arrival line is doing exactly what §4 intends: three stranded traveller
 
 ## OPEN — tier clearance thresholds predate the change of denominator
 
+> **Settled at P1M4 — see *Tier clearance thresholds* below.** The heading is kept because the reasoning is what produced the fix: a bar stated as a decimal cannot say what it meant, so it could not survive its denominator moving. `CLEARANCE_LADDER` states each rung as a position between two named reference solutions instead.
+
 `CLEARANCE` sets a minimum headline per tier — 0.25 at Tier 2, rising to 0.45 at Tier 5. Those numbers were chosen while capture was normalised against `P0`, and capture carries 0.6 of the balanced headline.
 
 Changing the denominator on 2026-09-04 rescaled capture by roughly 2.6 without touching the thresholds, so **every tier is now materially harder to clear than the number was chosen to mean**. On the P0M9 world the naive solution's headline fell from 0.192 to 0.019 against an unchanged bar of 0.25.
