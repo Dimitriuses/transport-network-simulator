@@ -7,6 +7,7 @@
 import { createServer, type Server } from "node:http";
 import { publishedEpochSeconds } from "@tns/schema";
 import { makeCheatPlanner, type CheatPlanner } from "./cheat.ts";
+import { readTuning } from "./tuning.ts";
 import {
   applyRealtime,
   buildCompetentModel,
@@ -435,7 +436,14 @@ export interface PlayerOptions {
    * the traveller falls back to the reference policy and the player is charged
    * for it (REFERENCE-POLICY.md §8).
    */
-  readonly mode?: "naive" | "null" | "blind" | "cheat" | "competent" | "competent-deaf";
+  readonly mode?:
+    | "naive"
+    | "null"
+    | "blind"
+    | "cheat"
+    | "competent"
+    | "competent-deaf"
+    | "tuned";
 }
 
 interface Held {
@@ -468,7 +476,11 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
   // differ in their *planner* as well as in their realtime handling, so the
   // comparison cannot attribute to either. This differs in one thing only.
   const deaf = mode === "competent-deaf";
-  const planner = deaf ? "competent" : mode;
+  // `tuned` plans exactly as `competent` does; what differs is that its model is
+  // built from a memorised answer key rather than from inference (`tuning.ts`).
+  const planner = deaf || mode === "tuned" ? "competent" : mode;
+  const tuning =
+    mode === "tuned" ? readTuning(process.env["TNS_TUNING"] ?? "worlds/m1.tuning.json") : undefined;
 
   // Itineraries this player has handed out, so it knows who to warn.
   const held = new Map<string, Held>();
@@ -513,7 +525,7 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
       const worldOffsetS = offsetS
         ? (offsetS[1] === "-" ? -1 : 1) * (Number(offsetS[2]) * 3600 + Number(offsetS[3]) * 60)
         : 3 * 3600;
-      competent = buildCompetentModel(timetables, worldOffsetS);
+      competent = buildCompetentModel(timetables, worldOffsetS, tuning);
     }
     ready = true;
   };

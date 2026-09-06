@@ -75,6 +75,8 @@ export async function measureReference(
   world: World,
   mode: string,
   ports: ProfilePorts,
+  /** Extra environment for the player — `TNS_TUNING` for the `tuned` mode. */
+  extraEnv: Readonly<Record<string, string>> = {},
 ): Promise<ReferencePoint | null> {
   const player = spawn(
     process.execPath,
@@ -90,6 +92,7 @@ export async function measureReference(
         TNS_PLAYER_PORT: String(ports.player),
         TNS_CONTROL_URL: `http://127.0.0.1:${ports.control}`,
         TNS_PLAYER_MODE: mode,
+        ...extraEnv,
       },
     },
   );
@@ -127,6 +130,7 @@ export async function profileWorld(
   seeds: number,
   ports: ProfilePorts,
   onStep?: (label: string) => void,
+  extraEnv: Readonly<Record<string, string>> = {},
 ): Promise<DifficultyProfile> {
   const profile: DifficultyProfile = Object.fromEntries(modes.map((m) => [m, []]));
   for (let i = 0; i < seeds; i++) {
@@ -135,7 +139,7 @@ export async function profileWorld(
       manifest: { ...base.manifest, seed: base.manifest.seed + i * 7919 },
     };
     for (const mode of modes) {
-      const point = await measureReference(repoRoot, world, mode, ports);
+      const point = await measureReference(repoRoot, world, mode, ports, extraEnv);
       if (point) profile[mode]!.push(point);
       onStep?.(`${mode} seed ${i + 1}`);
     }

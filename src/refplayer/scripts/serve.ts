@@ -8,7 +8,17 @@ import { startPlayer } from "../src/player.ts";
 const port = Number(process.env["TNS_PLAYER_PORT"] ?? 8080);
 const controlUrl = process.env["TNS_CONTROL_URL"] ?? "http://127.0.0.1:9000";
 const raw = process.env["TNS_PLAYER_MODE"];
-const modes = ["null", "blind", "cheat", "competent", "competent-deaf", "naive"] as const;
+const modes = [
+  "null",
+  "blind",
+  "cheat",
+  "competent",
+  "competent-deaf",
+  "naive",
+  // Overfitted to one world, via `TNS_TUNING`. It exists to *fail* on any other
+  // world of the same tier — see `src/refplayer/src/tuning.ts`.
+  "tuned",
+] as const;
 if (raw !== undefined && !(modes as readonly string[]).includes(raw)) {
   // **Fail rather than fall back.** This used to default silently to "naive",
   // so a typo or an unregistered mode produced a complete, plausible run of the

@@ -1473,3 +1473,31 @@ city seed 481516                    city seed 20260906
 **And it is a build-time search**, not the "closed loop" this project already uses for passengers bound to the player's endpoint (`CORECONCEPT.md` §370, Phase 2). Nothing about scoring changes; the MVP stays open loop. The naming collision was mine and is corrected throughout — the concept is a *calibration search*.
 
 **The measurement moved into `@tns/scoring`** rather than being copied into the new script. That is deliberate and recent: `#19`, `#35`, `#40` and `#44` were all one rule living in more than one place, and #44 was found the same day.
+
+### The overfitted reference, and the two-sided transfer test
+
+**The exit's second clause needs a solution that *should* fail.**
+
+"A solution built for one world performs comparably on the other" is satisfiable by cheating: make two worlds nearly identical and everything transfers. `PHASES.md` §284 says so in its next sentence — *not satisfied by matching conflict lists alone* — and until now nothing measured that half. Every reference solution we had generalises, so every one of them transfers by construction; a passing result therefore said nothing about the worlds.
+
+`tuned` is the missing half. It is `competent` with its two inferences replaced by a table baked from one specific world (`npm run tune`): each operator's systematic displacement and its time encoding, read from the world's canonical data rather than detected from a feed. It knows nothing about the *day* — no disruptions, no cancellations — so it is not `cheat`. **Knowing this world's conflicts is study, not cheating**, and a student who has memorised one exam is exactly the failure mode the exit is written against.
+
+```
+    solution      home     away     change
+    competent     0.441    0.441   -0.001
+    tuned         0.430   -0.665   -1.096
+```
+
+Both halves hold. A solution that reasons carries across; one that memorised cal-a does not just lose its edge on cal-b, it becomes **actively harmful** — it applies a confident correction to data that does not deserve it.
+
+**What separates the two worlds is one operator's encoding.** cal-a publishes Ostline as `local_naive`, cal-b as `epoch_ms`, and Ostline is about 40 % of the network. That is the answer key travelling badly, and it is worth noticing how *little* difference was needed: the two worlds have matching profiles on all four references and differ in a single field of a single manifest.
+
+**The verdict matrix is the deliverable, not the row we got.** `transfers && !collapses` — the worlds too alike — is the row nothing before this could see, and it is precisely what a calibration search introduces by over-converging. The search shipped in the same milestone, so the test that can catch it shipped with it.
+
+### And the fixture hung before it could be read — `KNOWN-ISSUES.md` #45
+
+`tuned`'s decoder returns `NaN` on a world it was not baked for. That is deliberate and stated in `tuning.ts`: a key that noticed it was wrong and re-derived would be the generalising solution we already have. What was not deliberate is that `NaN` fails **every** comparison, including `existing.arriveS <= arriveS` — the test that made the planner's label set a shortest-path tree. Labels were rewritten on every visit, the predecessor chain gained a cycle, and reconstruction walked it forever: 21 minutes of CPU and 1.5 GB in one player process, and a transfer run that produced no verdict.
+
+Three guards, and the third is redundant on purpose: a non-finite arrival is not relaxed, a non-finite departure is not boarded, and reconstruction keeps a visited set. **This is the second unbounded predecessor walk to hang this project** — `#44` was the first, in the naive planner — and the family is now three deep with `#40`: *a relaxation whose termination depends on an ordering property of its edge weights, with nothing checking the weights have it.*
+
+The diagnosis is also a note about method. The hang looked like the harness, because the last one was orphaned processes holding ports; it was found by taking the model out of the server entirely and building it four ways — world A with no key, A with A's key, B with no key, B with A's key — which located it in one cell of that table in a few minutes. **A fixture built to fail must be run against the case it is built to fail on before it is wired into anything.**

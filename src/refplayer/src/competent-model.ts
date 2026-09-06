@@ -13,6 +13,7 @@ import {
   type MatchedStop,
   type Timetable,
 } from "./competent.ts";
+import { tunedDecoder, type Tuning } from "./tuning.ts";
 
 export interface CompetentModel {
   readonly stops: readonly MatchedStop[];
@@ -33,6 +34,15 @@ export interface CompetentModel {
 export function buildCompetentModel(
   timetables: readonly Timetable[],
   worldOffsetS: number,
+  /**
+   * A memorised answer key, for the overfitted `tuned` reference.
+   *
+   * Present, it **replaces** the two inferences below — the time decoder and
+   * the geometry displacement — with values baked from one specific world. On
+   * that world they are exact; on another they are confidently wrong, which is
+   * what memorisation looks like when the exam changes (`tuning.ts`).
+   */
+  tuning?: Tuning,
 ): CompetentModel {
   // **The reference frame is the one the others agree with, not the biggest.**
   //
@@ -77,13 +87,20 @@ export function buildCompetentModel(
   const decoders = new Map<string, (v: string | number) => number>();
 
   for (const t of timetables) {
-    decoders.set(t.operator, detectTimeDecoder(t, worldOffsetS));
+    const baked = tuning?.operators[t.operator];
+    decoders.set(
+      t.operator,
+      baked ? tunedDecoder(baked, worldOffsetS) : detectTimeDecoder(t, worldOffsetS),
+    );
 
     // Recover this operator's systematic displacement, if it has one, and
     // correct for it. Without this its stops look like neighbours of nothing.
-    const { dLat, dLon } = t.operator === reference.operator
-      ? { dLat: 0, dLon: 0 }
-      : estimateOffset(t, reference);
+    const bakedGeometry = tuning?.operators[t.operator];
+    const { dLat, dLon } = bakedGeometry
+      ? { dLat: bakedGeometry.dLat, dLon: bakedGeometry.dLon }
+      : t.operator === reference.operator
+        ? { dLat: 0, dLon: 0 }
+        : estimateOffset(t, reference);
 
     for (const s of t.stops) {
       const m: MatchedStop = {
@@ -204,6 +221,7 @@ export function planCompetently(
     for (const key of frontier) {
       const from = best.get(key)!;
       for (const b of model.boardings.get(key) ?? []) {
+        if (!Number.isFinite(b.departS)) continue;
         if (b.departS < from.arriveS) continue;
         if (model.cancelled.has(b.tripKey)) continue; // it will not run at all
 
@@ -214,6 +232,16 @@ export function planCompetently(
         for (let k = b.index + 1; k < b.stops.length; k++) {
           const st = b.stops[k]!;
           const arriveS = st.arriveS + delay;
+          // **A time that is not a number is not a time.** `tuned` decodes with
+          // a memorised encoding and, on a world that does not use it, returns
+          // NaN for every timestamp in that operator's feed. NaN fails every
+          // comparison, so `existing.arriveS <= arriveS` is false however many
+          // times a label is revisited: the label graph stops being a shortest
+          // path tree, gains cycles, and reconstruction below never terminates.
+          // Measured: one player process, 21 minutes of CPU and 1.5 GB before
+          // it was killed. Dropping the leg is also the honest answer — a
+          // solution that cannot read a departure time cannot board it.
+          if (!Number.isFinite(arriveS)) continue;
           const existing = best.get(st.key);
           if (existing && existing.arriveS <= arriveS) continue;
           best.set(st.key, {
@@ -265,8 +293,15 @@ export function planCompetently(
   if (chosen === null) return null;
 
   const legs: PlannedLeg[] = [];
+  const walked = new Set<string>();
   let cursor: string | null = chosen;
   while (cursor !== null) {
+    // The guard above should make this impossible; it is here because the same
+    // unbounded walk has now hung this project twice (`KNOWN-ISSUES.md` #44 in
+    // the naive planner, #45 here). A predecessor chain that revisits a stop is
+    // a broken label set, and the useful thing to do with one is stop.
+    if (walked.has(cursor)) break;
+    walked.add(cursor);
     const label: Label | undefined = best.get(cursor);
     if (!label) break;
     if (label.leg) legs.push(label.leg);

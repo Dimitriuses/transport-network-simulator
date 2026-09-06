@@ -186,11 +186,11 @@ world calibrates identically before and after.
 
 ---
 
-### P1M4 — Difficulty calibration — **in progress**
+### P1M4 — Difficulty calibration — **exit met on one calibrated pair; coverage outstanding**
 
 The tier ladder becomes real: generate to a requested tier, and verify. This is the phase exit.
 
-**Assigned here — the three questions about what a declared difficulty even means. All three are answered; the exit is not met, and the two are different things.**
+**Assigned here — the three questions about what a declared difficulty even means. All three are answered, and every exit clause is now measured on one calibrated tier-3 pair. What is outstanding is coverage — other tiers, more seeds — rather than method.**
 
 * ✅ **`KNOWN-ISSUES.md` #24 — difficulty is a property of the (world, solver) pair** — *resolved 2026-09-06*. Declared as a **profile** over the reference solutions rather than a scalar, and `npm run profile` measures it. The case for the vector is visible on the committed world: `blind` and `naive` have identical capture and information scores 0.605 apart, which one number cannot express.
 * ✅ **`KNOWN-ISSUES.md` #34 — a conflict's settings are chosen without reference to the world** — *resolved 2026-09-06*. `D-staleness` offered `[60, 300, 900]` and two of the three concealed nothing against a shortest announcement lead of 300 s. The rung is now stated in **effect space** and solved backwards, giving `[450, 600, 900]`; a test re-derives the list and fails if `noticeLeadS` moves without it. The *method* generalises; the closed form does not, and `C-coordinate-offset` will need the measured route instead.
@@ -200,14 +200,22 @@ The tier ladder becomes real: generate to a requested tier, and verify. This is 
 
 **Exit:** two independently generated worlds at the same declared tier produce matching difficulty *profiles* within a stated tolerance, **and a solution built for one performs comparably on the other**; and every tier's clearance bar is expressed in terms that survive a change of scale.
 
-**Status 2026-09-06 — three clauses met, one untouched.**
+**Status 2026-09-06 — all four clauses met, on one calibrated pair. Read the caveats below the table.**
 
 * ✅ **Difficulty is a profile, not a scalar** (`#24`). `npm run profile` reports what each reference solution achieves, as a vector. The tolerance is the world's own seed-to-seed spread, measured from the same runs rather than assumed — a threshold nobody has measured is a guess.
 * ✅ **The clearance bar survives a change of scale** (`SCORING.md`), as a position between named reference solutions rather than a decimal.
 * ✅ **Two same-tier worlds match, once calibrated** (`#42`). `npm run calibrate:tier` draws several conflict sets over one fixed city and ships the one nearest the generator's median, so a tier's difficulty is the generator's central tendency rather than whichever seed came first. All four references agree within noise, and `naive` went from **0.119 apart to 0.022**.
 
   **Uncalibrated worlds still vary, and that is the finding rather than a side effect:** a tier spans 0.097 to 0.260 on one reference, so shipping "the world for seed S" ships a draw from that range. `npm run world:generate` alone does not calibrate.
-* ⬜ **Non-memorisability** is untouched, and is the harder half. `PHASES.md` §284 states the requirement as *"non-memorisable tasks of equal difficulty — and it is not satisfied by matching conflict lists alone"*, which the shorthand "a solution built for one performs comparably on the other" loses half of.
+* ✅ **Non-memorisable** (`PHASES.md` §284), *measured 2026-09-06*. `npm run transfer` runs two solutions that should behave in opposite ways across the same pair of worlds:
+
+  ```
+      solution      home     away     change
+      competent     0.441    0.441   -0.001
+      tuned         0.430   -0.665   -1.096
+  ```
+
+  A solution that reasons carries across intact; one that memorised cal-a's answer key does not merely lose its edge on cal-b, it goes **actively harmful**. `PHASES.md` §284 states the requirement as *"non-memorisable tasks of equal difficulty — and it is not satisfied by matching conflict lists alone"*, which the shorthand "a solution built for one performs comparably on the other" loses half of; this measures both halves.
 
   **Two worlds of a tier must not hold the same conflicts.** Variety is the point of the generator, and the transfer test is not a request to give it up — it is a question about *which kind of solution* transfers:
 
@@ -218,7 +226,14 @@ The tier ladder becomes real: generate to a requested tier, and verify. This is 
 
   Only the first is written into the clause today, and on its own it is satisfiable by making the worlds too alike — which is the failure `PHASES.md` names when it says matching conflict lists is not enough. **Both halves need measuring, and the second needs a reference solution we do not have:** a deliberately overfitted one, written against a specific world, that *should* collapse on another.
 
-The second clause of the first sentence is the one that matters and the harder of the two. Matching numbers say the worlds are equally hard *in aggregate*; a solution transferring says they are hard *in the same way*. Only the second supports the assessment use case.
+The second clause of the first sentence is the one that matters and the harder of the two. Matching numbers say the worlds are equally hard *in aggregate*; a solution transferring says they are hard *in the same way*. Only the second supports the assessment use case — and it is now measured rather than assumed.
+
+**What the transfer result does not say.**
+
+* **Two seeds, one pair of worlds, one tier.** The separation is large enough that noise is not a plausible explanation — `tuned` moves 1.096 where `competent` moves 0.001 — but a single pair at tier 3 is not the ladder. Re-run on tier 1 and tier 5 pairs before the claim is general, and note that `#43` says tier 1 has no variety to transfer across in the first place.
+* **`competent` moving 0.001 is tighter than the world's own seed-to-seed noise**, which `#42` measured at roughly 0.02–0.065 on `naive`. That is the calibration search working as designed rather than a suspiciously good result, but it is a *mean over two seeds* and should not be quoted as a precision.
+* **`tuned` scores 0.430 at home against `competent`'s 0.441.** An exact answer key should be at least as good as an inferred one; the eleven-thousandths gap is inside the noise, and the plausible cause is that baked geometry corrects every operator to the truth while inference corrects them to a *consensus frame* the rest of the model was built against. Worth knowing before reading anything into a `tuned` home score.
+* **The fixture had to be made safe before it could be read.** `tuned`'s decoder returns `NaN` on a world it was not baked for, deliberately, and `NaN` fails the comparison that kept the planner's label set acyclic — the first transfer run hung for 21 minutes and produced nothing (`KNOWN-ISSUES.md` #45).
 
 ---
 
@@ -241,7 +256,7 @@ The second clause of the first sentence is the one that matters and the harder o
 
 **Generated worlds are harder to keep honest than hand-built ones.** The defect audit exists because a world can silently be easier than it declares, and it caught exactly that on its first run against a world where somebody had thought about every setting. A generator will produce combinations nobody thought about, so the audit, the identifiability audit, the symptom check and the ablation must run against **every** generated world rather than as a release check.
 
-**Equal difficulty is a strong claim, and the easy half is done.** `#24` is resolved — difficulty is a profile over the reference solutions — and two calibrated worlds now match on all four. **That is the aggregate half.** P1M4's real bar is a solution built for one world performing comparably on the other, and nothing measures it yet. Watch for the temptation to read "the profiles match" as "the exit is met".
+**Equal difficulty is a strong claim, and both halves are now measured on one pair.** `#24` is resolved — difficulty is a profile over the reference solutions — two calibrated worlds match on all four, and `npm run transfer` shows a generalising solution carrying across while a memorised one collapses. **What remains is coverage, not method:** one pair, one tier, two seeds. The temptation to watch for has moved rather than gone — reading "it held on cal-a and cal-b" as "it holds for the ladder".
 
 **A generator can reintroduce every Phase 0 failure at scale.** Each of these was found once, by hand, on one world: a query set that could not reward integration, a conflict placed where nothing expressed it, an ambiguity no solver could resolve, a conflict that cost points and showed nothing. **The instruments that caught them must run per generated world**, which is why P1M1 and P1M2's exits name them rather than assuming them.
 

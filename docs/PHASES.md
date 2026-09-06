@@ -281,7 +281,11 @@ Expected order, subject to that evidence:
 
 **Does not deliver:** city generation. That stays deferred to Phase 5.
 
-**Completion:** two independently generated worlds at the same declared tier produce matching P0−P1, P0−P2 and P1−P2 gaps within tolerance, and a solution built for one performs comparably on the other. That is the assessment use case's actual requirement — non-memorisable tasks of equal difficulty — and it is not satisfied by matching conflict lists alone.
+**Completion:** two independently generated worlds at the same declared tier produce matching **difficulty profiles** within tolerance, and a solution built for one performs comparably on the other. That is the assessment use case's actual requirement — non-memorisable tasks of equal difficulty — and it is not satisfied by matching conflict lists alone.
+
+*Amended at P1M4, twice.* The first clause said "matching P0−P1, P0−P2 and P1−P2 gaps"; `KNOWN-ISSUES.md` #24 established that **difficulty is a property of the (world, solver) pair**, so the quantity that has to match is a vector over the reference solutions — `npm run profile` — and three gaps measured on one baseline is a projection of it. The three-gap test remains what `npm run calibrate` reports; it is no longer what completion is stated against.
+
+*And the second clause needs two solutions, not one.* "A solution built for one performs comparably on the other" is satisfiable by making the worlds nearly identical, which is exactly what the sentence after it forbids. It is therefore read as a pair of opposite predictions, measured together by `npm run transfer`: a solution that **generalises** should transfer, and one **overfitted to a specific world** should collapse. If the second also transfers, that world's specifics never mattered — the failure a calibration search introduces by over-converging, and the one nothing before P1M4 could see.
 
 ---
 

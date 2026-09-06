@@ -1516,4 +1516,34 @@ city seed 481516                    city seed 20260906
 * **Cost.** Six candidates at two seeds is about ten minutes per city, plus the comparison. That is a calibration step rather than a build step, and `npm run world:generate` still produces an uncalibrated world in about a minute.
 * **The search can fail**, and must be allowed to. If no draw lands near the median that is a finding about the catalogue's reach, not a reason to widen the tolerance.
 
-**The second half of P1M4's exit is untouched:** matching profiles say the worlds are equally hard *in aggregate*, not that they are hard *in the same way*. Only a solution built for one and run on the other says that.
+**The second half of P1M4's exit was untouched at the time of writing, and is not now:** matching profiles say the worlds are equally hard *in aggregate*, not that they are hard *in the same way*. Only a solution built for one and run on the other says that — `npm run transfer`, which on this pair moves `competent` by 0.001 and `tuned` by 1.096. The row it exists to catch is the one where `tuned` *also* transfers, which is what an over-converging search would produce.
+---
+
+## 45. The competent planner does not terminate on times it cannot decode — `fixed at P1M4`
+
+Building the overfitted `tuned` reference produced a solution whose decoder returns `NaN` on a world it was not baked for — deliberately, since a key that noticed it was wrong and re-derived would be the generalising solution we already have. The first transfer run then hung: one player process, **21 minutes of CPU and 1.5 GB of resident memory**, no output, killed without a verdict.
+
+**`NaN` fails every comparison, including the one that made the label set a tree.** `planCompetently` relaxes a label only when it improves on what is there:
+
+```ts
+if (existing && existing.arriveS <= arriveS) continue;
+```
+
+With `arriveS` a number that is never `<=` anything, the guard never fires. A stop is rewritten every time it is reached, its `prev` pointer follows whichever expansion touched it last, and the predecessor chain gains a cycle. Reconstruction walks that chain with `while (cursor !== null)` and never leaves it, pushing a leg per turn until the array runs out of addressable length.
+
+Reproduced outside the harness with the two calibrated worlds: cal-a's answer key on cal-b makes **3,906 of 6,586 boardings undecodable** (Ostline, which publishes `local_naive` there and `epoch_ms` on cal-a).
+
+### The fix, in three places
+
+* A leg whose arrival is not finite is not relaxed, and a boarding whose departure is not finite is not boarded. *A time that is not a number is not a time*, and dropping it is also the honest answer — a solution that cannot read a departure cannot board it.
+* Reconstruction keeps a visited set and stops on a repeat. The guard above should make that unreachable; it is there because this is the second unbounded predecessor walk to hang this project (`#44` was the first, in the naive planner).
+
+`src/refplayer/test/undecodable.test.ts` asserts the discriminating property rather than termination: the right key plans the journey, a key from another world plans nothing, and inference agrees with a matching key. **A termination-only assertion would pass on a planner that returns `null` for everything.**
+
+### What it changes about the fixture
+
+Nothing about its intent, and it makes the collapse legible instead of fatal: `tuned` carrying cal-a's key onto cal-b now plans **126 of 200 journeys** where inference plans 200. That is a score, which is what the two-sided test needs.
+
+### The family this belongs to
+
+`#40` records that the router is not monotone; `#44` that a negative edge from a unit error made the naive player's relaxation diverge. This is the third defect in a label-relaxation loop, and all three have the same shape: **a relaxation whose termination depends on an ordering property of its edge weights, with nothing checking that the weights have it.**

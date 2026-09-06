@@ -16,4 +16,5 @@
 
 export const PACKAGE_NAME = "@tns/refplayer";
 
+export * from "./tuning.ts";
 export * from "./player.ts";
