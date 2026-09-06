@@ -166,7 +166,48 @@ def test_the_shape_responds_to_its_spec() -> None:
     `KNOWN-ISSUES.md` #32 needs difficulty levers the conflict catalogue cannot
     supply, and network shape is where they come from.
     """
-    small = _net(arms=4, sites_per_arm=3)
-    large = _net(arms=8, sites_per_arm=5)
+    small = _net(arms=4, sites_per_arm=3, chords=2)
+    # Longer arms give the radial operator more stops, so the ring operator
+    # needs more chords to stay under `max_reach_share`. That coupling is real
+    # rather than an inconvenience: a bigger city needs a bigger tram network.
+    large = _net(arms=8, sites_per_arm=5, chords=6)
     assert len(large.quays) > len(small.quays)
     assert len(large.lines) > len(small.lines)
+
+
+def test_no_operator_covers_most_of_the_stops() -> None:
+    """Real agencies cover their own region or their own role, not the city.
+
+    A world where one operator serves most of the stops is unrealistic on its
+    face, and it also breaks conflict placement: conflicts are weighted by
+    reach, so the dominant operator collects most of them, its feed stops being
+    usable, and a player who ignores it outscores one who tries
+    (`KNOWN-ISSUES.md` #38).
+    """
+    for seed in SEEDS:
+        net = _net(seed)
+        reach = N.operator_reach(net)
+        total = sum(reach.values())
+        worst, served = max(reach.items(), key=lambda kv: kv[1])
+        assert served / total <= N.NetworkSpec().max_reach_share, (
+            f"seed {seed}: {worst} serves {served} of {total} line-stops "
+            f"({100 * served / total:.0f} %)"
+        )
+
+
+def test_the_ring_belongs_to_the_operator_that_does_not_run_the_radials() -> None:
+    """Connecting the ends without going through the centre is a different job.
+
+    A star-shaped operator serves that journey badly, which is exactly why the
+    ring exists and exactly why it is somebody else's line. Giving it to the
+    radial operator is what pushed that operator to 67 % of the network.
+    """
+    for seed in SEEDS:
+        net = _net(seed)
+        ring = next(ln for ln in net.lines if ln.id == "line-orbital")
+        radials = {
+            ln.operator for ln in net.lines if ln.id.startswith("line-") and ln.name.isdigit()
+        }
+        assert ring.operator not in radials, (
+            f"seed {seed}: the ring is run by {ring.operator}, which also runs the radials"
+        )

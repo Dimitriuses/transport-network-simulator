@@ -133,9 +133,13 @@ That last clause is a prerequisite for P1M4 rather than a nicety. Phase 0 measur
 
 ---
 
-### P1M3 — Name generation — **blocked on `KNOWN-ISSUES.md` #38**
+### P1M3 — Name generation
 
-A generated world currently **fails Gate 3**, and `null` outscores `naive` on it: declining every obligation beats attempting them. The cause is conflict placement, not naming — `generate.py` weights by reach without a bound, so the operator carrying two thirds of the network collects three quarters of the conflicts and its feed stops being usable. Naming cannot be validated against a world whose gates fail for an unrelated reason.
+**Unblocked 2026-09-06** — `KNOWN-ISSUES.md` #38 is fixed. The ring moved to the operator whose job it is, no operator now covers most of the stops, and conflicts are capped at half. The naive player went from forgoing 95 % of obligations to 19 %.
+
+**P1M3 is now load-bearing rather than cosmetic, which #39 established.** `publishedName` implemented the colloquial variant as a hard-coded lookup of the hand-authored city's five best-known places. On a generated city it rewrote **one name in thirty-three** and the audit reported MISS on an operator whose stops it did not know. A stop-gap rule — keep the distinctive part, drop the descriptive tail — makes the conflict expressible; it is not name *generation*.
+
+So the milestone has a concrete requirement it did not have before: **a generated city must carry its own names and its own variants of them**, because a lookup of another city's names is a phrasebook rather than a defect.
 
 
 

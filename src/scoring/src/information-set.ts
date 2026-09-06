@@ -42,6 +42,16 @@ export interface LeakFinding {
   readonly excessS: number;
   /** What it appears to have known early. */
   readonly explanation: string;
+  /**
+   * Replans this traveller was issued after the plan being audited.
+   *
+   * **The bound is computed at plan time**, and a replan is answered later with
+   * information that did not exist then. A journey that beat the bound *and*
+   * replanned has an ordinary explanation; one that beat it without replanning
+   * does not. Reported because the two need opposite responses and the
+   * excess alone cannot tell them apart.
+   */
+  readonly replans: number;
 }
 
 export interface AuditResult {
@@ -131,6 +141,16 @@ export function auditInformationSets(
     }
   }
 
+  // Replans per traveller, so a finding can say whether later information could
+  // account for it. See `LeakFinding.replans`.
+  const replansFor = new Map<string, number>();
+  for (const r of log) {
+    if (r.kind !== "obligation") continue;
+    const o = r as ObligationRecord;
+    if (o.obligation !== "replan" || !o.travellerRef) continue;
+    replansFor.set(o.travellerRef, (replansFor.get(o.travellerRef) ?? 0) + 1);
+  }
+
   const findings: LeakFinding[] = [];
   // The statistical tell. Comparing *times* against a sound bound turns out to
   // be too permissive to catch anything: a bound that is optimistic about
@@ -215,6 +235,7 @@ export function auditInformationSets(
       actualS: outcome.journeyS,
       boundS,
       excessS: excess,
+      replans: replansFor.get(o.travellerRef) ?? 0,
       explanation:
         early.length > 0
           ? `beat its information set by ${Math.round(excess)}s; ${early.length} disruption(s) ` +
@@ -232,6 +253,9 @@ export function auditInformationSets(
       actualS: 0,
       boundS: 0,
       excessS: 0,
+      // A whole-run finding, not a traveller's: replans are not what would
+      // explain it.
+      replans: 0,
       explanation:
         `never once boarded a service it could not have known was cancelled, ` +
         `where an optimal planner with the same information would have done so ` +

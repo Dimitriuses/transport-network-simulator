@@ -104,15 +104,20 @@ The list above says what routes may *look* like. It does not say what a network 
 | a hub with several quays | makes the Site/Quay distinction real, and is the only thing that lets `A-granularity` be placed at all |
 | radials through the hub on alternating stands | so some transfers are free and others cost a walk |
 | an orbital that never touches the hub | the only link between two arms; a real decision rather than a detour |
-| a chord on a second operator, bypassing the hub | **the headroom** |
+| the ring, and chords, on a *second* operator | **the headroom** — and connecting the ends without going through the centre is the journey a star-shaped operator serves badly, so it is a different company's business |
 | that operator's stops a short walk from the first's, in *separate Sites* | undeclared interchanges: `P0` may transfer there, the reference policy may not |
 | a low-reach regional third operator | a third dialect, deliberately marginal |
 
 **The fifth is not a parameter.** The difference between the unrestricted and restricted transfer graphs *is* what a player competes for (`REFERENCE-POLICY.md` §4.1); without undeclared interchanges a network has zero headroom and no scored journey on it can reward integration, whatever else is true of it.
 
+**No operator may serve most of the stops.** Real agencies cover their own region or their own role; none covers the city. A world where one does is unrealistic on its face, and it breaks the conflict placement that depends on reach: the dominant operator collects most of the conflicts, its feed stops being usable, and because it carries most of the network **a player who ignores it outscores one who tries**. That is not difficulty, it is a world that punishes participation — `KNOWN-ISSUES.md` #38, where `null` beat `naive` and Gate 3 failed.
+
+**Placement is weighted by reach, and bounded.** P0M10's finding — that moving conflicts onto the operator carrying the network doubled their cost — argues against putting them all on the smallest, not for putting them all on the biggest. The hand-authored world splits its conflicts evenly between its largest and smallest operators, and no generated world may exceed half on any one.
+
 **Two numbers about geometry are load-bearing and were invisible until a generator chose them badly:**
 
 * **A quay must never sit on its own site's centroid.** A Site is a station complex, a Quay a boarding point within it. Placing them identically makes `A-coordinate-source: site` publish exactly what `quay` publishes (`KNOWN-ISSUES.md` #30).
+* **A coordinate offset must exceed the grid its own published precision rounds onto.** Three decimal places is a ~111 m grid, so a 60 m offset beside it rounds away and the world declares a conflict it does not contain (`KNOWN-ISSUES.md` #39). This is the numeric form of the masking relation above, and it needs arithmetic rather than a list.
 * **Two distinct quays must not sit on top of each other.** The lazy integrator's stop-matching tolerance is derived from the closest genuine pair, strictly below it; let two drift to 7 m apart and the tolerance becomes 6 m, at which point no operator's published position matches any other's and `P2` degenerates into `P1`.
 
 ### Generating Information Systems

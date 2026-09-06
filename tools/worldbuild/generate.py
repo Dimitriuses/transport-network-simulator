@@ -68,6 +68,42 @@ class OperatorSpec:
 REQUIRES: dict[str, str] = {"A-granularity": "collapsible_sites"}
 
 
+#: Metres per degree of latitude, for turning a published precision into the
+#: size of the grid it rounds onto. Same constant the network generator and the
+#: query selector use.
+_M_PER_DEG = 111320.0
+
+
+def _precision_quantum_m(precision: object) -> float:
+    """How far apart the points a coordinate can land on are, at this precision.
+
+    Three decimal places is a ~111 m grid, four is ~11 m, six is ~0.11 m.
+    """
+    return _M_PER_DEG / (10 ** int(precision))
+
+
+def _masked(setting: catalogue.Setting, value: object, manifest: dict) -> bool:
+    """Would this setting be invisible next to what the operator already does?
+
+    `excludes` handles the categorical case — a lat/lon swap destroys geometry,
+    so nothing subtler under it can be seen. **This is the numeric case**, and
+    it is the same failure one level down: a coordinate offset smaller than the
+    grid its own published precision rounds onto simply disappears.
+
+    Found at P1M2 by the defect audit, on a world where rebalancing had put a
+    60 m offset beside 3-decimal precision: 3 dp is a 111 m grid, the offset
+    rounded away, and the audit reported `median 0 m` against a declared 60 m
+    (`KNOWN-ISSUES.md` #39).
+    """
+    geometry = manifest.get("geometry", {})
+    if setting.conflict == "C-coordinate-offset":
+        return float(value) <= _precision_quantum_m(geometry.get("precision", 6))
+    if setting.conflict == "A-coordinate-precision":
+        offset = float(geometry.get("offset_m", 0))
+        return offset > 0 and offset <= _precision_quantum_m(value)
+    return False
+
+
 def _expressible(setting: catalogue.Setting, value: object, cat: catalogue.Catalogue) -> bool:
     """Can this *value* show up in the data, given the rest of the world?
 
@@ -96,6 +132,26 @@ def _expressible(setting: catalogue.Setting, value: object, cat: catalogue.Catal
 #: claim about how hard a world is, and the count is the crudest lever on that;
 #: `P1M4` replaces these with a measured band.
 TIER_DENSITY: dict[int, float] = {0: 0.0, 1: 1.0, 2: 0.55, 3: 0.6, 4: 0.7, 5: 0.8}
+
+#: The largest share of a world's conflicts any one operator may carry.
+#:
+#: **Placement is weighted by reach, and unbounded that becomes a wall.** P0M10
+#: measured that moving conflicts onto the operator carrying the network doubled
+#: their cost, and this generator turned that into "place them in proportion to
+#: reach" — a stronger claim than the measurement supports. The result was one
+#: operator holding three quarters of the conflicts: its feed stopped being
+#: usable, and since it carried most of the network, a player who ignored it
+#: outscored one who tried. `null` beat `naive`, and Gate 3 failed
+#: (`KNOWN-ISSUES.md` #38).
+#:
+#: The hand-authored world, which passes every gate, splits its conflicts 46/46
+#: between its largest and smallest operators. Half is that shape stated as a
+#: rule rather than a number chosen to make a measurement pass.
+#:
+#: A conflict over the cap is **moved** to another operator that can express it,
+#: not deleted — the tier's density is a separate claim and should not quietly
+#: fall because placement was rebalanced.
+MAX_CONFLICT_SHARE: float = 0.5
 
 
 def _pick(rng: random.Random, options: tuple[object, ...], bias: float) -> object:
@@ -177,7 +233,11 @@ def generate_manifests(
                 # A stronger world reaches further up each setting's range —
                 # but the range itself never leaves what is plausible, and a
                 # value that cannot express itself is not in the range at all.
-                usable = tuple(v for v in setting.generate if _expressible(setting, v, cat))
+                usable = tuple(
+                    v
+                    for v in setting.generate
+                    if _expressible(setting, v, cat) and not _masked(setting, v, manifest)
+                )
                 if not usable:
                     continue
                 value = _pick(rng, usable, bias=min(1.0, tier / 5.0))
@@ -194,10 +254,115 @@ def generate_manifests(
 
         manifests.append(manifest)
 
+    _rebalance(manifests, settings, cat, reference, {o.id: o for o in operators})
+
     # Restore the caller's order: downstream code and the content hash should
     # not depend on how this function happened to rank operators.
     by_id = {m["id"]: m for m in manifests}
     return tuple(by_id[o.id] for o in operators)
+
+
+def _conflicts_of(
+    manifest: dict, settings: tuple[catalogue.Setting, ...]
+) -> list[catalogue.Setting]:
+    """The settings this operator departs from the default on, in catalogue order."""
+    return [s for s in settings if manifest.get(s.group, {}).get(s.key, s.off) != s.off]
+
+
+def _rebalance(
+    manifests: list[dict],
+    settings: tuple[catalogue.Setting, ...],
+    cat: catalogue.Catalogue,
+    reference: str | None,
+    specs: dict[str, OperatorSpec],
+) -> None:
+    """Move conflicts off any operator carrying more than its share.
+
+    See `MAX_CONFLICT_SHARE`. Deterministic throughout: the overloaded operator
+    is chosen by count then id, the conflict to move is the first in catalogue
+    order that another operator can take, and the receiving operator is the one
+    with the fewest conflicts, ties broken by id. No `Random` is consulted —
+    rebalancing is a correction, and a correction that depended on the draw
+    would make the same world rebalance differently on a different day.
+    """
+    by_id = {m["id"]: m for m in manifests}
+
+    for _ in range(len(settings) * len(manifests)):
+        counts = {m["id"]: len(_conflicts_of(m, settings)) for m in manifests}
+        total = sum(counts.values())
+        if total == 0:
+            return
+        worst_id = max(sorted(counts), key=lambda k: counts[k])
+        if counts[worst_id] / total <= MAX_CONFLICT_SHARE:
+            return
+
+        donor = by_id[worst_id]
+        moved = False
+        for setting in _conflicts_of(donor, settings):
+            value = donor[setting.group][setting.key]
+            takers = sorted(
+                (
+                    m
+                    for m in manifests
+                    if m["id"] != worst_id
+                    and m["id"] != reference
+                    and m.get(setting.group, {}).get(setting.key, setting.off) == setting.off
+                    and _can_take(m, setting, value, settings, cat, specs)
+                ),
+                key=lambda m: (counts[m["id"]], m["id"]),
+            )
+            if not takers:
+                continue
+            donor[setting.group][setting.key] = setting.off
+            takers[0][setting.group][setting.key] = value
+            _fix_prefix(donor)
+            _fix_prefix(takers[0])
+            moved = True
+            break
+
+        # Nothing can be moved — every remaining conflict is one no other
+        # operator can express or already has. Dropping it would be the wrong
+        # trade: an unbalanced world is a worse problem than a slightly thinner
+        # one, but a *silently* thinner one is worse than both, so this stops
+        # and lets the audit and `npm run fallback` report what is there.
+        if not moved:
+            return
+
+
+def _can_take(
+    manifest: dict,
+    setting: catalogue.Setting,
+    value: object,
+    settings: tuple[catalogue.Setting, ...],
+    cat: catalogue.Catalogue,
+    specs: dict[str, OperatorSpec],
+) -> bool:
+    """Could this operator express this conflict, at this value?
+
+    The same three rules placement obeys — capability, exclusion, and whether
+    the value can express itself against the world's other parameters. A
+    rebalance that ignored them would move a conflict somewhere it does nothing,
+    which is exactly what `KNOWN-ISSUES.md` #30 and #19 are about.
+    """
+    need = REQUIRES.get(setting.conflict)
+    if need is not None and getattr(specs[manifest["id"]], need) == 0:
+        return False
+    if not _expressible(setting, value, cat):
+        return False
+    if _masked(setting, value, manifest):
+        return False
+    held = {s.conflict for s in _conflicts_of(manifest, settings)}
+    return not any(
+        other in setting.excludes or setting.conflict in _excludes_of(cat, other) for other in held
+    )
+
+
+def _fix_prefix(manifest: dict) -> None:
+    """`prefixed` ids need a prefix; a bare-int operator must not keep one."""
+    if manifest["identity"]["id_scheme"] == "prefixed":
+        manifest["identity"]["prefix"] = manifest["id"][:2].upper()
+    else:
+        manifest["identity"]["prefix"] = ""
 
 
 def describe(manifests: tuple[dict, ...]) -> list[str]:

@@ -18,8 +18,9 @@ than a graph:
                            which pair.
   an orbital               that never touches the hub, and is the only link
                            between two arms. Journeys between them either wait
-                           for it or cross the city.
-  a chord on operator B    bypassing the hub entirely. **This is the headroom.**
+                           for it or cross the city. **It belongs to operator B,
+                           not to the operator running the radials.**
+  chords on operator B     bypassing the hub entirely. **This is the headroom.**
   undeclared interchanges  operator B's stops sit a short walk from operator A's
                            but in *separate Sites*, so nobody has declared them
                            to be the same place. P0 may transfer there, P1 may
@@ -31,6 +32,28 @@ than a graph:
 **Remove the fifth and the headroom goes to zero**, and with it any possibility
 of a scored journey rewarding integration. That is not a tuning parameter; it is
 the reason the world exists.
+
+## Who runs what, and why no operator may dominate
+
+The roles above are a division of labour, not a partition of a single company:
+
+  operator A   star-shaped. Carries people from the centre to the outskirts and
+               back, on radials through the hub.
+  operator B   the ring and the chords. Connects the ends to each other *without
+               going through the centre*, which is exactly the journey operator
+               A serves badly.
+  operator C   regional, fast, infrequent, terminus to terminus.
+
+**No operator may serve most of the stops.** Real agencies cover their own
+region or their own role; none of them covers the city. The first generated
+network gave operator A the radials *and* the ring — 44 of 66 line-stops, 67 %
+of the network — and the consequence was not merely unrealistic. Conflicts are
+placed in proportion to reach, so operator A also collected three quarters of
+them, its feed became unusable, and a player who ignored it outscored one who
+tried: `null` beat `naive` and Gate 3 failed (`KNOWN-ISSUES.md` #38).
+
+The ring moved to operator B, which is where the role description always put it,
+and `max_reach_share` now states the rule and checks it.
 
 ---
 
@@ -104,7 +127,11 @@ class NetworkSpec:
     #: Metres between consecutive sites on an arm.
     arm_spacing_m: float = 700.0
     #: Chord lines on the second operator, each bypassing the hub.
-    chords: int = 2
+    #:
+    #: Four rather than two since P1M2: the second operator runs the ring as
+    #: well as the chords, and it has to be a real network rather than a
+    #: garnish, or the first operator ends up covering most of the city.
+    chords: int = 4
     #: How far the second operator's stops sit from the first's. Short enough
     #: to walk, and in a separate Site, so the interchange is real and
     #: undeclared. The hand-built city uses ~60-80 m.
@@ -112,6 +139,15 @@ class NetworkSpec:
     #: Lines on the third, regional operator: fast, infrequent, terminus to
     #: terminus, deliberately low reach.
     regional_lines: int = 3
+    #: The largest share of line-stops any one operator may serve.
+    #:
+    #: **A single operator cannot cover most of the stops.** Real agencies cover
+    #: their own region or their own role. A world where one does is unrealistic
+    #: on its face, and it also breaks the conflict placement that depends on
+    #: reach: the dominant operator collects most of the conflicts, its feed
+    #: stops being usable, and because it carries most of the network a player
+    #: who ignores it outscores one who tries (`KNOWN-ISSUES.md` #38).
+    max_reach_share: float = 0.5
     #: The closest two distinct quays may be.
     #:
     #: **Not cosmetic.** `naiveMatchThresholdM` derives the lazy integrator's
@@ -286,13 +322,21 @@ def generate_network(
             )
         )
 
-    # ---- operator A: an orbital that never touches the hub ----------------
-    # The only link between arms that do not share a radial. Journeys between
-    # them either wait for it or cross the city, which is a real decision.
+    # ---- operator B: the ring that never touches the hub -------------------
+    #
+    # **Operator B's, not operator A's.** Connecting the ends to each other
+    # without going through the centre is precisely the journey a star-shaped
+    # operator serves badly, and in a real city it is a different company's
+    # business. Giving it to the radial operator was what pushed that operator
+    # to 67 % of the network (`KNOWN-ISSUES.md` #38).
+    #
+    # It runs on operator A's quays, though: a ring bus calls at the same kerb.
+    # That is a declared interchange and costs nothing to discover — the
+    # undeclared ones are operator B's *own* stops, placed below.
     mid = spec.sites_per_arm // 2
     orbital = tuple(f"q-{names[a]}{mid + 1}" for a in range(spec.arms))
     lines.append(
-        Line("line-orbital", "O", "nordline", orbital, 6 * 3600, 22 * 3600, 24 * 60, 7.5, 30)
+        Line("line-orbital", "O", "ostline", orbital, 6 * 3600, 22 * 3600, 24 * 60, 7.5, 30)
     )
 
     # ---- operator B: its own sites, a short walk from A's ------------------
@@ -414,6 +458,17 @@ def generate_network(
     # integrator can match anything at all, and a spec that violates it produces
     # a world where `P1 - P2` is negative for a reason nothing else reports.
     # Failing loudly here beats discovering it in a calibration two steps later.
+    reach = operator_reach(net)
+    total = sum(reach.values()) or 1
+    biggest, served = max(reach.items(), key=lambda kv: (kv[1], kv[0]))
+    if served / total > spec.max_reach_share:
+        raise ValueError(
+            f"{biggest} serves {served} of {total} line-stops "
+            f"({100 * served / total:.0f} %), over the {100 * spec.max_reach_share:.0f} % "
+            f"maximum. A single operator cannot cover most of the stops, and one that "
+            f"does also collects most of the conflicts (see KNOWN-ISSUES.md #38)."
+        )
+
     closest, pair = closest_quays(net)
     if closest < spec.min_quay_separation_m:
         raise ValueError(

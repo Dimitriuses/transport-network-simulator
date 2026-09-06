@@ -35,6 +35,7 @@
     "identifiability": "node src/scoring/scripts/identifiability.ts",
     "symptoms": "node src/scoring/scripts/symptoms.ts",
     "fallback": "node src/scoring/scripts/fallback.ts",
+    "leak": "node src/scoring/scripts/leak.ts",
     "information": "node src/scoring/scripts/information.ts",
     "lead": "node src/scoring/scripts/lead.ts",
     "headroom": "node src/scoring/scripts/headroom.ts"

@@ -968,7 +968,7 @@ Two numbers that had to agree, written in different places, compared by nothing 
 
 ---
 
-## 38. Reach-weighted placement concentrates conflicts until the network's own operator is unusable — `open`
+## 38. Reach-weighted placement concentrates conflicts until the network's own operator is unusable — `fixed at P1M2`
 
 The first time `npm run gates` was pointed at a generated world — possible only after `#35`, `#36` and `#37` — it **failed**.
 
@@ -1016,10 +1016,125 @@ The hand-authored world does not do this. It splits conflicts between the **bigg
 * **Choose the clean reference by usefulness rather than by smallness.** The generator keeps the *least*-reaching operator honest, so the clean feed is nine line-stops of sixty-six — enough to be a coordinate reference, not enough to route on. `m1` keeps a middle operator clean.
 * **Neither, and accept that Tier 3 is this hard.** Hard to justify while `null` beats `naive`: that is not difficulty, it is a world that punishes participation.
 
-**Not fixed here deliberately.** `PHASES.md`: *a failed gate is a legitimate outcome and must be allowed to stop the project rather than be tuned away.* Choosing a placement bound changes what every generated tier means, and it should be chosen on purpose.
+**Not fixed on the spot deliberately.** `PHASES.md`: *a failed gate is a legitimate outcome and must be allowed to stop the project rather than be tuned away.* Choosing a placement bound changes what every generated tier means, so it was put to the project owner rather than picked.
 
-**Blocks P1M3.** Naming generation cannot be validated against a world whose gates fail for an unrelated reason.
+### Fixed, 2026-09-06 — the cap, and the reason it was needed
+
+The bound was chosen, with a domain argument that turned out to name a second defect:
+
+> Companies don't try to cover all stops with a single route; they cover their own region. One company runs star-shaped routes from the centre to the outskirts, while another connects the ends in a loop, travelling between regions without passing through the centre. **A single operator cannot cover most of the stops.**
+
+That is a statement about **reach**, not about conflicts, and it identified something the analysis above had treated as given. The generator was assigning the radials *and* the ring to the same operator — so of course it reached two thirds of the network. The role description had always put the ring on the other operator: connecting the ends without going through the centre is precisely the journey a star-shaped operator serves badly.
+
+Two changes, in that order:
+
+**The ring changed hands**, and `chords` rose from 2 to 4 so the ring operator is a network rather than a garnish. `NetworkSpec.max_reach_share` now states the rule and `generate_network` checks it.
+
+| | before | after |
+|---|---|---|
+| nordline — radials | 44 of 66 (**67 %**) | 36 of 76 (**47 %**) |
+| ostline — ring and chords | 13 (19 %) | 31 (40 %) |
+| sudbahn — regional | 9 (13 %) | 9 (11 %) |
+
+**Then the cap**, `generate.MAX_CONFLICT_SHARE = 0.5`. A conflict over the bound is **moved** to another operator that can express it, not deleted — the tier's density is a separate claim and should not quietly fall because placement was rebalanced. The move obeys the same three rules placement does: capability (`REQUIRES`), exclusion, and expressibility. Conflicts now land 46 / 53 rather than 76 / 23.
+
+**The result, same player, same 200 journeys:**
+
+| | before | after |
+|---|---|---|
+| obligations forgone | 190/200 (**95 %**) | 37/200 (**19 %**) |
+| journeys beaten against `P1` | 1 | **46** |
+| replans | 9 ok, 5 player_error, 1 no_route | **93 ok, none failed** |
+
+For comparison the hand-authored world forgoes 27 of 98 (28 %). The generated world is now *less* punishing than the one every Phase 0 result was measured on, while carrying more headroom.
+
+**What the shuffle exposed:** two conflicts that could not express themselves on a generated city at all — `KNOWN-ISSUES.md` #39. Neither was caused by the rebalance; it only moved them somewhere their silence was visible.
+
+### A generated world now passes every gate
+
+```
+mode        capture   information   headline   arrived
+null         -1.000         0.000     -0.600   172/200
+blind         0.014         0.000      0.008   172/200
+naive         0.014         0.424      0.178   172/200
+competent     0.394         0.565      0.462   169/200
+
+1a  PASS   8.89m reachable of 10.95m; ambiguity 1 % against a 25 % bar
+1b  PASS   a lazy integrator captures 0.441 of reachable headroom
+1c  PASS by decision
+2   PASS   four distinct scores, in the order REFERENCE-POLICY.md §8 wants
+3   PASS   conflicts cost 3.04m, 28 % of 10.95m headroom, bar 20 %
+```
+
+The ordering is the part worth reading twice. Before: `null` −0.600 beat `naive` −0.666 and `blind` −0.751 — declining every obligation outscored attempting them. After: `null` −0.600 < `blind` 0.008 < `naive` 0.178 < `competent` 0.462, which is what §8 asks for and what the hand-authored world produces.
+
+Gate 3 went from **20 %** (a marginal fail against a bar of *more than* 20 %) to **28 %**, and the conflicts cost 3.04m — almost exactly the committed world's 3.01m, on a world with more headroom.
+
+**One diagnostic is not clean:** the audit column reports `LEAK` for every solution that plans, which is `KNOWN-ISSUES.md` #40 and not a gate.
 
 ### Also learned
 
 `npm run gates` on a 200-journey world takes **~40 minutes** — 28 for the four solutions, 12 for the ablation. P1M4 has to compare worlds pairwise across seeds, so this is a real constraint on that milestone rather than an inconvenience. `network.SCORED_TARGET` is the lever, and 200 buys only a little resolution over 98: seed-to-seed scatter fell from 10 % to 7 %.
+
+---
+
+## 39. Two conflicts that could not express themselves on a generated city — `fixed at P1M2`
+
+Both surfaced the moment `#38`'s rebalance moved conflicts onto an operator that had not held them before. Neither is about the rebalance; it only shuffled the deck enough for them to show.
+
+### `C-coordinate-offset: 60` under `A-coordinate-precision: 3`
+
+The audit reported `published positions sit a median 0 m from where this operator would put them unoffset (manifest declares 60 m)`.
+
+Three decimal places is a **~111 m grid**. A 60 m offset moves a point less than half a cell, so it usually rounds back to where it started and vanishes. Declared, audited, and absent.
+
+This is `#29`'s masking relation one level down. `excludes` handles the categorical case — a lat/lon swap destroys geometry, so nothing subtler beneath it is visible. **This is the numeric case, and it needs arithmetic rather than a list:** an offset must exceed the grid its own published precision rounds onto. `generate._masked` checks it in both directions, since either setting may be placed first.
+
+### `A-naming: colloquial` on a city nobody wrote a phrasebook for
+
+`publishedName` implemented the colloquial variant as a **hard-coded lookup of the hand-authored city's place names** — five entries, "Central Square" to "Tsentralna" and four termini. A generated city's places are not in it, so the function returned the official name unchanged and the conflict did nothing: **one name rewritten in thirty-three**, and MISS outright on an operator whose stops happened to include none of the five.
+
+A lookup of one city's names is not a naming defect; it is that city's phrasebook.
+
+**Fixed** by keeping the table for the names it knows — so the committed world's published names are unchanged where it hits — and falling back to the rule locals actually follow: keep the distinctive part, drop the descriptive tail. "Linden Park tram stop" is "Linden"; "Foundry Gate" is "Foundry". Two places differing only in that tail collapse onto one published name, which is the reconciliation problem `A-naming` exists to pose.
+
+**The committed world's published names do change** for places outside the table — `A-naming:nordline` goes from a near-no-op to 14 of 31 names rewritten. **No score moves**, and that was checked rather than assumed: `npm run calibrate` on `m1` gives 8.37 / 5.17 / 3.20 m and 33 fallbacks before and after. Published names are carried by every solver and used for matching by none, which is exactly the caveat `CORECONCEPT.md` §2.1 attaches to `A-naming`'s measured zero — *the lazy baseline matches on geometry and never consults a name.*
+
+**This is P1M3's job, arriving early.** Name generation has to produce names *and* their variants; a generated world cannot borrow another city's phrasebook. The fallback rule is enough to make the conflict expressible, and no more than that.
+
+---
+
+## 40. The information-set audit's bound is beaten by a traveller that never replanned — `open`
+
+`npm run gates` against a generated world reports `LEAK` in its audit column for every solution that actually plans. The committed world reports `clean` for all four.
+
+That column is **`auditInformationSets`, not the P0 quarantine** — two different checks that are easy to confuse, and the scorecard's own verdict on the same run is `scored`, with **zero** travellers arriving sooner than perfect information allows. So nothing beat the oracle. What was beaten is the audit's own, stronger bound.
+
+```
+  scorecard verdict          scored
+  travellers beating P0      0
+  plan obligations checked   200
+  beat their own information 1
+
+    g020  by 5.7m  (23.6m against a bound of 29.3m)  0 replan(s)
+```
+
+### Why one finding in two hundred is still a problem
+
+The bound's soundness argument is explicit in `information-set.ts`:
+
+> Take the optimal plan available under what had actually been served, and its predicted arrival. Reality only ever adds delay and cancellation — it never makes a journey quicker than planned — so any player restricted to that information realises a time no better than this prediction, even if it picks a different plan.
+
+That chains to `realised ≥ predicted_player ≥ predicted_optimal = boundS`. A traveller realising **23.6 m against a bound of 29.3 m** breaks the chain, so one of its links is wrong.
+
+**The obvious explanation is excluded.** A replan is answered later, with information that did not exist at plan time, so a journey that replanned could legitimately beat a plan-time bound. `LeakFinding.replans` was added to test exactly that, and this traveller replanned **zero** times. The generated world's 93 replans against the committed world's 20 made replanning the natural hypothesis, and it is wrong.
+
+By elimination the remaining candidate is that **`route` is not returning the optimum** on the bound's index — the same search the oracle uses. `MAX_ROUNDS = 4` was the first guess and is also excluded: raising it to 6 changed P0's mean journey time on this world by nothing at all.
+
+### What it does and does not affect
+
+* **It is not a gate.** The audit column is diagnostic; the verdict comes from Gates 1a, 1b, 2 and 3.
+* **It does not quarantine anything.** The scorecard's own check — beating P0 — is clean.
+* **It does undermine a bound the project relies on for forensics.** `OBSERVABILITY.md` §5 makes this audit the procedure for a suspicious score, and a bound that honest players beat is the failure its own comment warns about: *"A bound that flags honest players is worse than no bound."*
+
+**Also fixed here, and the reason this took so long to look at:** `auditInformationSets` had no entry point. A quarantined scorecard says *"run the information-set audit before trusting this score"* and there was no way to run it. `npm run leak [world] [mode]` is that command.

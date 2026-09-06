@@ -92,6 +92,13 @@ export function publishedName(variant: NamingVariant, official: string): string 
   }
 
   // Colloquial: what locals call it, which is rarely what the sign says.
+  //
+  // The table is the hand-authored city's, and it stays exactly as it was so
+  // that world's published names do not change. **It cannot be the whole rule.**
+  // A generated city's places are not in it, so `A-naming` rewrote one name in
+  // thirty-three there and the defect audit reported MISS on an operator whose
+  // stops it did not happen to know (`KNOWN-ISSUES.md` #39). A lookup of one
+  // city's names is not a naming *defect*, it is that city's phrasebook.
   const colloquial: Record<string, string> = {
     "Central Square": "Tsentralna",
     "West Terminus": "Zakhidnyi",
@@ -100,7 +107,38 @@ export function publishedName(variant: NamingVariant, official: string): string 
     "South Terminus": "Pivdennyi",
   };
   const base = official.split(",")[0]!.trim();
-  return colloquial[base] ?? base;
+  const known = colloquial[base];
+  if (known !== undefined) return known;
+
+  // Otherwise the rule locals actually follow: keep the distinctive part and
+  // drop the descriptive tail. "Linden Park tram stop" is "Linden" to anybody
+  // who catches it, and "Foundry Gate" is "Foundry". Two places whose names
+  // differ only in that tail collapse onto one published name, which is the
+  // reconciliation problem `A-naming` exists to pose.
+  //
+  // P1M3 replaces this with generated variants; until then it is what makes the
+  // conflict expressible on a city nobody wrote a phrasebook for.
+  const words = base.split(/\s+/).filter(Boolean);
+  const DESCRIPTIVE = new Set([
+    "tram",
+    "stop",
+    "station",
+    "street",
+    "square",
+    "park",
+    "gate",
+    "hall",
+    "terminus",
+    "depot",
+    "platform",
+    "bridge",
+    "lane",
+    "wharf",
+    "landing",
+    "garden",
+  ]);
+  const kept = words.filter((w) => !DESCRIPTIVE.has(w.toLowerCase()));
+  return (kept.length > 0 ? kept : words).join(" ");
 }
 
 // ---------------------------------------------------------------- geometry

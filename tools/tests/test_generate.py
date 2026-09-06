@@ -64,21 +64,57 @@ def test_one_operator_publishes_honestly() -> None:
         assert len(dirty) < len(_specs()), f"tier {tier} left no honest operator"
 
 
-def test_conflicts_land_where_the_traffic_is() -> None:
-    """Placement matters more than strength, and this is why.
+def test_no_operator_carries_most_of_the_conflicts() -> None:
+    """Placement is weighted by reach, and **bounded**.
 
-    The committed world put every conflict on its two smallest operators and
-    left the one running half the city immaculate. Moving them, at identical
-    settings, doubled what they cost (BUILD-LOG.md, P0M10).
+    P0M10 measured that moving conflicts onto the operator carrying the network
+    doubled their cost, and this generator turned that into "place them in
+    proportion to reach" — a stronger claim than the measurement supports.
+    Unbounded it became a wall: one operator held three quarters of the
+    conflicts, its feed stopped being usable, and because it carried most of the
+    network a player who ignored it outscored one who tried. `null` beat
+    `naive` and Gate 3 failed (`KNOWN-ISSUES.md` #38).
+
+    **This test asserted the unbounded rule until P1M2**, and passed throughout.
+    A test that encodes the behaviour rather than the intent cannot notice when
+    the behaviour turns out to be wrong.
     """
     specs = _specs()
-    biggest = max(specs, key=lambda s: s.reach)
+    for tier in (2, 3, 5):
+        for seed in (1, 7, 481516, 999_983):
+            declared = generate.describe(generate.generate_manifests(specs, tier, seed))
+            if not declared:
+                continue
+            per = collections.Counter(name.split(":")[1] for name in declared)
+            total = sum(per.values())
+            worst, held = per.most_common(1)[0]
+            # The rebalance stops when nothing further can move, so it lands at
+            # or near the cap rather than always under it.
+            assert held / total <= generate.MAX_CONFLICT_SHARE + 0.1, (
+                f"tier {tier} seed {seed} gave {worst} {held} of {total} conflicts "
+                f"({100 * held / total:.0f} %), past the "
+                f"{100 * generate.MAX_CONFLICT_SHARE:.0f} % cap"
+            )
+
+
+def test_conflicts_still_reach_the_operators_that_carry_traffic() -> None:
+    """The cap must not have turned placement into an even sprinkle.
+
+    The finding it bounds is still true: a conflict on an operator nobody rides
+    expresses nothing (P0M10's Sudbahn). The clean reference is the
+    least-reaching operator, so what this checks is that the operators actually
+    carrying the network are the ones carrying the conflicts.
+    """
+    specs = _specs()
+    by_reach = sorted(specs, key=lambda s: -s.reach)
+    carriers = {s.id for s in by_reach[:2]}
     for seed in (1, 481516, 999_983):
         declared = generate.describe(generate.generate_manifests(specs, 3, seed))
         per = collections.Counter(name.split(":")[1] for name in declared)
-        assert per[biggest.id] == max(per.values()), (
-            f"seed {seed} placed most conflicts on {per.most_common(1)}, not on "
-            f"{biggest.id}, which reaches {biggest.reach} line-stops"
+        on_carriers = sum(n for op, n in per.items() if op in carriers)
+        assert on_carriers == sum(per.values()), (
+            f"seed {seed} placed conflicts outside the two operators that carry "
+            f"the network: {dict(per)}"
         )
 
 

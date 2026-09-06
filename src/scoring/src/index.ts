@@ -17,8 +17,4 @@ export * from "./information-set.ts";
 export * from "./belief.ts";
 export * from "./probe.ts";
 export * from "./render.ts";
-export * from "./scorecard.ts";
-export * from "./information-set.ts";
-export * from "./belief.ts";
-export * from "./probe.ts";
 
