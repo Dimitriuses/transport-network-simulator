@@ -108,7 +108,7 @@ try {
       console.log(
         `    ${f.queryId.padEnd(8)} by ${m(f.excessS).padStart(6)}  ` +
           `(${m(f.actualS)} against a bound of ${m(f.boundS)})  ` +
-          `${f.replans} replan(s)  ${f.explanation}`,
+          `${f.replans} replan(s)  perfect-day optimum ${m(f.optimisticS)}  ${f.explanation}`,
       );
     }
     console.log("");

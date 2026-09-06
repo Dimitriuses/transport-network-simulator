@@ -59,6 +59,35 @@ export interface CatalogueSetting {
    */
   readonly generate: readonly (string | number | boolean)[];
   /**
+   * How `generate` was derived from the world's own parameters, when it was.
+   *
+   * **A setting's values were chosen for plausibility alone, and plausibility
+   * is necessary but not sufficient** (`KNOWN-ISSUES.md` #34). Whether a value
+   * *does* anything depends on numbers chosen elsewhere: `D-staleness` offered
+   * `[60, 300, 900]`, and a feed conceals a disruption only when its lag
+   * outlasts that disruption's announcement lead — so against
+   * `DEFAULT_DISRUPTION_POLICY.noticeLeadS` of `[300, 1800]`, two of the three
+   * concealed nothing at all and the conflict was a switch rather than a ladder.
+   *
+   * The fix is to state the ladder in **effect space** and invert. Leads are
+   * drawn uniformly, so the share of disruptions a lag of `s` conceals is
+   * `(s - lo) / (hi - lo)`, clamped — an identity, confirmed against
+   * `npm run lead`, which measures 41 % where this predicts 40 %. Choosing the
+   * *shares* and solving for `s` gives rungs that are evenly spaced in what
+   * they do rather than in what they are.
+   *
+   * `src/schema/test/catalogue.test.ts` re-derives `generate` from this and
+   * fails if they disagree, so changing `noticeLeadS` cannot silently leave the
+   * catalogue behind — which is how the two numbers drifted apart in the first
+   * place.
+   */
+  readonly derived?: {
+    /** The world parameter the values are solved against. */
+    readonly from: "noticeLeadS";
+    /** The share of disruptions each rung should conceal. */
+    readonly targets: readonly number[];
+  };
+  /**
    * Conflicts this one makes unmeasurable, and may not be generated beside.
    *
    * **A conflict that masks another wastes it and teaches one lesson instead
@@ -180,7 +209,13 @@ export const CATALOGUE: readonly CatalogueSetting[] = [
     // plausibly lags 10-15 minutes. Half an hour is an outage, not a
     // publishing cadence, and an operator would notice.
     plausible: { max: 900, because: "a 5-minute rebuild behind a cache; 30 min is an outage" },
-    generate: [60, 300, 900],
+    // Solved for 10 %, 20 % and 40 % of disruptions concealed past the moment a
+    // warning could still help. Against `noticeLeadS` of [300, 1800] that is
+    // 450, 600 and 900 seconds — every one of them above the shortest lead, so
+    // every one of them does something. The old [60, 300, 900] had two rungs
+    // that concealed nothing (`KNOWN-ISSUES.md` #34).
+    derived: { from: "noticeLeadS", targets: [0.1, 0.2, 0.4] },
+    generate: [450, 600, 900],
   },
   {
     conflict: "D-silent-cancellation",
@@ -224,6 +259,27 @@ export const TIER_SECTIONS: Record<number, readonly CatalogueSection[]> = {
 export const TIER_COSMETIC_ONLY: readonly number[] = [1];
 
 /** A conflict-free manifest: every setting at its `off` value. */
+/**
+ * The values a `derived` setting should carry, solved against a world's own
+ * parameters. Returns `null` for a setting that declares no derivation.
+ *
+ * A target beyond what the plausibility ceiling allows is **clamped, not
+ * dropped** — the ladder then has a rung that repeats, which is a visible and
+ * honest way of saying the ceiling has been reached. Silently omitting it would
+ * shorten the ladder with nothing to show for it.
+ */
+export function derivedValues(
+  setting: CatalogueSetting,
+  noticeLeadS: readonly [number, number],
+): number[] | null {
+  if (!setting.derived) return null;
+  const [lo, hi] = noticeLeadS;
+  const ceiling = typeof setting.plausible?.max === "number" ? setting.plausible.max : Infinity;
+  return setting.derived.targets.map((share) =>
+    Math.min(ceiling, Math.round(lo + share * (hi - lo))),
+  );
+}
+
 export function defaultManifest(): Record<string, Record<string, string | number | boolean>> {
   const out: Record<string, Record<string, string | number | boolean>> = {};
   for (const s of CATALOGUE) {

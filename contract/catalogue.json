@@ -125,9 +125,17 @@
         "max": 900,
         "because": "a 5-minute rebuild behind a cache; 30 min is an outage"
       },
+      "derived": {
+        "from": "noticeLeadS",
+        "targets": [
+          0.1,
+          0.2,
+          0.4
+        ]
+      },
       "generate": [
-        60,
-        300,
+        450,
+        600,
         900
       ]
     },

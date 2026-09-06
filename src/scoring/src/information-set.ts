@@ -40,6 +40,17 @@ export interface LeakFinding {
   readonly boundS: number;
   /** Seconds by which it beat its own information set. */
   readonly excessS: number;
+  /**
+   * The same route with **no** disruptions at all — the most optimistic
+   * prediction anything can make about this journey.
+   *
+   * The bound is already optimistic: it pretends the disruptions nobody had
+   * published do not exist. So `optimisticS <= boundS <= realised` should hold,
+   * and when it does not this says which link broke. If a realised journey
+   * beats even *this*, the router is not returning the optimum and the finding
+   * is about `route`, not about the player.
+   */
+  readonly optimisticS: number;
   /** What it appears to have known early. */
   readonly explanation: string;
   /**
@@ -220,6 +231,16 @@ export function auditInformationSets(
     }
 
     const boundS = optimal.arriveS - query.departAfterS;
+    // The same query on a day where nothing goes wrong. Cheap, and it is the
+    // only thing that separates "the bound is unsound" from "the router is".
+    const perfect = route(
+      buildIndex(world),
+      accessFor(query.id, "origin"),
+      accessFor(query.id, "destination"),
+      query.departAfterS,
+      "all",
+    );
+    const optimisticS = perfect ? perfect.arriveS - query.departAfterS : boundS;
     const excess = boundS - outcome.journeyS;
     if (excess <= TOLERANCE_S) continue;
 
@@ -235,6 +256,7 @@ export function auditInformationSets(
       actualS: outcome.journeyS,
       boundS,
       excessS: excess,
+      optimisticS,
       replans: replansFor.get(o.travellerRef) ?? 0,
       explanation:
         early.length > 0
@@ -253,6 +275,7 @@ export function auditInformationSets(
       actualS: 0,
       boundS: 0,
       excessS: 0,
+      optimisticS: 0,
       // A whole-run finding, not a traveller's: replans are not what would
       // explain it.
       replans: 0,

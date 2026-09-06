@@ -30,11 +30,11 @@ export function renderScorecard(card: Scorecard, audit?: AuditResult): string {
     `             ${h?.timeMode ?? "?"} · latency ${h?.latencyMode ?? "?"} · reference ${h?.referenceCompetence ?? "?"}`,
   );
 
+  // Whether this clears its tier is not a property of one run — the bar is a
+  // position between reference solutions, and `npm run clearance` measures it.
   const verdict =
     card.verdict === "scored"
-      ? card.cleared
-        ? "VALID · tier CLEARED"
-        : "VALID · tier NOT CLEARED"
+      ? "VALID"
       : card.verdict === "quarantined"
         ? "QUARANTINED"
         : "INVALID";
@@ -92,7 +92,7 @@ export function renderScorecard(card: Scorecard, audit?: AuditResult): string {
   // ---- Headline ----------------------------------------------------------
   if (card.headline !== null) {
     p(`  HEADLINE  profile=${pad(card.profile, 12)} ${card.headline.toFixed(3)}`);
-    p(`            clears at ${card.clearanceThreshold.toFixed(3)}`);
+    p("            whether this clears its tier: npm run clearance");
   } else {
     p("  HEADLINE  n/a — no capture to weight");
   }

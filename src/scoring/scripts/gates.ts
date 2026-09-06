@@ -56,7 +56,7 @@ interface Result {
 async function measure(mode: string, base: number, against: World = world): Promise<Result> {
   const player = spawn(
     process.execPath,
-    [join(repoRoot, "src", "refplayer", "scripts", "serve.ts")],
+    ["--disable-warning=ExperimentalWarning", join(repoRoot, "src", "refplayer", "scripts", "serve.ts")],
     {
       cwd: repoRoot,
       stdio: ["ignore", "ignore", "ignore"],

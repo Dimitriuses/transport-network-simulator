@@ -101,8 +101,6 @@ export interface Scorecard {
   readonly header: RunHeader | null;
   readonly verdict: Verdict;
   readonly verdictReason: string | null;
-  readonly cleared: boolean;
-  readonly clearanceThreshold: number;
   readonly service: ServiceScore;
   readonly information: InformationScore;
   readonly cost: CostScore;
@@ -125,9 +123,6 @@ const mean = (xs: readonly number[]): number | null =>
  * and fixes no size; this one makes declining everything score exactly −1.0.
  */
 export const FORGONE_PENALTY_SHARE = 1.0;
-
-/** Per-tier minimum capture to clear. Tier 0 asks only that you turn up. */
-const CLEARANCE: Record<number, number> = { 0: 0.0, 1: 0.1, 2: 0.25, 3: 0.35, 4: 0.4, 5: 0.45 };
 
 export interface ScoreOptions {
   readonly profile?: string;
@@ -346,18 +341,25 @@ export function scoreRun(log: readonly RunRecord[], opts: ScoreOptions = {}): Sc
         profile.information * information.score +
         profile.cost * costTerm;
 
-  // ---- Clearance ---------------------------------------------------------
-  const tier = opts.tier ?? header?.worldSeed ?? 0;
-  const threshold = CLEARANCE[opts.tier ?? 0] ?? 0;
-  const cleared = verdict === "scored" && headline !== null && headline >= threshold;
-  void tier;
+  // ---- Clearance is not decided here -------------------------------------
+  //
+  // **A tier's bar is a position between named reference solutions**, not a
+  // decimal (`@tns/schema`, `clearance.ts`), so deciding it needs those
+  // solutions' scores *on this world* — which needs running them. A scorecard
+  // is a pure function of one run log and cannot.
+  //
+  // The decimal table that used to live here was chosen while `capture`
+  // normalised against clairvoyant `P0`. The denominator moved to `P0a` on
+  // 2026-09-04, every score rescaled by about 2.6, and the table did not — so
+  // every tier quietly became far harder than its number had been chosen to
+  // mean, and nothing could notice, because a decimal cannot state its intent.
+  //
+  // `npm run clearance` decides it now.
 
   return {
     header,
     verdict,
     verdictReason,
-    cleared,
-    clearanceThreshold: threshold,
     service,
     information,
     cost,

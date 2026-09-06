@@ -82,7 +82,12 @@ python([candidates, "--network", "--seed", seed, "--tier", tier]);
 console.log("  2/3  routing each candidate on both transfer graphs");
 const headroom = spawnSync(
   process.execPath,
-  [join(repoRoot, "src", "scoring", "scripts", "headroom.ts"), candidates, "--json"],
+  [
+    "--disable-warning=ExperimentalWarning",
+    join(repoRoot, "src", "scoring", "scripts", "headroom.ts"),
+    candidates,
+    "--json",
+  ],
   { cwd: repoRoot, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] },
 );
 if (headroom.status !== 0) {

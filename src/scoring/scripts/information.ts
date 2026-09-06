@@ -66,7 +66,7 @@ const seenCounts: InformationCounts[] = [];
 async function runOn(world: World): Promise<ReturnType<typeof informationVariants>> {
   const player = spawn(
     process.execPath,
-    [join(repoRoot, "src", "refplayer", "scripts", "serve.ts")],
+    ["--disable-warning=ExperimentalWarning", join(repoRoot, "src", "refplayer", "scripts", "serve.ts")],
     {
       cwd: repoRoot,
       stdio: ["ignore", "ignore", "inherit"],

@@ -47,7 +47,7 @@ async function main(): Promise<number> {
 
   const player = spawn(
     process.execPath,
-    [join(repoRoot, "src", "refplayer", "scripts", "serve.ts")],
+    ["--disable-warning=ExperimentalWarning", join(repoRoot, "src", "refplayer", "scripts", "serve.ts")],
     {
       cwd: repoRoot,
       stdio: ["ignore", "pipe", "pipe"],

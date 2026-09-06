@@ -123,11 +123,17 @@ Removing any single conflict changes the lazy integrator's shortfall by roughly 
 
 ---
 
-## 8. `node:sqlite` prints an experimental warning on every run — `open`
+## 8. `node:sqlite` prints an experimental warning on every run — `fixed at P1M4`
 
 Node 22 ships `node:sqlite` as experimental, so every command that opens a world bundle emits `ExperimentalWarning: SQLite is an experimental feature`. Harmless, and noisy enough that it is routinely filtered out of output — which is exactly the habit that hides a real warning later.
 
 **Fix when convenient:** either `--disable-warning=ExperimentalWarning` on the scripts that load worlds, or `better-sqlite3` if the API stabilises differently. Not urgent, but worth doing before anyone outside the project runs it and wonders.
+
+---
+
+**Fixed** at P1M4 with `node --disable-warning=ExperimentalWarning`, added to all 23 scripts that invoke `node` directly. The flag is per-invocation rather than a `NODE_OPTIONS` environment variable, so it works identically on every platform and nothing has to be exported before running a command by hand.
+
+Two lines of noise on every instrument's output is not merely cosmetic: it is two lines that a reader learns to skip, and this project has already had one defect hide in a line people had learned to skip (`#19`, where the defect audit printed `hides 0 disruption(s)` for months).
 
 ---
 
@@ -603,7 +609,7 @@ The world is fine. The instrument was wrong on its first outing, which is the fo
 
 ---
 
-## 24. Which conflicts bite is a property of the solver, not of the world — `open`
+## 24. Which conflicts bite is a property of the solver, not of the world — `answered at P1M4; difficulty is a profile`
 
 P0M10 measured the same fifteen conflicts against two lazy solvers and got two different catalogues.
 
@@ -789,7 +795,7 @@ Unknown options and surplus arguments now exit 2 with usage. The same silent def
 
 ---
 
-## 32. Tiers 3 and 4 generate the same world — `open`
+## 32. Tiers 3 and 4 generate the same world — `fixed at P1M4, by fixing #34`
 
 With the generator wired up, the manifests for seed 481516 are:
 
@@ -813,6 +819,23 @@ Levers that exist and are not yet used:
 * **Catalogue sections E and F**, which arrive in Phase 3 and are the honest way to extend the top of the ladder.
 
 **Owner:** P1M4, with `#24` — both are about what a declared difficulty means. Recording it here because the generator now makes it concrete rather than hypothetical.
+
+### Fixed 2026-09-06, and not by touching the tier ladder at all
+
+`#34` gave `D-staleness` three usable rungs where it had one. That was enough:
+
+```
+tier 0:  0 conflicts  differs
+tier 1:  2 conflicts  differs
+tier 2:  9 conflicts  differs
+tier 3: 12 conflicts  differs
+tier 4: 12 conflicts  differs      <- was IDENTICAL to tier 3
+tier 5: 14 conflicts  differs
+```
+
+Tiers 3 and 4 still declare the same *number* of conflicts and are now different worlds — tier 3 draws staleness 450 and 900, tier 4 draws 600 and 900. **The lever the density parameter could not supply came from a setting's range**, which is exactly what this issue predicted when it said the fix needed "levers the conflict catalogue cannot supply" and `#34` answered that the catalogue could supply them after all.
+
+**What is fixed is that the worlds differ. Whether they differ by the right amount is `#24`'s question**, and `npm run profile` is what answers it: two worlds are equally hard when every reference solution scores the same on both, and a tier ladder is real when consecutive tiers do not.
 
 ### Made narrower, not wider, by fixing #19
 
@@ -847,7 +870,7 @@ The `operators` table was added later and never added to the list. It holds ever
 
 ---
 
-## 34. A conflict's settings are chosen without reference to the world they act on — `open`
+## 34. A conflict's settings are chosen without reference to the world they act on — `fixed at P1M4 for D-staleness; the method generalises`
 
 Raised 2026-09-05, from `#19`. `D-staleness` is the case that exposed it, and it is unlikely to be the only one.
 
@@ -866,6 +889,34 @@ Questions it has to answer, none of them settled:
 **Explicitly not done by picking numbers that make the tier ladder look reasonable** — that is choosing the answer first, the same reasoning that keeps the clearance thresholds unadjusted in `SCORING.md`.
 
 **Owner:** P1M4, with `#32` and `#24`. All three are about what a declared difficulty means, and this one supplies a lever the other two need.
+
+### Fixed for `D-staleness`, 2026-09-06 — state the ladder in effect space and invert
+
+The question was whether to derive the range from parameters or estimate it by testing. **It derives**, and the derivation is an identity rather than a fit.
+
+A stale feed conceals a disruption exactly when its lag outlasts that disruption's announcement lead, and leads are drawn uniformly from `noticeLeadS`. So the share of disruptions a lag of `s` conceals is
+
+```
+share(s) = clamp((s - lo) / (hi - lo), 0, 1)
+```
+
+which is exact, not approximate — `npm run lead` measures 41 % where this predicts 40 % at `s = 900`. **It inverts.** Choosing the *shares* and solving for `s` gives rungs evenly spaced in what they do rather than in what they are:
+
+| target share | derived staleness | inside the 900 s ceiling? |
+|---|---|---|
+| 10 % | 450 s | yes |
+| 20 % | 600 s | yes |
+| 40 % | 900 s | exactly at it |
+
+`generate` for `D-staleness` is now `[450, 600, 900]` instead of `[60, 300, 900]`, and **all three rungs do something** where two of the old three did nothing. The catalogue carries the rule in a `derived` field, and `src/schema/test/catalogue.test.ts` re-derives the list and fails if the two disagree — so changing `noticeLeadS` cannot silently leave the catalogue behind, which is how they drifted apart in the first place.
+
+**A target past the plausibility ceiling is clamped, not dropped**, and a test then fails on the repeated rung. That is the honest way to say the ceiling has been reached: the ladder cannot be lengthened without leaving what two real operators would do, and the realism constraint outranks the ladder.
+
+### What generalises, and what does not
+
+**The method does:** state a rung by the effect it should have, solve for the setting against the world's own parameters, clamp at the ceiling, and test that the list still matches the rule.
+
+**The identity does not.** `D-staleness` inverts cleanly because the effect is a share of a uniform draw. `C-coordinate-offset` has no such closed form — its effect depends on the network's stop spacing, on the walking threshold, and on the composed geometry budget of `#41`. For settings like that the second option in the original question — **estimate by testing** — is the right instrument, and `npm run probe` already sweeps a setting and measures its cost. Applying it is not done here.
 ---
 
 ## 35. Three separate consumers read milliseconds as seconds — `fixed at P1M2`
@@ -1104,7 +1155,9 @@ A lookup of one city's names is not a naming defect; it is that city's phraseboo
 
 ---
 
-## 40. The information-set audit's bound is beaten by a traveller that never replanned — `open`
+## 40. `route` is not optimal, and not even monotone — `open, and larger than it first looked`
+
+> **Retitled at P1M4.** This began as "the information-set audit's bound is beaten by a traveller that never replanned". The bound was sound; the router underneath it is not. The investigation is kept below because the elimination is what identified the cause.
 
 `npm run gates` against a generated world reports `LEAK` in its audit column for every solution that actually plans. The committed world reports `clean` for all four.
 
@@ -1137,7 +1190,43 @@ By elimination the remaining candidate is that **`route` is not returning the op
 * **It does not quarantine anything.** The scorecard's own check — beating P0 — is clean.
 * **It does undermine a bound the project relies on for forensics.** `OBSERVABILITY.md` §5 makes this audit the procedure for a suspicious score, and a bound that honest players beat is the failure its own comment warns about: *"A bound that flags honest players is worse than no bound."*
 
-**Also fixed here, and the reason this took so long to look at:** `auditInformationSets` had no entry point. A quarantined scorecard says *"run the information-set audit before trusting this score"* and there was no way to run it. `npm run leak [world] [mode]` is that command.
+### The cause, found at P1M4
+
+`npm run leak` gained one more column — the same query routed on a day where **nothing goes wrong**, which is the most optimistic prediction anything can make:
+
+```
+g020  by 5.7m  (23.6m against a bound of 29.3m)  0 replan(s)  perfect-day optimum 29.3m
+```
+
+The perfect-day optimum *equals the bound* and the player beat both. A journey achieved on a day that had disruptions cannot beat the best journey on a day that had none — unless the thing computing "best" is wrong.
+
+**Confirmed directly, and it is worse than one query.** Routing every scored journey twice, once on a clean index and once with disruptions applied:
+
+| world | queries where disruptions made the route *better* | worst |
+|---|---|---|
+| generated | **28 of 200** | 18.1m |
+| committed `m1` | at least 1 | 10.0m |
+
+`buildIndex` drops cancelled journeys and adds a positive `delayS` to the rest. **A disruption can only remove a journey or delay it**, so a disrupted index offers a subset of the clean one's options, each no earlier. Routing on it cannot produce a better answer. That it does means `route` is not returning the optimum, and the search is not even monotone in its own input.
+
+**Every number this project produces goes through it** — `P0`, `P0a`, `P1`, `P2`, `npm run headroom`, the ablation, and the bound that started this. It has been there for the whole of Phase 0: the committed world violates it too.
+
+### What was tried and excluded
+
+* **Replanning.** A replan is answered with later information and could legitimately beat a plan-time bound. The flagged traveller replanned **zero** times.
+* **`MAX_ROUNDS = 4`.** Raising it to 6 changed the mean journey time by nothing — and then, more carefully, changed *this query* by nothing either.
+* **Mismatched access sets.** The audit, the oracle and the harness all read the same `world.queryAccess`.
+* **The ride phase reading a map it mutates.** `best` is written during the same round it is read from, in alphabetical order, so one round chained several rides for some quays and one for others — which makes `MAX_ROUNDS` not a transfer bound and the result order-dependent. Reading a start-of-round snapshot instead is defensible on its own, **and changes nothing**: 28 violations before, 28 after, worst 18.1m in both. The change was reverted rather than kept, because a correct-looking edit that perturbs every score and fixes nothing measurable is exactly what this project has learned not to ship.
+
+### The target
+
+`src/router/test/monotone.test.ts` asserts the property on both worlds and is marked `todo`, so CI stays green while the target stays visible. **Monotonicity is a usable specification for a search whose optimum nobody has an independent way to compute**: it is cheap to state, cheap to check, and needs no knowledge of the right answer.
+
+Not fixed here. It is a correctness bug in the router's core search, it invalidates no *comparison* made so far — every baseline and every solution goes through the same `route`, so they have all been handicapped identically — but it does mean **headroom is understated** and every absolute journey time is an upper bound rather than an optimum.
+
+### Also fixed at P1M2, and the reason this took so long to look at
+
+`auditInformationSets` had no entry point. A quarantined scorecard says *"run the information-set audit before trusting this score"* and there was no way to run it. `npm run leak [world] [mode]` is that command.
 
 ---
 
@@ -1174,3 +1263,67 @@ This is `#29` a third time, and the pattern is now unmistakable: **a ceiling on 
 All three gates still pass, and the margin over the 20 % bar is now **two points** rather than eight. That is thin enough to matter: a generated Tier-3 world is close to failing Gate 3 for want of geometry strength it may not take without describing a broken map.
 
 **Which is a finding about the catalogue, not about this world.** `C-coordinate-offset`'s `generate` list is `[30, 60, 130]`, and once a budget is shared with `A-coordinate-source` the usable values are 30 and 60 — both of which `#39`'s masking rule then requires a precision of 4 or better to survive. The three geometry settings are more tightly coupled than the catalogue's independent lists suggest, and the ladder has less room than it appears to. **Owned by `#34`**, which is exactly the question of deriving a setting's range from the world it acts on rather than listing constants.
+
+
+---
+
+## 24 (continued). The answer: a profile, and a tolerance that is measured rather than chosen
+
+Ratified 2026-09-06. **A world's difficulty is the vector of what each reference solution achieves on it**, not a scalar. `npm run profile <world> [other] [seeds]` reports it:
+
+```
+  DIFFICULTY PROFILE — worlds/m1.world.db
+  declared tier 2, 98 journeys
+
+    reference    headline    capture   information   arrived
+    null         -0.600 ±0.000  -1.000    0.000      94%
+    blind        -0.163 ±0.033  -0.271    0.000      83%
+    naive         0.079 ±0.005  -0.271    0.605      83%
+    competent     0.239 ±0.024  -0.008    0.610      84%
+```
+
+Four solutions, four columns each. The row that makes the case for a vector is `blind` against `naive`: **identical capture, and an information score 0.605 apart.** A scalar difficulty reports one number for that pair; two worlds could agree on it and disagree completely about whether realtime truthfulness matters, and nothing would notice.
+
+### The tolerance
+
+Given a second world it reports the paired difference per reference, against **the spread of one world measured twice** — taken from the same runs, so there is no separate calibration and no assumed bar. *A difference smaller than a world's own disruption draw moves it is not a difference.*
+
+That is the "stated tolerance" `ROADMAP.md` P1M4 asks for, and it is stated as a *comparison* rather than a number for the same reason the clearance ladder is: a threshold nobody has measured is a guess, and this project has lost milestones to guesses of exactly that shape.
+
+### What it still does not say
+
+Matching profiles say two worlds are equally hard **in aggregate**. They do not say the worlds are hard **in the same way** — only a solution built for one and run on the other says that. That is the second half of P1M4's exit and the harder one, and it is not done.
+---
+
+## 42. Two worlds at the same declared tier are not equally hard — `open`
+
+The first thing `npm run profile` was pointed at was P1M4's exit criterion. It fails.
+
+Two independently generated worlds, both declared Tier 3, seeds 481516 and 20260906, three seeds each:
+
+```
+    reference     world A    world B   difference    noise   verdict
+    null         -0.600   -0.600     0.000    0.000   within noise
+    blind         0.025    0.057     0.031    0.045   within noise
+    naive         0.153    0.288     0.135    0.069   2.0x noise
+    competent     0.355    0.496     0.141    0.085   1.6x noise
+```
+
+World B is materially easier for anything that integrates. `null` and `blind` agree — neither reconciles anything, so neither notices — and **the two references that do the work disagree by twice the noise.**
+
+That shape is itself the argument for `#24`'s profile. A scalar difficulty taken from `blind` would have called these worlds identical; taken from `competent` it would have called them far apart. Only the vector says *which solvers* the worlds differ for, and the answer here is "exactly the ones that matter".
+
+### What it is not
+
+**Not the tolerance being too tight.** The bar is the world's own seed-to-seed spread, measured from the same runs. A difference twice that is not a measurement artefact.
+
+**Not obviously the conflict count.** Both worlds declare Tier 3 and the generator's density lever is the same; what differs is which conflicts landed on which operator, at which strength, against a different network draw. That is `#32`'s residue: tiers now *differ from each other*, and nothing yet makes two worlds of the *same* tier agree.
+
+### What would need to change
+
+* **The tier would have to be declared in terms of measured effect rather than sampled settings.** A generator that samples a catalogue at a declared density produces a distribution of difficulties, not a difficulty. Closing the loop — generate, profile, adjust, repeat — is the obvious answer and is a substantially larger mechanism than anything P1M1–P1M3 built.
+* **Or the tier's claim would have to weaken**, from "these two worlds are equally hard" to "these two worlds are drawn from the same difficulty distribution, whose spread is *this*". That is honest, cheap, and probably not enough for the assessment use case `ROADMAP.md` names.
+
+**Three seeds is few**, and the noise column is a standard deviation from three samples. More seeds would tighten it — and would move the verdict *against* the generator, not for it, since a better noise estimate is a smaller one.
+
+**Blocks P1M4's exit**, which is the phase exit. Recorded rather than worked around: `PHASES.md` says a failed gate must be allowed to stop the project rather than be tuned away, and a failed exit is the same thing one level up.

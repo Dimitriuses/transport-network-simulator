@@ -428,7 +428,7 @@ The floor does not grow with tier, and it is *smaller* than the hand-built world
 
 ---
 
-## OPEN — tier clearance thresholds, re-derivation method — *owned by P1M4*
+## Tier clearance thresholds — *settled at P1M4*
 
 Recorded above as predating the change of denominator. What is needed is not a new number but a *method*, since the same problem will recur every time the scale moves:
 
@@ -437,3 +437,24 @@ Recorded above as predating the change of denominator. What is needed is not a n
 It also states the intent, which a decimal does not: Tier 2 asking for "better than a lazy integrator" is a claim anybody can check, and 0.25 is a number nobody can argue with.
 
 **Assigned to P1M4 on 2026-09-04**, with `KNOWN-ISSUES.md` #24 — both are about what a declared difficulty means, and both need the same reference set.
+
+### Settled 2026-09-06
+
+The method was adopted. `CLEARANCE_LADDER` in `@tns/schema` states each rung as a position between two named reference solutions, with the intent written beside it:
+
+| tier | bar | asks for |
+|---|---|---|
+| 0 | level with `null` | turn up — answer at all |
+| 1 | level with `blind` | match a solution that reconciles nothing |
+| 2 | level with `naive` | beat a lazy integrator |
+| 3 | halfway `naive`→`competent` | get halfway to doing the job |
+| 4 | level with `competent` | match our own worked example |
+| 5 | 1.25× past `competent` | beat it |
+
+**The comparison is strict**, and that is load-bearing rather than a detail: tier 2's bar *is* the lazy integrator's score, and the rung asks you to *beat* one — so an anchor never clears the tier it anchors. `clears()` lives beside the ladder, because a comparison operator is a rule and this project has spent two milestones on rules that lived in several places and drifted.
+
+**Clearance left the scorecard.** A bar defined against reference solutions needs their scores *on that world*, which means running them; `scoreRun` is a pure function of one run log and cannot. `Scorecard.cleared` and `clearanceThreshold` are gone, and `npm run clearance [world]` decides it, writing `<world>.clearance.json` so a later scorecard can be judged without running four solutions again.
+
+On the committed world the new bars are **−0.600 / −0.139 / 0.076 / 0.166 / 0.256 / 0.301** against the old **0.0 / 0.1 / 0.25 / 0.35 / 0.4 / 0.45** — materially lower, which is the point: the old numbers had been left behind by the change of denominator and were asking for far more than they were chosen to mean.
+
+It also reports something the decimals never could: **which references clear which rung.** On this world `competent` clears tiers 0–3 and not 4, so our own answer key is a tier-3 solution here. That is a fact about the world worth knowing, and no fixed threshold would have surfaced it.

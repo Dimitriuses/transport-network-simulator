@@ -1392,3 +1392,50 @@ The fix is a budget rather than a prediction — the displacements are vectors t
 | ordering | null < blind < naive < competent | unchanged |
 
 All three still pass. **The margin over the 20 % bar is two points rather than eight**, which is thin enough to say out loud: a generated Tier-3 world is now close to failing Gate 3 for want of geometry strength it cannot take without describing a broken map. That is a finding about the catalogue — the three geometry settings are far more tightly coupled than their independent `generate` lists suggest — and `#34` owns it.
+
+---
+
+## P1M4 — Difficulty calibration *(in progress)*
+
+### `route` is not optimal, and not even monotone — `KNOWN-ISSUES.md` #40
+
+Filed at P1M2 as "a traveller beat the information-set audit's bound". The bound was sound; the router underneath it is not.
+
+`npm run leak` gained one column — the same query routed on a day where **nothing goes wrong**, the most optimistic prediction anything can make:
+
+```
+g020  by 5.7m  (23.6m against a bound of 29.3m)  0 replan(s)  perfect-day optimum 29.3m
+```
+
+The perfect-day optimum *equals* the bound, and the player beat both. Confirmed by routing every scored journey twice: **28 of 200** queries on a generated world route *better* with disruptions applied, worst by 18.1m — and the committed world violates it too. `buildIndex` drops cancelled journeys and adds a positive delay, so a disrupted index offers a subset of options, each no earlier. Routing on it cannot win.
+
+Four hypotheses eliminated, one instructively. The ride phase reads `best` while writing to it, in alphabetical order, so one round chains several rides for some quays and one for others — `MAX_ROUNDS` is not a transfer bound and the result is order-dependent. Reading a start-of-round snapshot is defensible on its own **and changes nothing**: 28 violations before, 28 after. It was reverted. *A correct-looking edit that perturbs every score and fixes nothing measurable is what this project has learned not to ship.*
+
+`src/router/test/monotone.test.ts` states the property on both worlds, marked `todo` so CI stays green while the target stays visible. **Monotonicity is a usable specification for a search whose optimum nobody can independently compute** — cheap to state, cheap to check, needing no knowledge of the right answer.
+
+It invalidates no comparison made so far: every baseline and solution goes through the same `route` and has been handicapped identically. It does mean **headroom is understated**, and every absolute journey time is an upper bound.
+
+### Clearance became a measurement
+
+`CLEARANCE` was `{ 0: 0.0, 1: 0.1, 2: 0.25, ... }`, chosen while `capture` normalised against the clairvoyant `P0`. The denominator moved to `P0a`, every score rescaled by about 2.6, the table did not — and every tier quietly became far harder than its number had been chosen to mean. **Nothing noticed, because a decimal cannot state its intent.**
+
+A rung is now a position between two named reference solutions. "Beat a lazy integrator" moves with the scale on its own, and it is a claim anybody can check.
+
+**That has a consequence worth stating.** A bar defined against reference solutions needs their scores *on that world*, which means running them — and `scoreRun` is a pure function of one run log. So `Scorecard.cleared` and `clearanceThreshold` are gone and `npm run clearance` decides it, writing a sidecar so a later scorecard can be judged without running four solutions again.
+
+| tier | old bar | new bar | asks for |
+|---|---|---|---|
+| 0 | 0.00 | −0.600 | turn up |
+| 1 | 0.10 | −0.139 | match a solution that reconciles nothing |
+| 2 | 0.25 | 0.076 | beat a lazy integrator |
+| 3 | 0.35 | 0.166 | halfway to doing the job |
+| 4 | 0.40 | 0.256 | match our own worked example |
+| 5 | 0.45 | 0.301 | beat it |
+
+The comparison is **strict**, which is load-bearing: tier 2's bar *is* the lazy integrator's score, so an anchor never clears the tier it anchors — otherwise "beat a lazy integrator" would mean "be a lazy integrator". `clears()` lives beside the ladder, because a comparison operator is a rule, and rules that live in several places drift (#19, #35).
+
+And it reports what no fixed threshold could: **which references clear which rung.** On the committed world `competent` clears tiers 0–3 and not 4 — our own answer key is a tier-3 solution here.
+
+### Also
+
+`node:sqlite`'s experimental warning is gone (`#8`, open since Phase 0) — `--disable-warning=ExperimentalWarning` on all 23 direct-`node` scripts and every spawned child. Two lines of noise on every instrument is two lines a reader learns to skip, and #19 hid for months in a line people had learned to skip.

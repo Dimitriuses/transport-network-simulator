@@ -23,7 +23,7 @@ async function run(mode: string, ports: { operator: number; control: number; pla
   const world = loadWorld(worldPath);
   const player = spawn(
     process.execPath,
-    [join(repoRoot, "src", "refplayer", "scripts", "serve.ts")],
+    ["--disable-warning=ExperimentalWarning", join(repoRoot, "src", "refplayer", "scripts", "serve.ts")],
     {
       cwd: repoRoot,
       // stderr inherited, not discarded: when a player fails to start, its own

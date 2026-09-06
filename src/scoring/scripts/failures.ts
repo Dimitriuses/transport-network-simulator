@@ -35,7 +35,7 @@ if (!existsSync(worldPath)) {
 const world = loadWorld(worldPath);
 
 async function run(mode: string, base: number) {
-  const player = spawn(process.execPath, ["src/refplayer/scripts/serve.ts"], {
+  const player = spawn(process.execPath, ["--disable-warning=ExperimentalWarning", "src/refplayer/scripts/serve.ts"], {
     // Stderr inherited, not discarded. This script exists to explain *why* a
     // solution's travellers fail, and a player that is erroring says so on
     // stderr — throwing that away leaves only a count of `player_error`, which
