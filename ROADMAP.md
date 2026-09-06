@@ -207,7 +207,16 @@ The tier ladder becomes real: generate to a requested tier, and verify. This is 
 * ✅ **Two same-tier worlds match, once calibrated** (`#42`). `npm run calibrate:tier` draws several conflict sets over one fixed city and ships the one nearest the generator's median, so a tier's difficulty is the generator's central tendency rather than whichever seed came first. All four references agree within noise, and `naive` went from **0.119 apart to 0.022**.
 
   **Uncalibrated worlds still vary, and that is the finding rather than a side effect:** a tier spans 0.097 to 0.260 on one reference, so shipping "the world for seed S" ships a draw from that range. `npm run world:generate` alone does not calibrate.
-* ⬜ **A solution built for one world performing comparably on the other** is untouched, and is the harder half.
+* ⬜ **Non-memorisability** is untouched, and is the harder half. `PHASES.md` §284 states the requirement as *"non-memorisable tasks of equal difficulty — and it is not satisfied by matching conflict lists alone"*, which the shorthand "a solution built for one performs comparably on the other" loses half of.
+
+  **Two worlds of a tier must not hold the same conflicts.** Variety is the point of the generator, and the transfer test is not a request to give it up — it is a question about *which kind of solution* transfers:
+
+  | solution | should it transfer? | what it proves if it does |
+  |---|---|---|
+  | one that **generalises** — infers encodings, matches by consensus, discovers interchanges | **yes** | the worlds are equally hard |
+  | one **tuned to world A** — hard-codes that world's operators, encodings and offsets | **no** | if it does, A's specifics never mattered and the world is memorisable |
+
+  Only the first is written into the clause today, and on its own it is satisfiable by making the worlds too alike — which is the failure `PHASES.md` names when it says matching conflict lists is not enough. **Both halves need measuring, and the second needs a reference solution we do not have:** a deliberately overfitted one, written against a specific world, that *should* collapse on another.
 
 The second clause of the first sentence is the one that matters and the harder of the two. Matching numbers say the worlds are equally hard *in aggregate*; a solution transferring says they are hard *in the same way*. Only the second supports the assessment use case.
 
