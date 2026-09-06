@@ -133,7 +133,28 @@ That last clause is a prerequisite for P1M4 rather than a nicety. Phase 0 measur
 
 ---
 
-### P1M3 — Name generation
+### P1M3 — Name generation — **delivered, exit met**
+
+`tools/worldbuild/names.py` generates a city's names and the several forms each
+place goes by; the world carries them in `place_names` and the projection looks
+them up. Bundle schema version 2.
+
+| | before | after |
+|---|---|---|
+| `A-naming` on a generated city | **1 of 33** names rewritten, MISS on one operator | **33/33 and 25/25**, no MISS |
+| `A-naming` on the committed city | 5 of 29 | 28/31 and 7/7 |
+| published names shared across operators | — | **17 of 42** |
+
+**Exit — met.** Naming variants survive the defect audit on both the committed
+and a generated world, and the tier ladder does not depend on them: `npm run
+calibrate` on the committed world gives 8.37 / 5.17 / 3.20 m and 33 fallbacks,
+identical before and after, because published names are carried by every solver
+and used for matching by none.
+
+**A generated world still passes all three gates**, re-run after the geometry
+budget of `KNOWN-ISSUES.md` #41 — 1a solvable, 1b 0.383, 2 in the right order,
+3 at **22 %** of headroom. That margin fell from 28 %, and two points over the
+bar is thin: `#41` records why, and `#34` owns it.
 
 **Unblocked 2026-09-06** — `KNOWN-ISSUES.md` #38 is fixed. The ring moved to the operator whose job it is, no operator now covers most of the stops, and conflicts are capped at half. The naive player went from forgoing 95 % of obligations to 19 %.
 

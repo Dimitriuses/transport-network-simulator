@@ -80,8 +80,9 @@ from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from . import names as names_mod
 from .city import Line, Quay, Site
 
 #: Degrees of latitude per metre, and the longitude correction at this city's
@@ -186,6 +187,9 @@ class Network:
     sites: tuple[Site, ...]
     quays: tuple[Quay, ...]
     lines: tuple[Line, ...]
+    #: Every name each entity goes by, keyed by entity id. Empty for the
+    #: hand-authored city, whose variants `city.place_names()` supplies.
+    names: dict[str, names_mod.PlaceNames] = field(default_factory=dict)
 
 
 def _offset(lat: float, lon: float, north_m: float, east_m: float) -> tuple[float, float]:
@@ -252,11 +256,31 @@ def generate_network(
     names = _arm_names()
     directions = _DIRECTIONS[: spec.arms]
 
+    # Real names, and the several forms each place goes by. Drawn up front from
+    # their own seeded stream so that adding a line does not rename the city
+    # (ROADMAP.md P1M3).
+    #
+    # Sized generously: every site takes one, and the count is bounded by the
+    # arms, their length, the tram stops beside them and the regional stations.
+    wanted = 1 + spec.arms * spec.sites_per_arm * 2 + spec.regional_lines * 3 + 4
+    pool = names_mod.generate_place_names(wanted, seed ^ 0x5EED)
+    naming: dict[str, names_mod.PlaceNames] = {}
+    taken = 0
+
+    def name_for(entity_id: str) -> names_mod.PlaceNames:
+        """The next unused set of names, remembered against this entity."""
+        nonlocal taken
+        chosen = pool[taken % len(pool)]
+        taken += 1
+        naming[entity_id] = chosen
+        return chosen
+
     sites: list[Site] = []
     quays: list[Quay] = []
 
     # ---- the hub ----------------------------------------------------------
-    sites.append(Site("site-hub", "Central Square", round(hub_lat, 6), round(hub_lon, 6)))
+    hub_names = name_for("site-hub")
+    sites.append(Site("site-hub", hub_names.official, round(hub_lat, 6), round(hub_lon, 6)))
     stands = "abcdefgh"
     for i in range(spec.hub_quays):
         # Stands spaced by a *stated* distance, not a random one: they are the
@@ -269,11 +293,21 @@ def generate_network(
         # what a two-stand interchange looks like.
         step = spec.min_quay_separation_m + 15.0
         lat, lon = _offset(hub_lat, hub_lon, 18.0 + step * i, 18.0)
+        stand = stands[i].upper()
+        # Both stands are one place to anybody who catches a bus there, so they
+        # share a colloquial name and collapse onto it. That collision is the
+        # reconciliation problem, not a flaw.
+        naming[f"q-hub-{stands[i]}"] = names_mod.PlaceNames(
+            official=f"{hub_names.official}, stand {stand}",
+            colloquial=hub_names.colloquial,
+            abbreviated=f"{hub_names.abbreviated} {stand}",
+            former=hub_names.former,
+        )
         quays.append(
             Quay(
                 f"q-hub-{stands[i]}",
                 "site-hub",
-                f"Central Square, stand {stands[i].upper()}",
+                f"{hub_names.official}, stand {stand}",
                 lat,
                 lon,
             )
@@ -286,11 +320,13 @@ def generate_network(
             radius = spec.arm_spacing_m * (j + 1)
             lat, lon = _offset(hub_lat, hub_lon, north * radius, east * radius)
             sid = f"site-{names[a]}{j + 1}"
-            sites.append(Site(sid, f"{names[a].upper()}{j + 1} Street", lat, lon))
+            place = name_for(sid)
+            sites.append(Site(sid, place.official, lat, lon))
             qlat, qlon = _offset(lat, lon, *_quay_offset(rng))
-            quays.append(
-                Quay(f"q-{names[a]}{j + 1}", sid, f"{names[a].upper()}{j + 1} Street", qlat, qlon)
-            )
+            # The quay is the same place as its site, so it answers to the same
+            # names. Only a multi-stand site distinguishes them.
+            naming[f"q-{names[a]}{j + 1}"] = place
+            quays.append(Quay(f"q-{names[a]}{j + 1}", sid, place.official, qlat, qlon))
 
     # ---- operator A: radials through the hub, alternating stands ----------
     lines: list[Line] = []
@@ -362,8 +398,23 @@ def generate_network(
             # `A-coordinate-source` has something to publish.
             slat, slon = _offset(qlat, qlon, *_quay_offset(rng))
             sid = f"site-t-{names[a]}{j + 1}"
-            sites.append(Site(sid, f"{base.name} tram stop", slat, slon))
-            quays.append(Quay(f"t-{names[a]}{j + 1}", sid, f"{base.name} tram stop", qlat, qlon))
+            # **Named after the place it is beside, and known by the same word.**
+            # The tram stop is a separate Site — nobody declared it to be the bus
+            # stop — but locals call both by the street's name. So an operator
+            # publishing colloquially gives two undeclared-interchange quays the
+            # *same* published name, which is a clue a player can use and an
+            # ambiguity a careless one is caught by.
+            near = naming[base.id]
+            place = names_mod.PlaceNames(
+                official=f"{near.official} tram stop",
+                colloquial=near.colloquial,
+                abbreviated=f"{near.abbreviated} tram",
+                former=near.former,
+            )
+            naming[sid] = place
+            naming[f"t-{names[a]}{j + 1}"] = place
+            sites.append(Site(sid, place.official, slat, slon))
+            quays.append(Quay(f"t-{names[a]}{j + 1}", sid, place.official, qlat, qlon))
             tram_at.append(f"t-{names[a]}{j + 1}")
 
     # Chords: arcs across the city that never touch the hub, so knowing one
@@ -406,10 +457,16 @@ def generate_network(
         hub_lat, hub_lon, -spec.near_transfer_m, spec.near_transfer_m
     )
     _sl, _so = _offset(hub_tram_lat, hub_tram_lon, *_quay_offset(rng))
-    sites.append(Site("site-t-hub", "Central Square tram stop", _sl, _so))
-    quays.append(
-        Quay("t-hub", "site-t-hub", "Central Square tram stop", hub_tram_lat, hub_tram_lon)
+    hub_tram = names_mod.PlaceNames(
+        official=f"{hub_names.official} tram stop",
+        colloquial=hub_names.colloquial,
+        abbreviated=f"{hub_names.abbreviated} tram",
+        former=hub_names.former,
     )
+    naming["site-t-hub"] = hub_tram
+    naming["t-hub"] = hub_tram
+    sites.append(Site("site-t-hub", hub_tram.official, _sl, _so))
+    quays.append(Quay("t-hub", "site-t-hub", hub_tram.official, hub_tram_lat, hub_tram_lon))
     spur = (tram_at[1], "t-hub", tram_at[len(tram_at) // 2 + 1])
     lines.append(Line("line-t0", "T0", "ostline", spur, 6 * 3600, 22 * 3600, 10 * 60, 12.0, 20))
 
@@ -422,8 +479,15 @@ def generate_network(
         gap = spec.min_quay_separation_m
         lat, lon = _offset(hub_lat, hub_lon, -gap * (r + 2), -gap * (r + 1))
         _rl, _ro = _offset(lat, lon, *_quay_offset(rng))
-        sites.append(Site(f"site-r-hub-{r + 1}", f"Central Station platform {r + 1}", _rl, _ro))
-        quays.append(Quay(rq, f"site-r-hub-{r + 1}", f"Central Station platform {r + 1}", lat, lon))
+        platform = names_mod.PlaceNames(
+            official=f"{hub_names.official} Station, platform {r + 1}",
+            colloquial=f"{hub_names.colloquial} vokzal",
+            abbreviated=f"{hub_names.abbreviated} Stn {r + 1}",
+        )
+        naming[f"site-r-hub-{r + 1}"] = platform
+        naming[rq] = platform
+        sites.append(Site(f"site-r-hub-{r + 1}", platform.official, _rl, _ro))
+        quays.append(Quay(rq, f"site-r-hub-{r + 1}", platform.official, lat, lon))
 
         ends: list[str] = []
         for arm in (a, opposite):
@@ -434,8 +498,17 @@ def generate_network(
             sid = f"site-r-{names[arm]}"
             if not any(s.id == sid for s in sites):
                 _sl, _so = _offset(lat, lon, *_quay_offset(rng))
-                sites.append(Site(sid, f"{base.name} station", _sl, _so))
-                quays.append(Quay(f"r-{names[arm]}", sid, f"{base.name} station", lat, lon))
+                near = naming[base.id]
+                station = names_mod.PlaceNames(
+                    official=f"{near.official} Station",
+                    colloquial=f"{near.colloquial} vokzal",
+                    abbreviated=f"{near.abbreviated} Stn",
+                    former=near.former,
+                )
+                naming[sid] = station
+                naming[f"r-{names[arm]}"] = station
+                sites.append(Site(sid, station.official, _sl, _so))
+                quays.append(Quay(f"r-{names[arm]}", sid, station.official, lat, lon))
             ends.append(f"r-{names[arm]}")
 
         lines.append(
@@ -452,7 +525,16 @@ def generate_network(
             )
         )
 
-    net = Network(tuple(sites), tuple(quays), tuple(lines))
+    # Lines answer to a number and to what people call the route.
+    for line in lines:
+        naming[line.id] = names_mod.PlaceNames(
+            official=line.name,
+            colloquial=line.name,
+            abbreviated=line.name,
+        )
+    naming.update(names_mod.OPERATOR_NAMES)
+
+    net = Network(tuple(sites), tuple(quays), tuple(lines), naming)
 
     # **Checked, not assumed.** This one number decides whether the lazy
     # integrator can match anything at all, and a spec that violates it produces

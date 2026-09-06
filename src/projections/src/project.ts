@@ -132,7 +132,7 @@ export function projectOperator(world: World, operatorId: string, tau: number): 
       const c = publishedCoords(m.geometry.precision, m.geometry.latlon_order, m.geometry.offset_m, src.lat, src.lon);
       stops.push({
         stop_id: stopId,
-        stop_name: publishedName(m.naming.variant, site.name),
+        stop_name: publishedName(m.naming.variant, site.name, world.placeNames.get(site.id)),
         lat: c.lat,
         lon: c.lon,
       });
@@ -147,7 +147,7 @@ export function projectOperator(world: World, operatorId: string, tau: number): 
       const c = publishedCoords(m.geometry.precision, m.geometry.latlon_order, m.geometry.offset_m, src.lat, src.lon);
       stops.push({
         stop_id: stopId,
-        stop_name: publishedName(m.naming.variant, q.name),
+        stop_name: publishedName(m.naming.variant, q.name, world.placeNames.get(q.id)),
         lat: c.lat,
         lon: c.lon,
       });
@@ -167,7 +167,10 @@ export function projectOperator(world: World, operatorId: string, tau: number): 
           : `${m.identity.prefix}-R${line.name}`;
       routeToLine.set(routeId, line.id);
       lineToRoute.set(line.id, routeId);
-      routes.push({ route_id: routeId, route_name: publishedName(m.naming.variant, line.name) });
+      routes.push({
+        route_id: routeId,
+        route_name: publishedName(m.naming.variant, line.name, world.placeNames.get(line.id)),
+      });
     });
 
   // ---- trips -------------------------------------------------------------

@@ -1138,3 +1138,39 @@ By elimination the remaining candidate is that **`route` is not returning the op
 * **It does undermine a bound the project relies on for forensics.** `OBSERVABILITY.md` §5 makes this audit the procedure for a suspicious score, and a bound that honest players beat is the failure its own comment warns about: *"A bound that flags honest players is worse than no bound."*
 
 **Also fixed here, and the reason this took so long to look at:** `auditInformationSets` had no entry point. A quarantined scorecard says *"run the information-set audit before trusting this score"* and there was no way to run it. `npm run leak [world] [mode]` is that command.
+
+---
+
+## 41. The 150 m ceiling is for the *composed* displacement, and only the offset was held to it — `fixed at P1M3`
+
+`npm run realism` on a generated world:
+
+```
+    operator      median     max    verdict
+    nordline       125 m   207 m    plausible
+    ostline        151 m   204 m    BROKEN MAP
+```
+
+Over by a metre, with `source: site`, `offset_m: 130` and `precision: 3` all on one operator. Every setting inside its own bound; the total outside.
+
+`C-coordinate-offset`'s plausibility ceiling is 150 m and its stated cause is **"a station centroid published for a specific quay at a large interchange"** — that is a description of the *total* displacement a published position may carry. But the catalogue's `generate` list is the offset **alone**, and an operator publishing site centroids has already spent part of the budget before its offset is applied. Nothing compared the two.
+
+This is `#29` a third time, and the pattern is now unmistakable: **a ceiling on a part, applied as though it were a ceiling on the whole.** First a lat/lon swap made subtler geometry invisible; then a coarse precision rounded a small offset away (`#39`); now a site centroid and an offset spend one budget twice.
+
+**Fixed** by `generate._geometry_over_budget`: when an operator publishes site centroids, its offset is capped at the ceiling less what the centroid already costs.
+
+**The budget is a budget, not a prediction.** The displacements are vectors in different directions and partly cancel — 35 m of centroid plus 130 m of offset measured 125 m, not 165 m — so a rule that assumed the sum would reject combinations that measure fine. The constant is the *median* centroid displacement of a generated city, measured rather than assumed.
+
+**It costs geometry strength**, and that is the honest trade: composed displacement across three seeds fell from 125–151 m to 42–129 m, because `offset_m: 130` is no longer placeable beside `source: site`. A weaker conflict that exists beats a stronger one that describes a broken map — and the realism constraint is the one line this project has never allowed a failing gate to push it across.
+
+**It also cost Gate 3 six points**, and the gates were re-run rather than assumed:
+
+| | before the budget | after |
+|---|---|---|
+| Gate 3 — conflicts as a share of headroom | 3.04m, **28 %** | 2.39m, **22 %** |
+| Gate 1b — lazy integrator captures | 0.441 | 0.383 |
+| ordering | null < blind < naive < competent | unchanged |
+
+All three gates still pass, and the margin over the 20 % bar is now **two points** rather than eight. That is thin enough to matter: a generated Tier-3 world is close to failing Gate 3 for want of geometry strength it may not take without describing a broken map.
+
+**Which is a finding about the catalogue, not about this world.** `C-coordinate-offset`'s `generate` list is `[30, 60, 130]`, and once a budget is shared with `A-coordinate-source` the usable values are 30 and 60 — both of which `#39`'s masking rule then requires a precision of 4 or better to survive. The three geometry settings are more tightly coupled than the catalogue's independent lists suggest, and the ladder has less room than it appears to. **Owned by `#34`**, which is exactly the question of deriving a setting's range from the world it acts on rather than listing constants.

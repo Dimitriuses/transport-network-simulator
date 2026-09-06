@@ -16,11 +16,18 @@ import math
 import sqlite3
 from pathlib import Path
 
-from . import catalogue, city, generate, network
+from . import catalogue, city, generate, names, network
 from .content_hash import content_hash
 
 ENGINE_VERSION = "0.1.0"
-SCHEMA_VERSION = 1
+
+#: The bundle format.
+#:
+#: 1  through P1M2.
+#: 2  P1M3 adds `place_names` — every name an entity goes by. A version-1
+#:    bundle has no such table, so a current reader cannot load one; the reader
+#:    says so rather than failing on a missing table (`src/core/src/load.ts`).
+SCHEMA_VERSION = 2
 
 DDL = """
 CREATE TABLE manifest (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -38,6 +45,23 @@ CREATE TABLE quays (
     name    TEXT NOT NULL,
     lat     REAL NOT NULL,
     lon     REAL NOT NULL
+);
+
+-- Every name a place goes by (ROADMAP.md P1M3, CORECONCEPT.md §2.1 A).
+--
+-- **A variant is a fact about a place, not a function of its official name.**
+-- "Foundry Gate" abbreviates to "Foundry Gt" by rule, but nothing about the
+-- string "Central Square" yields "Tsentralna" — you have to know. Deriving the
+-- colloquial form in the projection meant a hard-coded lookup of one city's
+-- places, which rewrote one name in thirty-three on a generated city and made
+-- the defect audit report MISS (KNOWN-ISSUES.md #39).
+--
+-- Keyed by entity id, so sites, quays, lines and operators all live here.
+CREATE TABLE place_names (
+    entity_id TEXT NOT NULL,
+    variant   TEXT NOT NULL,
+    name      TEXT NOT NULL,
+    PRIMARY KEY (entity_id, variant)
 );
 
 -- Each operator's projection manifest: how it publishes, and therefore which
@@ -178,6 +202,42 @@ def operators_for(
         for o in city.OPERATORS
     )
     return generate.generate_manifests(specs, tier, seed)
+
+
+def place_names_for(
+    net: network.Network, operators: tuple[dict, ...]
+) -> list[tuple[str, str, str]]:
+    """Every name every entity goes by, as `(entity_id, variant, name)` rows.
+
+    A generated network arrives with its own (`network.generate_network`). The
+    hand-authored city derives them at build time from `names.derive_variants`,
+    which knows its phrasebook — so the projection never derives anything and
+    the rule lives in one place (`KNOWN-ISSUES.md` #39).
+    """
+    rows: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+
+    def add(entity_id: str, place: names.PlaceNames) -> None:
+        if entity_id in seen:
+            return
+        seen.add(entity_id)
+        rows.extend(place.as_rows(entity_id))
+
+    for entity_id, place in net.names.items():
+        add(entity_id, place)
+
+    # Anything the network did not name — every entity of the hand-authored
+    # city, and any the generator missed.
+    for site in net.sites:
+        add(site.id, names.derive_variants(site.name))
+    for quay in net.quays:
+        add(quay.id, names.derive_variants(quay.name))
+    for line in net.lines:
+        add(line.id, names.PlaceNames(line.name, line.name, line.name))
+    for op in operators:
+        add(op["id"], names.OPERATOR_NAMES.get(op["id"], names.derive_variants(op["name"])))
+
+    return sorted(rows)
 
 
 def queries_for(
@@ -321,6 +381,10 @@ def build(
         db.executemany(
             "INSERT INTO lines (id, name, operator) VALUES (?, ?, ?)",
             [(ln.id, ln.name, ln.operator) for ln in net.lines],
+        )
+        db.executemany(
+            "INSERT INTO place_names (entity_id, variant, name) VALUES (?, ?, ?)",
+            place_names_for(net, operators),
         )
 
         for ln in net.lines:

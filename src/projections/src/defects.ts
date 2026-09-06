@@ -80,8 +80,20 @@ const ABBREVIATIONS: ReadonlyArray<readonly [RegExp, string]> = [
  * appearing as "Central Square, stand A", "Central Sq" and "Tsentralna" is a
  * genuine reconciliation problem rather than a cosmetic one.
  */
-export function publishedName(variant: NamingVariant, official: string): string {
+export function publishedName(
+  variant: NamingVariant,
+  official: string,
+  names?: Readonly<Record<string, string>>,
+): string {
   if (variant === "official") return official;
+
+  // **The world carries its names; this looks them up.** Derivation below is a
+  // fallback for an entity the bundle has no row for, and after P1M3 there
+  // should be none — `place_names` is written for every site, quay, line and
+  // operator. It is kept because a projection that returned an empty string
+  // when a name was missing would be a worse failure than an approximate one.
+  const stored = names?.[variant];
+  if (stored !== undefined && stored !== "") return stored;
 
   if (variant === "abbreviated") {
     let out = official;

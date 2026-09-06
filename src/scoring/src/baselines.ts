@@ -241,6 +241,12 @@ export function naiveMergedWorld(world: World, thresholdM?: number): World {
     manifest: world.manifest,
     sites,
     quays,
+    // The merged model's stops are the player's own inventions, fused from
+    // several operators' published stops — so they answer to no canonical name
+    // and carry none. Nothing in this baseline reads a name: it matches on
+    // geometry, which is the caveat `CORECONCEPT.md` §2.1 attaches to
+    // `A-naming`'s measured zero.
+    placeNames: new Map<string, Readonly<Record<string, string>>>(),
     lines,
     patterns,
     journeys,

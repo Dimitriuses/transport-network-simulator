@@ -1325,3 +1325,70 @@ The counts confirm the mechanism rather than a coincidence: in-time warnings fel
 **Content hash `f6028eedd79e3cb5` → `ce3925325dbd8b0a`.** Unlike #33, this is a real change of world: scores recorded before P1M2 are not comparable on catalogue D, though the journey-time gaps happen to be identical.
 
 **The lesson is about the record, not the code.** A status label is a claim, and this one was contradicted by the entry's own body for two milestones without anybody noticing — including the person who wrote both. When a fix has parts, the header should say which parts.
+
+---
+
+## P1M3 — Name generation
+
+**Delivered:** a city that names itself, and carries every name each place goes by.
+
+**Corrected:** the assumption that a name variant can be computed from a name.
+
+### A variant is data, not a derivation
+
+`publishedName` produced the colloquial form from a hard-coded table of the hand-authored city's five best-known places, falling through to the official name for everything else. On a generated city that rewrote **one name in thirty-three**, and the defect audit reported MISS outright on an operator whose stops it did not know (`KNOWN-ISSUES.md` #39).
+
+The distinction that decides the design:
+
+> An **abbreviation** follows from the string — "Foundry Gate" is "Foundry Gt" by rule. A **transliteration** does not. Nothing about "Central Square" yields "Tsentralna"; you have to know.
+
+So the world carries its names. `place_names` keys every site, quay, line and operator to the forms it answers to — `official`, `colloquial`, `abbreviated`, and `former` for the places that were renamed — and the projection looks them up. Derivation survives only as a fallback for an entity with no row, which after this there are none of.
+
+The generator pairs each stem with its local form: `("Foundry", "Lyvarna")`, `("Salt", "Solianka")`. **The pairing is the point** — the second column cannot be computed from the first, which is exactly why storing it was necessary. A test asserts no colloquial name is a substring of its official form, so a rule could not produce them.
+
+### Names collide on purpose
+
+A stop and the tram stop beside it are one place to anybody who catches a tram there, so they answer to the same word:
+
+```
+published names appearing on more than one operator: 17 of 42
+    "Havan"       -> nordline, ostline
+    "Likhtarna"   -> nordline, ostline
+```
+
+That is the clue a good player uses to find an undeclared interchange, and the trap a careless one falls into by fusing two stops that really are different places. `CORECONCEPT.md` §2.1 A asks for "a stop that two operators both name identically but which is physically two different stops"; a world where every colloquial form identified exactly one place would have a second identifier scheme rather than a naming conflict.
+
+Official names stay unique — a city does not have two streets on the same sign — so a reused stem lands on a different descriptor: "Mill Street" and "Mill Lane" are different places that locals both call "Mlynova".
+
+### What it measures
+
+| | before | after |
+|---|---|---|
+| `A-naming` on a generated city | 1 of 33 rewritten; MISS on one operator | **33/33 and 25/25**, no MISS |
+| `A-naming` on the committed city | 5 of 29 | 28/31 and 7/7 |
+
+**And it still carries no difficulty**, which is the other half of the exit and was checked rather than assumed: `npm run calibrate` on the committed world gives 8.37 / 5.17 / 3.20 m and 33 fallbacks, identical before and after. Published names are carried by every solver and used for matching by none — the caveat `CORECONCEPT.md` §2.1 attaches to `A-naming`'s measured zero, still true.
+
+### The bundle format changed, and now says so
+
+`place_names` is a new table, so a bundle written before P1M3 cannot be read. Version 1 bundles previously failed with `no such table: place_names` — true, unhelpful, and three steps from the cause. `SCHEMA_VERSION` is 2 and the reader refuses anything else by name, saying which command rebuilds it.
+
+The content-hash test added at `#33` did its job here without being touched: it reads the bundle's own schema rather than a checked-in list, so `place_names` had to be added to `TABLES` deliberately.
+
+### And the ceiling that was on a part, not the whole
+
+`npm run realism` caught a generated operator at **151 m against a 150 m ceiling** — `source: site`, `offset_m: 130` and `precision: 3` together, each inside its own bound and the total outside. That ceiling's stated cause is *"a station centroid published for a specific quay at a large interchange"*, which describes the composed displacement; the catalogue's `generate` list is the offset alone, and an operator publishing centroids has already spent part of the budget.
+
+**Third instance of one pattern**, and it is now unmistakable: *a ceiling on a part, applied as though it were a ceiling on the whole.* A lat/lon swap hid subtler geometry (#29); a coarse precision rounded a small offset away (#39); a centroid and an offset spend one budget twice (#41).
+
+The fix is a budget rather than a prediction — the displacements are vectors that partly cancel, and 35 m of centroid plus 130 m of offset measured 125 m rather than 165 m, so a rule assuming the sum would reject combinations that measure fine.
+
+**Gates re-run rather than assumed**, because the fix changes what the generator may place:
+
+| | before | after |
+|---|---|---|
+| Gate 3 | 3.04m, **28 %** of headroom | 2.39m, **22 %** |
+| Gate 1b | 0.441 | 0.383 |
+| ordering | null < blind < naive < competent | unchanged |
+
+All three still pass. **The margin over the 20 % bar is two points rather than eight**, which is thin enough to say out loud: a generated Tier-3 world is now close to failing Gate 3 for want of geometry strength it cannot take without describing a broken map. That is a finding about the catalogue — the three geometry settings are far more tightly coupled than their independent `generate` lists suggest — and `#34` owns it.

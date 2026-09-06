@@ -82,6 +82,50 @@ def _precision_quantum_m(precision: object) -> float:
     return _M_PER_DEG / (10 ** int(precision))
 
 
+#: How far a published site centroid typically sits from the quay it stands for.
+#:
+#: A property of how `network.py` places quays, measured rather than assumed:
+#: the median across a generated city is ~35 m. Used as a *budget*, not a
+#: prediction — the displacements are vectors in different directions and
+#: partly cancel, so the composed total is smaller than the sum. A budget that
+#: assumed the sum would reject combinations that measure fine.
+_SITE_SOURCE_BUDGET_M = 40.0
+
+
+def _geometry_over_budget(
+    setting: catalogue.Setting, value: object, manifest: dict, cat: catalogue.Catalogue
+) -> bool:
+    """Would this setting push the operator's *composed* geometry past the ceiling?
+
+    `C-coordinate-offset`'s plausibility ceiling is 150 m and describes the
+    **total** displacement a published position may carry — "a station centroid
+    published for a specific quay at a large interchange". The catalogue's
+    `generate` list is the offset *alone*, so an operator that also publishes
+    site centroids is already spending part of that budget before its offset is
+    applied.
+
+    Found at P1M3, when `npm run realism` reported a generated operator at
+    **151 m against a 150 m ceiling** — over by a metre, with `source: site`,
+    `offset_m: 130` and `precision: 3` all at once. Each inside its own bound;
+    the total was not (`KNOWN-ISSUES.md` #29, again, at the margin).
+    """
+    ceiling = 150.0
+    for s in cat.settings:
+        if s.conflict == "C-coordinate-offset" and s.plausible_max is not None:
+            ceiling = float(s.plausible_max)
+
+    geometry = manifest.get("geometry", {})
+    source = value if setting.conflict == "A-coordinate-source" else geometry.get("source", "quay")
+    offset = (
+        float(value)
+        if setting.conflict == "C-coordinate-offset"
+        else float(geometry.get("offset_m", 0))
+    )
+    if source != "site":
+        return False
+    return offset > ceiling - _SITE_SOURCE_BUDGET_M
+
+
 def _masked(setting: catalogue.Setting, value: object, manifest: dict) -> bool:
     """Would this setting be invisible next to what the operator already does?
 
@@ -236,7 +280,9 @@ def generate_manifests(
                 usable = tuple(
                     v
                     for v in setting.generate
-                    if _expressible(setting, v, cat) and not _masked(setting, v, manifest)
+                    if _expressible(setting, v, cat)
+                    and not _masked(setting, v, manifest)
+                    and not _geometry_over_budget(setting, v, manifest, cat)
                 )
                 if not usable:
                     continue
@@ -350,6 +396,8 @@ def _can_take(
     if not _expressible(setting, value, cat):
         return False
     if _masked(setting, value, manifest):
+        return False
+    if _geometry_over_budget(setting, value, manifest, cat):
         return False
     held = {s.conflict for s in _conflicts_of(manifest, settings)}
     return not any(

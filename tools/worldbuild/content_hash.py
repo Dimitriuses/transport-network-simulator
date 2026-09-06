@@ -32,6 +32,7 @@ TABLES: tuple[tuple[str, str], ...] = (
     ("operators", "id"),
     ("sites", "id"),
     ("quays", "id"),
+    ("place_names", "entity_id, variant"),
     ("lines", "id"),
     ("patterns", "id"),
     ("pattern_stops", "pattern_id, seq"),

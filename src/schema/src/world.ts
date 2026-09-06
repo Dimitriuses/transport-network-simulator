@@ -118,6 +118,22 @@ export interface WorldManifest {
   readonly activeConflicts: readonly string[];
 }
 
+/**
+ * Every name one entity goes by, keyed by variant.
+ *
+ * `official` is always present. `colloquial`, `abbreviated` and `former` are
+ * present where the place has them — and **they are data rather than
+ * derivations**. An abbreviation follows from the official name by rule; a
+ * transliteration does not. Nothing about "Central Square" yields "Tsentralna",
+ * and a projection that tried to derive it needed a hard-coded lookup of one
+ * city's places, which is that city's phrasebook rather than a naming defect
+ * (`KNOWN-ISSUES.md` #39).
+ *
+ * Two places may share a colloquial name. That is not a collision to fix: it is
+ * what makes a name a poor identifier, which is the point of catalogue §2.1 A.
+ */
+export type PlaceNames = Readonly<Record<string, string>>;
+
 export interface World {
   readonly manifest: WorldManifest;
   readonly sites: readonly Site[];
@@ -128,4 +144,6 @@ export interface World {
   readonly walkLinks: readonly WalkLink[];
   readonly queries: readonly Query[];
   readonly queryAccess: readonly QueryAccess[];
+  /** Names, by entity id — sites, quays, lines and operators alike. */
+  readonly placeNames: ReadonlyMap<string, PlaceNames>;
 }

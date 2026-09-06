@@ -25,6 +25,15 @@ import type {
 
 type Row = Record<string, string | number | bigint | Uint8Array | null>;
 
+/**
+ * The bundle format this build reads.
+ *
+ * Bumped at P1M3, which added `place_names`. Kept beside the reader rather than
+ * imported from the builder: the two are in different languages, and the point
+ * of the number is that a reader can refuse a bundle it does not understand.
+ */
+const SUPPORTED_SCHEMA_VERSION = 2;
+
 const str = (r: Row, k: string): string => String(r[k]);
 const num = (r: Row, k: string): number => Number(r[k]);
 
@@ -154,10 +163,34 @@ export function loadWorld(path: string): World {
       metres: num(r, "metres"),
     }));
 
+    // **Refuse a bundle this reader does not understand**, rather than failing
+    // on whichever table is missing. P1M3 added `place_names`, so a version-1
+    // bundle loaded by a current reader produced `no such table: place_names` —
+    // true, unhelpful, and three steps from the cause.
+    if (manifest.schemaVersion !== SUPPORTED_SCHEMA_VERSION) {
+      throw new Error(
+        `world bundle at ${path} is schema version ${manifest.schemaVersion}; ` +
+          `this build reads version ${SUPPORTED_SCHEMA_VERSION}. Rebuild it: ` +
+          `npm run world:build, or npm run world:generate for a generated one.`,
+      );
+    }
+
+    // Names, by entity id. Built here rather than joined onto sites and quays
+    // because lines and operators have them too, and because a place may be
+    // known by four names and none of them belongs in a coordinate row.
+    const placeNames = new Map<string, Record<string, string>>();
+    for (const r of db.prepare("SELECT * FROM place_names ORDER BY entity_id, variant").all() as Row[]) {
+      const id = str(r, "entity_id");
+      const entry = placeNames.get(id) ?? {};
+      entry[str(r, "variant")] = str(r, "name");
+      placeNames.set(id, entry);
+    }
+
     return {
       manifest,
       sites,
       quays,
+      placeNames,
       lines,
       patterns,
       journeys,

@@ -200,6 +200,13 @@ Contents:
 
 **SQLite stamps its own version number into the database header** (offset 96). Two machines with different Python builds therefore produce byte-different files from byte-identical worlds. A CI job asserting `sha256sum` equality of the file fails immediately and says nothing useful.
 
+**`place_names` (P1M3).** Every name an entity goes by, keyed by entity id and
+variant, for sites, quays, lines and operators alike. It is a table rather than
+columns on `sites` and `quays` because lines and operators have names too, and
+because a place may answer to four names, none of which belongs in a coordinate
+row. Bundle schema version 2; a reader refuses version 1 with an explanation
+rather than failing on the missing table.
+
 The invariant that matters is over the **logical rows**, so the bundle carries a `content_hash`: a SHA-256 over a canonical serialisation of every table, in fixed table order, rows sorted by primary key, floats rendered by shortest-round-trip repr. It is verified by `python -m worldbuild --verify`, which rebuilds into a temporary file and compares hashes.
 
 Two consequences worth keeping:

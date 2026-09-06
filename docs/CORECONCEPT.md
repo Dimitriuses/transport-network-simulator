@@ -63,6 +63,28 @@ The generator must be able to produce **multiple, inconsistent names for the sam
 
 Honest caveat: the measured zero is partly a property of the instrument. The lazy baseline matches on geometry and never consults a name, so a name variant has nothing to be wrong about. The reclassification is a design judgement — that identity *formatting* is not the challenge — rather than a demonstration that a name-matching solver would be unaffected.
 
+**Built at P1M3, and the shape it took was decided by measurement.** A variant is
+*data about a place*, not a function of its official name. An abbreviation
+follows by rule — "Foundry Gate" is "Foundry Gt". A transliteration does not:
+nothing about the string "Central Square" yields "Tsentralna", you have to know.
+The projection derived the colloquial form from a hard-coded lookup of this
+city's five best-known places, and on a generated city it rewrote **one name in
+thirty-three** while the defect audit reported MISS (`KNOWN-ISSUES.md` #39). *A
+lookup of one city's names is that city's phrasebook.*
+
+So the world carries every name every entity goes by, in a `place_names` table,
+and the projection looks them up. Four variants: `official` (the sign),
+`colloquial` (what people say), `abbreviated` (what fits a timetable column) and
+`former` (renamed, and still referenced by the old name in one operator's data).
+
+**Colloquial names are allowed to collide, and must.** A stop and the tram stop
+beside it are one place to anybody who catches a tram there, so they answer to
+the same word — and on a generated city 17 of 42 published names appear on more
+than one operator. That is the clue a good player uses to find an undeclared
+interchange, and the trap a careless one falls into by fusing two stops that are
+genuinely different places. A world where every colloquial form identified
+exactly one place would have a second identifier scheme, not a naming conflict.
+
 Low implementation priority; high design importance.
 
 ---
