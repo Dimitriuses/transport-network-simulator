@@ -5,6 +5,7 @@
 // problem does not arise (TECHNICAL-RESEARCH.md §10).
 
 import { createServer, type Server } from "node:http";
+import { publishedEpochSeconds } from "@tns/schema";
 import { makeCheatPlanner, type CheatPlanner } from "./cheat.ts";
 import {
   applyRealtime,
@@ -46,10 +47,14 @@ const CONTRACT_VERSION = "0.3";
  * Decode whatever an operator calls a timestamp.
  *
  * Three operators, three encodings, and no field anywhere saying which
- * (catalogue B). This handles the shapes — a number is epoch seconds, a string
- * with an offset is RFC 3339 — and then makes the mistake a mediocre
- * integrator makes: a timestamp with **no offset** is assumed to be in the
- * same frame as everything else. It is not. Nothing in the data says so.
+ * (catalogue B). This handles the shapes — a number is epoch seconds *or*
+ * milliseconds, told apart by magnitude; a string with an offset is RFC 3339 —
+ * and then makes the mistake a mediocre integrator makes: a timestamp with
+ * **no offset** is assumed to be in the same frame as everything else. It is
+ * not. Nothing in the data says so.
+ *
+ * The unit discrimination lives in `@tns/schema` because the scoring baseline
+ * needs exactly the same rule, and had exactly the same bug.
  */
 /**
  * Seconds since the world epoch, which is what the competent planner indexes
@@ -78,8 +83,12 @@ const WORLD_EPOCH_DAY = 7;
 
 function toSeconds(value: string | number): number {
   if (typeof value === "number") {
-    // Epoch seconds. Reduce to a comparable within-day figure.
-    return value;
+    // Seconds or milliseconds, told apart by magnitude. **This was the second
+    // place the same bug lived** (`KNOWN-ISSUES.md` #35): reading `epoch_ms` as
+    // seconds and then taking it modulo a day does not fail loudly — it yields
+    // a plausible-looking wrong time, since 10800000 % 86400 is exactly 0.
+    // Shared with the scoring baseline so the two cannot drift apart.
+    return publishedEpochSeconds(value);
   }
   const t = /T(\d{2}):(\d{2}):(\d{2})/.exec(value);
   const d = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);

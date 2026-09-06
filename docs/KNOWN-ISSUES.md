@@ -868,7 +868,7 @@ Questions it has to answer, none of them settled:
 **Owner:** P1M4, with `#32` and `#24`. All three are about what a declared difficulty means, and this one supplies a lever the other two need.
 ---
 
-## 35. The lazy integrator read milliseconds as seconds and collapsed — `fixed at P1M2`
+## 35. Three separate consumers read milliseconds as seconds — `fixed at P1M2`
 
 `naiveDecodeTime` in `src/scoring/src/baselines.ts` treated **any** published number as epoch seconds. `B-time-encoding: epoch_ms` publishes milliseconds, so nordline's departures landed 125 days out, `P2` could never board one, and it produced no workable plan on **158 of 200** journeys.
 
@@ -924,3 +924,102 @@ The counts say it is the right mechanism rather than a coincidence: in-time warn
 **The journey-time calibration is untouched** — 8.37 / 5.17 / 3.20 m and 33 fallbacks, identical before and after. That is not a surprise and is worth stating: `P0`, `P1` and `P2` all plan on the published timetable and none of them reads the realtime feed, so staleness cannot reach them. It reaches `P2rt`, the Information family, and a player.
 
 **The committed world's content hash moved** from `f6028eedd79e3cb5` to `ce3925325dbd8b0a`. Unlike `#33`, this is a genuine change of world rather than of what the hash covers: **scores recorded against the old hash are not comparable on catalogue D**, though the journey-time gaps happen to be identical.
+
+### And it was in three places, not one
+
+Found while auditing what P1M1 and P1M2 had left open. The fix above corrected the *lazy integration baseline*; the same statement — "a number is epoch seconds" — appeared independently in two more consumers of the same feed, each with a docstring claiming to handle the shapes competently:
+
+| where | what it does | how it failed |
+|---|---|---|
+| `scoring/baselines.ts` | `P2`, the lazy integrator | departures 125 days out; no workable plan on 158/200 journeys |
+| `refplayer/player.ts` | the **naive reference player** | takes the result `% 86400`, and `10800000 % 86400` is **exactly 0** |
+| `refplayer/competent.ts` | the **competent reference player** | same statement again |
+
+**The second is the dangerous one.** Modulo a day, a millisecond value does not land somewhere obviously absurd — it lands at midnight, a perfectly plausible time. It would not have produced a crash or an empty plan; it would have produced a player that quietly planned around wrong departure times, on any world using `epoch_ms`. Gate 1 and Gate 2 are measured with these two players.
+
+**Nothing had run them against such a world.** The committed world publishes `epoch_s` and `local_naive`; only generated worlds reach `epoch_ms`, and P1M2's generated worlds were measured with `calibrate`, `audit`, `realism`, `headroom` and `identifiability` — none of which runs the reference players. The gap was between two sets of instruments, and neither was wrong.
+
+**Fixed** by moving the rule into `@tns/schema` as `publishedEpochSeconds`, which all three now call. `src/schema/test/published-time.test.ts` checks the rule *and* checks that none of the three restates it — the failure was never one wrong function, it was **three independent copies of one rule, which will eventually disagree, and did.**
+
+> The generalisation, and it is the same one `#19` reached about `noticeLeadS` from the other direction: **when two or more places must apply the same rule, the rule needs one home.** #19 was two numbers that were never compared; this was one rule written out three times. Both produce a system that is locally reasonable everywhere and wrong overall.
+---
+
+## 36. A generated world declared whatever tier the hand-built one is — `fixed at P1M2`
+
+`build.py` wrote `("tier", "2")` into every bundle's manifest, unconditionally. So `python -m worldbuild out.db --tier 5` produced a world whose conflicts were sampled for Tier 5, whose brief announced **Tier 2**, and whose scorecard was graded against Tier 2's clearance bar of 0.25 instead of Tier 5's 0.45.
+
+Two numbers that had to agree, written in different places, compared by nothing — the same shape as `#19`'s staleness against `noticeLeadS`, and as `#35`'s three copies of one rule.
+
+**Found by reading a progress line**, not by a test: `npm run gates` on a world built with `--tier 3` printed `world seed 481516 · tier 2 · 3 operators · 13 conflicts`. Thirteen conflicts is a Tier-3 count; the tier beside it was not.
+
+**Fixed** — the manifest records the tier that was asked for, and the hand-authored city keeps Tier 2 because that is what it is. `CLEARANCE` already covers 0-5, so nothing else needed changing.
+
+**It matters to P1M4 more than to now.** Tier clearance and difficulty profiles are both keyed on the declared tier, and until this was fixed every generated world claimed the same one — which would have made "two worlds at the same declared tier" trivially true for the wrong reason, alongside `#32`.
+
+---
+
+## 37. Two instruments could not be pointed at a generated world — `fixed at P1M2`
+
+`npm run horizon` and `npm run failures` loaded `worlds/m1.world.db` as a **relative** path with no argument. They therefore worked only from the repository root, and only on the committed world.
+
+`CLAUDE.md` now says every per-world instrument must run against every generated world, and P1M1 and P1M2 fixed `symptoms`, `gates`, `stability` and `information` for the same reason, one at a time as each was needed. These two were simply never needed until the sweep that produced this entry.
+
+**Fixed**, and the whole set was swept rather than these two spot-checked: all fifteen scripts under `src/*/scripts/` now take a world path and resolve it against the repository rather than the shell's working directory.
+
+---
+
+## 38. Reach-weighted placement concentrates conflicts until the network's own operator is unusable — `open`
+
+The first time `npm run gates` was pointed at a generated world — possible only after `#35`, `#36` and `#37` — it **failed**.
+
+```
+mode        capture   information   headline   arrived
+null         -1.000         0.000     -0.600   183/200
+blind        -1.252         0.000     -0.751   180/200
+naive        -1.252         0.213     -0.666   180/200
+competent    -0.044         0.533      0.187   172/200
+
+1a PASS   1b PASS   1c PASS by decision   2 PASS
+3 FAIL — conflicts cost 2.23m, 20% of 11.35m headroom, bar is above 20%
+```
+
+Two things are wrong, and the second is the serious one.
+
+**Gate 3 fails by a hair** — 2.23m against a bar of more than 20 % of 11.35m. On its own that would be a marginal world, not a defect.
+
+**`null` outscores `naive` and `blind`.** Declining every obligation beats attempting them, which is the pathology `#26` named at P0M9: *every extra leg a player takes is exposure without reward*. Gate 2 still passes, because it measures separation rather than order, and `gates.ts` reports the inversion under "regression detector — not a gate".
+
+### It is the placement, not the network and not the player
+
+Same naive player, three worlds:
+
+| world | forgone | faster than P1 | player_error |
+|---|---|---|---|
+| `m1`, Tier 2, conflicts split 7 / 7 | 27/98 (28 %) | 25 | 0 |
+| generated, **Tier 0 — no conflicts at all** | 84/200 (42 %) | 47 | 0 |
+| generated, Tier 3 | **190/200 (95 %)** | 1 | 5 |
+
+A conflict-free generated network is fine: the player plans most journeys and beats the reference policy on 47. Add Tier-3 conflicts and it declines 95 % of obligations. **The network is not too hard; the conflicts are not distributed like a world.**
+
+| | conflicts on the dominant operator | that operator's share of the network |
+|---|---|---|
+| `m1`, hand-authored | nordline **7 of 15 (46 %)**, sudbahn 7 | 39 of 58 line-stops |
+| generated | nordline **10 of 13 (76 %)**, ostline 3 | 44 of 66 line-stops |
+
+`generate.py` weights placement by reach, on P0M10's finding that moving conflicts onto the operator carrying the network doubled their cost. **Unbounded, that finding becomes a wall.** The operator carrying two thirds of the line-stops collects three quarters of the conflicts, its feed stops being usable, and a player who ignores it entirely does better than one who tries — which is the `npm run fallback` distinction, one level up: *a conflict that removes most of the query set has become a wall.*
+
+The hand-authored world does not do this. It splits conflicts between the **biggest** operator and the **smallest**, and leaves the middle one clean. P0M10's lesson was "do not put them all on the smallest", and it was implemented as "put them in proportion to reach", which is a stronger claim than the measurement supports.
+
+### The fork, not yet decided
+
+* **Cap the share any one operator may carry.** The world known to pass every gate sits at 46 %. Grounding a bound in that is evidence rather than tuning — but it is still a difficulty decision.
+* **Choose the clean reference by usefulness rather than by smallness.** The generator keeps the *least*-reaching operator honest, so the clean feed is nine line-stops of sixty-six — enough to be a coordinate reference, not enough to route on. `m1` keeps a middle operator clean.
+* **Neither, and accept that Tier 3 is this hard.** Hard to justify while `null` beats `naive`: that is not difficulty, it is a world that punishes participation.
+
+**Not fixed here deliberately.** `PHASES.md`: *a failed gate is a legitimate outcome and must be allowed to stop the project rather than be tuned away.* Choosing a placement bound changes what every generated tier means, and it should be chosen on purpose.
+
+**Blocks P1M3.** Naming generation cannot be validated against a world whose gates fail for an unrelated reason.
+
+### Also learned
+
+`npm run gates` on a 200-journey world takes **~40 minutes** — 28 for the four solutions, 12 for the ablation. P1M4 has to compare worlds pairwise across seeds, so this is a real constraint on that milestone rather than an inconvenience. `network.SCORED_TARGET` is the lever, and 200 buys only a little resolution over 98: seed-to-seed scatter fell from 10 % to 7 %.

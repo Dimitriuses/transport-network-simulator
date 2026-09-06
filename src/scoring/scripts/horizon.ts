@@ -1,7 +1,7 @@
 // How much of a lazy integrator's shortfall is trouble it could not have known
 // about yet?
 //
-//   npm run horizon
+//   npm run horizon [world.db]
 //
 // Gate 3 asks what fraction of lost capture the declared conflicts cause. It is
 // measured against P0, which REFERENCE-POLICY.md §2 gives "full L1 + perfect
@@ -14,8 +14,27 @@
 
 import { loadWorld } from "@tns/core";
 import { calibrate, cleanWorld } from "@tns/scoring";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const world = loadWorld("worlds/m1.world.db");
+const here = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(here, "..", "..", "..");
+
+// Takes a world path like every other instrument, and resolves it against the
+// repository rather than the shell's working directory. It hardcoded a relative
+// `worlds/m1.world.db` until P1M2, so it worked only from the repo root and
+// could not be pointed at a generated world at all.
+const worldPath = process.argv[2]
+  ? resolve(repoRoot, process.argv[2])
+  : join(repoRoot, "worlds", "m1.world.db");
+
+if (!existsSync(worldPath)) {
+  console.error(`No world bundle at ${worldPath}. Build it: npm run world:build`);
+  process.exit(1);
+}
+
+const world = loadWorld(worldPath);
 const clean = cleanWorld(world);
 const m = (s: number) => `${(s / 60).toFixed(2)}m`;
 

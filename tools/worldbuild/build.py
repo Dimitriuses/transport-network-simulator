@@ -276,11 +276,20 @@ def build(
                 ("schema_version", str(SCHEMA_VERSION)),
                 ("engine_version", ENGINE_VERSION),
                 ("seed", str(seed)),
-                # Tier 2 (CORECONCEPT.md §7): several operators, no stop mapping
-                # provided, catalogue A-D active. Not Tier 3 — the reference
-                # policy is still `timetable`, and the feeds, while stale and
-                # dishonest, are neither throttled nor unreliable.
-                ("tier", "2"),
+                # The tier this world declares (CORECONCEPT.md §7).
+                #
+                # The hand-authored city is Tier 2: several operators, no stop
+                # mapping provided, catalogue A-D active. Not Tier 3 — the
+                # reference policy is still `timetable`, and the feeds, while
+                # stale and dishonest, are neither throttled nor unreliable.
+                #
+                # **A generated world declares the tier it was asked for.** It
+                # was hardcoded to "2" until P1M2, so `python -m worldbuild
+                # --tier 5` produced a world whose brief said Tier 2, whose
+                # scorecard was graded against Tier 2's clearance bar, and whose
+                # conflicts were sampled for Tier 5. Nothing compared the two
+                # numbers, which is the shape of `KNOWN-ISSUES.md` #19 again.
+                ("tier", str(tier if tier is not None else 2)),
                 ("world_epoch_iso", city.WORLD_EPOCH_ISO),
                 ("timezone", city.WORLD_TIMEZONE),
                 ("utc_offset_s", str(city.WORLD_UTC_OFFSET_S)),

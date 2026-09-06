@@ -88,7 +88,7 @@ Also serves each operator's `docs_url`, currently advertised and unserved (`KNOW
 
 ---
 
-### P1M2 — Network generation — **delivered, exit met**
+### P1M2 — Network generation — **delivered; exit met, but see #38**
 
 Routes, patterns, journeys and calendars over an existing city graph — efficient, inefficient, congested, poorly coordinated. Includes generating the demand table and the scored query set.
 
@@ -133,7 +133,11 @@ That last clause is a prerequisite for P1M4 rather than a nicety. Phase 0 measur
 
 ---
 
-### P1M3 — Name generation
+### P1M3 — Name generation — **blocked on `KNOWN-ISSUES.md` #38**
+
+A generated world currently **fails Gate 3**, and `null` outscores `naive` on it: declining every obligation beats attempting them. The cause is conflict placement, not naming — `generate.py` weights by reach without a bound, so the operator carrying two thirds of the network collects three quarters of the conflicts and its feed stops being usable. Naming cannot be validated against a world whose gates fail for an unrelated reason.
+
+
 
 Names for cities, districts, streets, stops, stations, operators, routes and vehicles — and **multiple inconsistent names for the same object**.
 

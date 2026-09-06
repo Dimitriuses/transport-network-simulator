@@ -31,6 +31,8 @@ interface Trip {
   heading: string;
   stop_times: StopTime[];
 }
+import { publishedEpochSeconds } from "@tns/schema";
+
 export interface Timetable {
   operator: string;
   stops: Stop[];
@@ -51,8 +53,16 @@ export function detectTimeDecoder(t: Timetable, worldOffsetS: number): (v: strin
   const sample = t.trips[0]?.stop_times[0]?.depart;
 
   if (typeof sample === "number") {
-    // Epoch seconds. τ counts from local midnight, so undo the world offset.
-    return (v) => (typeof v === "number" ? v + worldOffsetS : Number.NaN);
+    // Epoch seconds *or* milliseconds, told apart by magnitude. τ counts from
+    // local midnight, so undo the world offset.
+    //
+    // **The third place this bug lived** (`KNOWN-ISSUES.md` #35). The scoring
+    // baseline and the naive player each had their own copy of "a number is
+    // epoch seconds", and so did this — three consumers of the same feed, three
+    // independent statements of one rule, all of them wrong the same way. The
+    // rule now lives in `@tns/schema` and none of them restates it.
+    return (v) =>
+      typeof v === "number" ? publishedEpochSeconds(v) + worldOffsetS : Number.NaN;
   }
 
   const hasOffset = typeof sample === "string" && /[+-]\d{2}:\d{2}$/.test(sample);

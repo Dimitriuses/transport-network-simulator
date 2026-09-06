@@ -1,6 +1,6 @@
 // Where a solution's travellers actually fail.
 //
-//   npm run failures [modes...]
+//   npm run failures [world.db] [modes...]
 //
 // The scorecard says a solution captures -0.597 of the headroom. It does not
 // say whether that is journeys never planned, plans that broke, reroutes that
@@ -11,12 +11,36 @@
 import { spawn } from "node:child_process";
 import { loadWorld } from "@tns/core";
 import { runOpenLoop } from "@tns/server";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const world = loadWorld("worlds/m1.world.db");
+const here = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(here, "..", "..", "..");
+
+// A world path first, then modes. Resolved against the repository rather than
+// the shell's working directory: this hardcoded a relative path until P1M2.
+const argv = process.argv.slice(2);
+const looksLikeWorld = argv[0]?.endsWith(".db") === true;
+const worldPath = looksLikeWorld
+  ? resolve(repoRoot, argv[0]!)
+  : join(repoRoot, "worlds", "m1.world.db");
+const modeArgs = looksLikeWorld ? argv.slice(1) : argv;
+
+if (!existsSync(worldPath)) {
+  console.error(`No world bundle at ${worldPath}. Build it: npm run world:build`);
+  process.exit(1);
+}
+
+const world = loadWorld(worldPath);
 
 async function run(mode: string, base: number) {
   const player = spawn(process.execPath, ["src/refplayer/scripts/serve.ts"], {
-    stdio: ["ignore", "ignore", "ignore"],
+    // Stderr inherited, not discarded. This script exists to explain *why* a
+    // solution's travellers fail, and a player that is erroring says so on
+    // stderr — throwing that away leaves only a count of `player_error`, which
+    // is the same blindness P0M10 fixed in the walking-skeleton test.
+    stdio: ["ignore", "ignore", "inherit"],
     env: {
       ...process.env,
       TNS_PLAYER_PORT: String(base + 900),
@@ -77,7 +101,7 @@ async function run(mode: string, base: number) {
   }
 }
 
-const modes = process.argv.slice(2).length > 0 ? process.argv.slice(2) : ["competent", "naive"];
+const modes = modeArgs.length > 0 ? modeArgs : ["competent", "naive"];
 let port = 9800;
 for (const mode of modes) {
   await run(mode, port);

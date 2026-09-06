@@ -16,7 +16,7 @@
 //   P1 − P2   whether integrating lazily even beats not integrating
 
 import type { Journey, Line, Pattern, PatternStop, Quay, Site, World } from "@tns/schema";
-import { parseSimTime, parseEpoch } from "@tns/schema";
+import { parseSimTime, parseEpoch, publishedEpochSeconds } from "@tns/schema";
 import {
   buildIndex,
   route,
@@ -75,18 +75,6 @@ export function naiveMatchThresholdM(world: World): number {
 }
 
 /**
- * Past this many seconds from the world epoch, a published number is
- * milliseconds rather than seconds.
- *
- * Thirty days. A transit feed spans days, so a departure a month out is not a
- * departure; the same number read as milliseconds is well inside the window.
- * The two encodings differ by a factor of a thousand, so the gap between "too
- * large for seconds" and "plausible as milliseconds" is enormous and no real
- * value sits in it.
- */
-const MILLISECOND_CUTOFF_S = 30 * 24 * 3600;
-
-/**
  * How a lazy integrator reads a published timestamp.
  *
  * It handles the *shapes* competently — a number is epoch seconds, a string
@@ -117,9 +105,8 @@ function naiveDecodeTime(anchor: ReturnType<typeof parseEpoch>, value: string | 
     // docstring above says collapse is precisely what must not happen. The
     // hand-built world never used `epoch_ms`, so nothing found it until a
     // generator reached that catalogue value (`KNOWN-ISSUES.md` #35).
-    const seconds = value > MILLISECOND_CUTOFF_S ? Math.round(value / 1000) : value;
     // τ counts from local midnight, so undo the offset.
-    return seconds + anchor.offsetS;
+    return publishedEpochSeconds(value) + anchor.offsetS;
   }
   if (/[+-]\d{2}:\d{2}$/.test(value)) return parseSimTime(anchor, value);
   // No offset. Assume UTC — the plausible, unexamined, wrong choice.
