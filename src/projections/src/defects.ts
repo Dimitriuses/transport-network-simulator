@@ -16,6 +16,8 @@
 export type Granularity = "quay" | "site";
 export type IdScheme = "prefixed" | "bare_int";
 export type NamingVariant = "official" | "abbreviated" | "colloquial";
+export type RouteLabel = "name" | "code" | "terminus_pair";
+export type Headsign = "destination" | "route_and_destination" | "via";
 export type CoordinateSource = "quay" | "site";
 export type LatLonOrder = "lat_lon" | "lon_lat";
 export type TimeEncoding = "iso_offset" | "epoch_s" | "epoch_ms" | "local_naive";
@@ -29,7 +31,16 @@ export interface OperatorManifest {
     readonly id_scheme: IdScheme;
     readonly prefix: string;
   };
-  readonly naming: { readonly variant: NamingVariant };
+  readonly naming: {
+    readonly variant: NamingVariant;
+    /**
+     * Optional, and read through a default — a bundle built before these
+     * existed is a valid bundle, and its operators label routes and headsigns
+     * the conventional way (`KNOWN-ISSUES.md` #43).
+     */
+    readonly route_label?: RouteLabel;
+    readonly headsign?: Headsign;
+  };
   readonly geometry: {
     readonly precision: number;
     readonly source: CoordinateSource;
@@ -214,4 +225,53 @@ export function publishedTime(
       // The same wall-clock reading, with the offset simply removed.
       return isoWithOffset.slice(0, 19);
   }
+}
+
+// ------------------------------------------------------- route presentation
+
+/**
+ * How a route is labelled.
+ *
+ * **Texture, and it has to look like texture.** A feed publishing `12` where
+ * another publishes `Ringline` is the ordinary state of the world; nothing that
+ * matches trips across operators reads either, because `route_id` is right
+ * there. It exists so a world is recognisable as the real problem, and so the
+ * cosmetic end of the ladder has more than one thing in it (`#43`).
+ */
+export function publishedRouteLabel(
+  style: RouteLabel,
+  routeId: string,
+  name: string,
+  /** The line's two ends, published the way this operator publishes any name. */
+  termini: readonly [string, string] | null,
+): string {
+  if (style === "code") return routeId;
+  if (style === "terminus_pair" && termini && termini[0] !== termini[1]) {
+    return `${termini[0]} - ${termini[1]}`;
+  }
+  return name;
+}
+
+/**
+ * What a trip says about where it is going.
+ *
+ * `via` is the one worth having: an operator whose line has two branches
+ * disambiguates them by naming a stop on the way, so the same destination
+ * appears under several headsigns. That is a name collision a player might try
+ * to reason from, and it is still cosmetic — the trip's stop sequence says
+ * which branch it is, and the sequence is what a solver reads.
+ *
+ * `via` with nothing to name falls back to the destination rather than
+ * publishing a dangling "via": a pattern of two stops has no midpoint, and an
+ * operator would not print one.
+ */
+export function publishedHeadsign(
+  style: Headsign,
+  routeId: string,
+  destination: string,
+  via: string | null,
+): string {
+  if (style === "route_and_destination") return `${routeId} ${destination}`;
+  if (style === "via" && via !== null && via !== destination) return `${destination} via ${via}`;
+  return destination;
 }

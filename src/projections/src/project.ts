@@ -17,8 +17,10 @@ import type { World } from "@tns/schema";
 import { renderSimTime, parseEpoch } from "@tns/schema";
 import {
   publishedCoords,
+  publishedHeadsign,
   publishedId,
   publishedName,
+  publishedRouteLabel,
   publishedTime,
   type OperatorManifest,
 } from "./defects.ts";
@@ -167,9 +169,27 @@ export function projectOperator(world: World, operatorId: string, tau: number): 
           : `${m.identity.prefix}-R${line.name}`;
       routeToLine.set(routeId, line.id);
       lineToRoute.set(line.id, routeId);
+      // The two ends of the line, for the `terminus_pair` label. Taken from
+      // this line's lowest-numbered pattern so the answer does not depend on
+      // iteration order, and named the way this operator names anything else.
+      const first = ownPatterns
+        .filter((x) => x.lineId === line.id)
+        .sort((a, b) => (a.id < b.id ? -1 : 1))[0];
+      const endName = (quayId: string | undefined): string | null => {
+        const quay = quayId === undefined ? undefined : quayById.get(quayId);
+        return quay ? publishedName(m.naming.variant, quay.name, world.placeNames.get(quay.id)) : null;
+      };
+      const from = endName(first?.stops[0]?.quayId);
+      const to = endName(first?.stops[first.stops.length - 1]?.quayId);
+
       routes.push({
         route_id: routeId,
-        route_name: publishedName(m.naming.variant, line.name, world.placeNames.get(line.id)),
+        route_name: publishedRouteLabel(
+          m.naming.route_label ?? "name",
+          routeId,
+          publishedName(m.naming.variant, line.name, world.placeNames.get(line.id)),
+          from !== null && to !== null ? [from, to] : null,
+        ),
       });
     });
 
@@ -188,10 +208,24 @@ export function projectOperator(world: World, operatorId: string, tau: number): 
       const tripId = publishedId(m.identity.id_scheme, m.identity.prefix, "T", i + 1);
       tripToJourney.set(tripId, j.id);
 
+      // The stop a `via` headsign names: the middle of this pattern, published
+      // the way this operator publishes any other name. Deterministic, because
+      // a headsign that moved between calls would break the snapshot rule.
+      const midQuay = quayById.get(pattern.stops[pattern.stops.length >> 1]?.quayId ?? "");
+      const via =
+        pattern.stops.length > 2 && midQuay
+          ? publishedName(m.naming.variant, midQuay.name, world.placeNames.get(midQuay.id))
+          : null;
+
       trips.push({
         trip_id: tripId,
         route_id: lineToRoute.get(pattern.lineId) ?? pattern.lineId,
-        heading: pattern.heading,
+        heading: publishedHeadsign(
+          m.naming.headsign ?? "destination",
+          lineToRoute.get(pattern.lineId) ?? pattern.lineId,
+          pattern.heading,
+          via,
+        ),
         stop_times: pattern.stops.map((s) => ({
           stop_id: quayToStop.get(s.quayId) ?? s.quayId,
           seq: s.seq,

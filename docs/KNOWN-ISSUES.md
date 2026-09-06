@@ -1332,7 +1332,7 @@ That shape is itself the argument for `#24`'s profile. A scalar difficulty taken
 
 ---
 
-## 43. A tier whose quota exhausts its section has no variety — `open, and narrow`
+## 43. A tier whose quota exhausts its section has no variety — `fixed at P1M4`
 
 Surfaced by the determinism test the moment `#42`'s quota sampler landed: two different seeds produced the **same** Tier 1 world.
 
@@ -1547,3 +1547,88 @@ Nothing about its intent, and it makes the collapse legible instead of fatal: `t
 ### The family this belongs to
 
 `#40` records that the router is not monotone; `#44` that a negative edge from a unit error made the naive player's relaxation diverge. This is the third defect in a label-relaxation loop, and all three have the same shape: **a relaxation whose termination depends on an ordering property of its edge weights, with nothing checking that the weights have it.**
+
+---
+
+## 46. A player that wins the race against the simulator can never recover — `fixed at P1M4`
+
+CI failed on `a complete scorecard renders for a real run`:
+
+```
+player at http://127.0.0.1:8300 never became ready after 60s.
+Last: health says "starting".
+```
+
+Read as a flake for as long as it took to reproduce it, which is: **always**, given the race is lost. `startPlayer` binds the port and *then* reads the brief, and the harness spawns the player before it brings up the control API — so a failed first ingestion is the ordinary case, not an error. It rejected without closing the listener:
+
+```
+1st attempt rejected: fetch failed
+health after the failed attempt: {"status":"starting"}   <- still listening
+2nd attempt rejected: listen EADDRINUSE: 127.0.0.1:8399
+```
+
+`serve.ts` then retried `startPlayer` — **the whole of it, including the bind** — every 50 ms for 90 seconds, each attempt failing on a port the first attempt was still holding, while `/v1/health` answered `starting` from that orphaned socket. The simulator waited its 60 seconds and reported a player that had stopped trying an instant after it began.
+
+**Only the first test in the file failed.** By the time the later ones spawned, the runner was warm and the control API won the race, which is exactly why this looked like flakiness and why it appeared on CI and never locally.
+
+### The fix: retry the thing that failed
+
+Binding a port and reading a brief are different failures and only one of them is worth retrying — the port is either ours or somebody else's, while the control API is simply not up yet. The wait moved into `startPlayer`, next to the fetch, as `ingestBudgetMs`; the listener stays up and honestly answers `starting` throughout; and when the budget does expire the server is closed, so the next process to try the port gets a clean failure instead of inheriting a socket that answers. `serve.ts` no longer wraps any of it.
+
+### Why nothing caught it
+
+**No test ever started a player before its simulator.** Every test span the harness, which spawns them in one order and wins the race on a warm machine. `src/refplayer/test/boot.test.ts` now does it deliberately: start the player against nothing, assert `/v1/health` says `starting`, bring up a minimal control and operator pair, and require the player to notice. Against the old code both of its tests fail *and the runner hangs* on the listener nobody closed — the CI symptom, reproduced in a second and a half.
+
+### The family
+
+`#27` was the same shape — the walking skeleton racing its own player on cold CI runners — and was fixed by raising both budgets. That treated the symptom: **a budget makes a lost race rarer without making it recoverable.** The two budgets even acquired a comment explaining that one must exceed the other, which is a coupling between two files that a single retry in the right place removes.
+
+---
+
+## 43 (continued). Fixed — give the cosmetic end room, and stop charging texture to the difficulty budget
+
+Two settings were added at the cosmetic end of section A, both of them things real feeds differ on and neither of them anything a solver reads:
+
+* **`A-route-label`** — `name` (the line's own code), `code` (the operator's internal route id), or `terminus_pair` (`"University tram stop - Foundry Gate tram stop"`), which is the `route_long_name` convention.
+* **`A-headsign`** — `destination`, `route_and_destination` (`"12 inbound"`), or `via` (`"inbound via Linden Park"`), which is how an operator with branches tells them apart.
+
+Tier 1 now produces a different world from every seed, and `tools/tests/test_generate.py` asserts variety at tier 1 alongside the tiers that always had it.
+
+**A third value was drafted and dropped.** `code_and_name` concatenated the route id with the line name — on this project's cities both are codes, so it published `1 12`, which no feed prints. *The realism constraint applies to texture too.*
+
+### The part that was nearly a silent difficulty regression
+
+A tier's quota counts settings, and a setting is a setting. Adding two cosmetic entries to section A therefore let texture win slots meant for difficulty, measured over thirty seeds:
+
+| tier | semantic conflicts before | after adding the two | after the fix |
+|---|---|---|---|
+| 2 | 7.07 | **5.97** | 9.00 |
+| 3 | 10.00 | **8.80** | 12.00 |
+| 5 | 11.83 | **11.40** | 13.03 |
+
+The middle column is the regression: a tier quietly losing more than a whole semantic conflict per world, with every instrument reporting the same tier number.
+
+**The fix has two halves.** `_in_quota_order` spends a section's quota on its semantic settings first, and `_cosmetic_floor` gives every non-reference operator one cosmetic setting *outside* the quota — because ordering alone would have left tiers 2 and up with no texture at all (section A's semantic pool is exactly Tier 2's quota), and a world where every operator formats identifiers alike is not recognisable as the problem this game is about.
+
+**The durable property is the one worth stating: the size of the cosmetic pool no longer affects difficulty.** More texture can never again make a rung easier, which is what makes "add cosmetic settings" a repeatable answer to a narrow rung rather than a one-off.
+
+### And the right column is not the old behaviour either
+
+Semantic content at tiers 2 and 3 is now **about two conflicts per world higher than before any of this**, and that is the quota finally meaning what it declared. `#42` introduced it to fix composition — *two worlds of a tier must hold the same kinds of conflict* — and a quota that counts cosmetic settings does not do that: one Tier-2 world drawing three semantic section-A conflicts and another drawing one plus two cosmetic differ by two conflicts while declaring the same tier. **That was `#42`'s own defect surviving inside `#42`'s fix**, masked by there being only two cosmetic settings to draw.
+
+**Every difficulty number recorded against a generated world predates this**, including P1M2's `28 %` of headroom, P1M3's `22 %`, and P1M4's cal-a/cal-b profiles and transfer figures. They were honest measurements of a generator that has since changed; re-measure before quoting them.
+
+---
+
+## 47. Two more rungs exhaust their section, and only their values save them — `open, and narrower than #43`
+
+Written as a structural invariant while fixing `#43`, `tools/tests/test_generate.py` reports that section A was not the only place it holds:
+
+* **Section B holds one setting** (`B-time-encoding`) and every tier from 2 up asks for one of it. Every world of tier ≥ 2 draws it.
+* **Section D holds three** and Tier 5 asks for three. Every Tier-5 world draws all of them.
+
+Neither currently produces identical worlds, because both sections' settings carry several values apiece and the values differ substantially — `epoch_s` and `local_naive` are not variations on a theme. The variety test proves it at Tier 5.
+
+**Why it is still worth recording.** `#43`'s Tier 1 also had a setting with two values and still produced one world from every seed, because the value is drawn with a tier-scaled bias that lands on the same rung most of the time. *A choice of values is a weaker guarantee than a choice of settings*, and these two rungs rest on the weaker one.
+
+The fix is the same shape as `#43`'s and is content work: section B wants a second setting — `CORECONCEPT.md` §2.1 B lists service days past midnight (`25:10:00` against `01:10:00`) and calendar representation, both unimplemented. It is exempted by name in the test, which fails if the exemption goes stale.

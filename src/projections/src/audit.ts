@@ -18,7 +18,7 @@
 import type { World } from "@tns/schema";
 import { projectOperator } from "./project.ts";
 import { projectRealtime } from "./realtime.ts";
-import type { OperatorManifest } from "./defects.ts";
+import { publishedName, type OperatorManifest } from "./defects.ts";
 import { generateDisruptions, type Disruption } from "@tns/core";
 
 export interface AuditFinding {
@@ -183,6 +183,46 @@ function checkOperator(
       changed.length > 0
         ? `${changed.length}/${timetable.stops.length} names rewritten, e.g. "${changed[0]!.stop_name}"`
         : "published names are identical to the canonical ones",
+    );
+  }
+
+  // A-route-label: the label must differ from the name this operator would
+  // otherwise publish — not from the canonical one. An operator that also
+  // renames places changes both, and comparing against the canonical name
+  // would report the label present on the strength of the rename.
+  if ((m.naming.route_label ?? "name") !== "name") {
+    const lineById = new Map(world.lines.map((l) => [l.id, l]));
+    const relabelled = timetable.routes.filter((r) => {
+      const line = lineById.get(resolution.routeToLine.get(r.route_id) ?? "");
+      if (!line) return false;
+      return (
+        r.route_name !== publishedName(m.naming.variant, line.name, world.placeNames.get(line.id))
+      );
+    });
+    add(
+      "A-route-label",
+      relabelled.length > 0,
+      relabelled.length > 0
+        ? `${relabelled.length}/${timetable.routes.length} routes labelled ${m.naming.route_label}, e.g. "${relabelled[0]!.route_name}"`
+        : "routes are labelled with the name this operator publishes anyway",
+    );
+  }
+
+  // A-headsign: at least one trip must say something other than its terminus.
+  if ((m.naming.headsign ?? "destination") !== "destination") {
+    const patternById = new Map(world.patterns.map((x) => [x.id, x]));
+    const journeyById = new Map(world.journeys.map((j) => [j.id, j]));
+    const restated = timetable.trips.filter((t) => {
+      const journey = journeyById.get(resolution.tripToJourney.get(t.trip_id) ?? "");
+      const pattern = journey ? patternById.get(journey.patternId) : undefined;
+      return pattern !== undefined && t.heading !== pattern.heading;
+    });
+    add(
+      "A-headsign",
+      restated.length > 0,
+      restated.length > 0
+        ? `${restated.length}/${timetable.trips.length} headsigns restated, e.g. "${restated[0]!.heading}"`
+        : "every headsign is the bare destination",
     );
   }
 

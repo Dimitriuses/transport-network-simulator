@@ -133,6 +133,46 @@ export const CATALOGUE: readonly CatalogueSetting[] = [
     generate: ["abbreviated", "colloquial"],
   },
   {
+    // How a route is labelled. Real feeds are all over this — a short code in
+    // one (`route_short_name`), the pair of termini in another
+    // (`route_long_name`), an internal identifier in a third — and a player
+    // that wants to know which route a trip belongs to reads `route_id`, not
+    // this.
+    //
+    // **Cosmetic on purpose, and added to give the bottom of the ladder
+    // something to choose** (`KNOWN-ISSUES.md` #43). Tier 1 is cosmetic-only
+    // and the catalogue held exactly two cosmetic settings, so its quota of two
+    // drew both and every Tier-1 world was the same world.
+    //
+    // *A third value was drafted and dropped:* `code_and_name` concatenated the
+    // route id with the line name, which on this project's cities are both
+    // codes — it published `1 12`, and no feed prints that. The realism
+    // constraint applies to texture too.
+    conflict: "A-route-label",
+    section: "A",
+    group: "naming",
+    key: "route_label",
+    off: "name",
+    cosmetic: true,
+    generate: ["code", "terminus_pair"],
+  },
+  {
+    // What a trip says about where it is going. `destination` is the bare
+    // terminus; `via` disambiguates two branches by naming a stop on the way,
+    // which is what an operator with branches actually publishes; and
+    // `route_and_destination` is the printed-on-the-front form.
+    //
+    // Cosmetic for the same reason as the label above: it is prose for a
+    // passenger, and nothing that matches trips across feeds reads it.
+    conflict: "A-headsign",
+    section: "A",
+    group: "naming",
+    key: "headsign",
+    off: "destination",
+    cosmetic: true,
+    generate: ["route_and_destination", "via"],
+  },
+  {
     conflict: "A-coordinate-precision",
     section: "A",
     group: "geometry",

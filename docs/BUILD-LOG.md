@@ -1501,3 +1501,38 @@ Both halves hold. A solution that reasons carries across; one that memorised cal
 Three guards, and the third is redundant on purpose: a non-finite arrival is not relaxed, a non-finite departure is not boarded, and reconstruction keeps a visited set. **This is the second unbounded predecessor walk to hang this project** — `#44` was the first, in the naive planner — and the family is now three deep with `#40`: *a relaxation whose termination depends on an ordering property of its edge weights, with nothing checking the weights have it.*
 
 The diagnosis is also a note about method. The hang looked like the harness, because the last one was orphaned processes holding ports; it was found by taking the model out of the server entirely and building it four ways — world A with no key, A with A's key, B with no key, B with A's key — which located it in one cell of that table in a few minutes. **A fixture built to fail must be run against the case it is built to fail on before it is wired into anything.**
+
+### The bottom rung, and what it was hiding — `KNOWN-ISSUES.md` #43
+
+Tier 1 is cosmetic-only. Its quota asked for two settings from section A, the catalogue held exactly two cosmetic ones, and so **every Tier-1 world was the same world** — "two worlds of a tier are different worlds of comparable difficulty" satisfied by making the first half vacuous, which is `#32` wearing different clothes.
+
+Two settings were added at the cosmetic end: `A-route-label` (`code`, or the pair of termini, against the line's own code) and `A-headsign` (`12 inbound`, or `inbound via Linden Park`, against the bare destination). Both are things real feeds differ on; neither is read by anything that matches trips across operators, which is what makes them texture rather than difficulty.
+
+**A third value was drafted and dropped, and it is the smaller lesson.** `code_and_name` concatenated the route id with the line name; on this project's cities both are codes, so it published `1 12`. No feed prints that. *The realism constraint applies to texture too* — it is not only about how far apart two operators may put a stop.
+
+**The larger lesson is what adding them did.** A tier's quota counts settings, and a setting is a setting:
+
+| tier | semantic conflicts before | after adding two cosmetic settings |
+|---|---|---|
+| 2 | 7.07 | **5.97** |
+| 3 | 10.00 | **8.80** |
+
+A tier quietly losing more than a whole semantic conflict per world, with every instrument still reporting the same tier number. This is `#42`'s own defect surviving inside `#42`'s fix — the quota exists to fix *composition*, and a quota that spends slots on things measured at exactly zero does not.
+
+The fix has two halves and the second is not optional: the quota is spent on a section's semantic settings first, and each non-reference operator draws one cosmetic setting *outside* it. Ordering alone would have left tiers 2 and up with **no texture at all**, because section A's semantic pool is exactly Tier 2's quota — trading one wrong world for another.
+
+**The property worth keeping is the invariant, not the fix:** the size of the cosmetic pool no longer affects difficulty. "Add more texture" is now a repeatable answer to a narrow rung instead of a difficulty regression waiting to be measured.
+
+**And the tiers are now harder than every number recorded against them.** Semantic content at tiers 2–3 rose by about two conflicts per world, because the quota finally means what it declares. Re-measured on a fresh tier-3 world: all three gates pass, Gate 3 at **31 % of headroom** against P1M3's 22 %, headroom 12.12m against 10.85m, ambiguity floor unchanged at 1 %.
+
+**Found while fixing it, and left open as `#47`:** section B holds one setting and every tier from 2 up draws it; Tier 5 draws all three of section D. Neither produces identical worlds today — their values differ substantially — but *a choice of values is a weaker guarantee than a choice of settings*, which is precisely what Tier 1 demonstrated. The structural invariant is now a test, with those two exempted by name and the exemption itself checked for staleness.
+
+### A player that won its race could never recover — `KNOWN-ISSUES.md` #46
+
+CI reported `never became ready after 60s. Last: health says "starting"` on the first test of a file whose three other tests passed. `startPlayer` bound the port and *then* read the brief; the harness starts the player before the control API, so a failed first ingestion is the ordinary case; and the rejection left the listener bound. `serve.ts` then retried the whole of `startPlayer` — bind included — every 50 ms against a port the first attempt was still holding, while `/v1/health` answered `starting` from the orphaned socket.
+
+**A lost race, made permanent.** It looked like flakiness because it only happens when the player wins, which on a warm machine it never does and on a cold runner it eventually must.
+
+The wait moved to where the failure is: inside `startPlayer`, next to the fetch, as `ingestBudgetMs`. The listener stays up and honestly reports `starting`; when the budget expires the server is closed so the next process gets a clean failure instead of inheriting a socket that answers. Two coupled budgets in two files — one of which needed a comment explaining it had to exceed the other — became one.
+
+`#27` was the same shape and was fixed by raising both budgets. **A budget makes a lost race rarer without making it recoverable.** Nothing caught either, because no test had ever started a player before its simulator; one now does, and against the old code it does not merely fail — it hangs, which is the CI symptom reproduced in a second and a half.

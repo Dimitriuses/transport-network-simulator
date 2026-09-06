@@ -188,8 +188,14 @@ The generator is therefore defined as *sampling from a catalogue of semantic con
 
 * **ID formatting**: bare integers in one feed, prefixed strings in another. One adapter, solved forever. This was always covered by §2.1's own definition of cosmetic variation ("different ID formats"); it was catalogued as semantic by oversight.
 * **Name variants** for one place: abbreviations, transliteration, "St." / "Street", district prefixes, official vs colloquial, renamed-but-still-referenced-by-old-name.
+* **Route labelling**: a short code in one feed (`route_short_name`), the pair of termini in another (`route_long_name`), an internal identifier in a third. A trip's route is `route_id`; this is what a passenger reads.
+* **Headsign form**: the bare destination, the route number in front of it, or a `via` naming a stop on the way — which is how an operator with two branches tells them apart in print. The stop sequence says which branch it is, and the sequence is what a solver reads.
 
-Both measure exactly zero against a lazy integrator, at every setting on every operator, and have since the catalogue was first probed at P1M0. Reclassified rather than deleted: a world without them would not look like the real problem.
+All four measure exactly zero against a lazy integrator, at every setting on every operator, and have since the catalogue was first probed at P1M0. Reclassified rather than deleted: a world without them would not look like the real problem.
+
+**The last two were added at P1M4, and the reason is about the ladder rather than the texture** (`KNOWN-ISSUES.md` #43). Tier 1 is cosmetic-only; with two cosmetic settings in the catalogue and a quota of two, every Tier-1 world drew both and was the same world — "two worlds of a tier are different worlds of comparable difficulty" made true by making the first half vacuous.
+
+**And a tier's quota may not be spent on texture.** Adding them cost tiers 2 and 3 more than a whole semantic conflict per world before it was caught, because the quota counts settings and a setting is a setting. The quota is now spent on semantic settings first and each operator's texture is drawn outside it, which makes the size of the cosmetic pool irrelevant to difficulty — so this section can grow again without making any rung easier.
 *Uncatalogued as yet, and unmeasured:*
 
 * Modelling mismatch: route vs line vs pattern vs trip are conflated differently by different operators.

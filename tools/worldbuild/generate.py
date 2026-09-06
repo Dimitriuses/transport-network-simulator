@@ -221,6 +221,19 @@ def _in_quota_order(
     The *order within a section* is where the seed still has its say — which
     identity conflict this world uses, rather than how many. Fisher-Yates over a
     single `random()` stream, for the reason `network.py` gives.
+
+    **Semantic settings come before cosmetic ones, and the reason is measured.**
+    A tier's quota says how much *difficulty* a world carries, but it counts
+    settings and a setting is a setting: when `#43` added two cosmetic entries
+    to section A so the bottom rung had something to choose, tiers 2 and 3 lost
+    **1.1 and 1.2 semantic conflicts per world** — texture spending a budget
+    meant for difficulty, and nothing would have reported it. Ordering the
+    section puts the quota on the conflicts that carry the tier and leaves
+    texture to `_cosmetic_floor`, which does not draw on the quota at all.
+
+    The consequence worth stating: **the size of the cosmetic pool no longer
+    affects difficulty**, so the honest fix for a rung with no variety — more
+    texture — can never again make that rung easier.
     """
     by_section: dict[str, list[catalogue.Setting]] = {}
     for setting in settings:
@@ -234,7 +247,8 @@ def _in_quota_order(
         for i in range(len(pool) - 1, 0, -1):
             j = int(rng.random() * (i + 1))
             pool[i], pool[j] = pool[j], pool[i]
-        out.extend(pool)
+        out.extend(s for s in pool if not s.cosmetic)
+        out.extend(s for s in pool if s.cosmetic)
     return out
 
 
@@ -343,6 +357,8 @@ def generate_manifests(
                 placed.add(setting.conflict)
                 wanted[setting.section] = wanted.get(setting.section, 0) - 1
 
+            _cosmetic_floor(manifest, settings, placed, op, cat, rng, tier)
+
         # `prefixed` ids need a prefix, and a bare-int operator must not keep
         # one: the builder reads both, and an inconsistent pair publishes ids
         # that match neither scheme.
@@ -359,6 +375,61 @@ def generate_manifests(
     # not depend on how this function happened to rank operators.
     by_id = {m["id"]: m for m in manifests}
     return tuple(by_id[o.id] for o in operators)
+
+
+def _cosmetic_floor(
+    manifest: dict,
+    settings: tuple[catalogue.Setting, ...],
+    placed: set[str],
+    op: OperatorSpec,
+    cat: catalogue.Catalogue,
+    rng: random.Random,
+    tier: int,
+) -> None:
+    """Every operator that carries conflicts also carries some texture.
+
+    **Texture is not difficulty and must not be paid for out of the difficulty
+    budget** — `_in_quota_order` spends the quota on semantic settings first,
+    which on its own would leave the higher tiers with no cosmetic variation at
+    all: section A's semantic pool is exactly Tier 2's quota. A world where
+    every operator formats identifiers alike and spells every place the same way
+    is not recognisable as the problem this game is about (`CORECONCEPT.md`
+    §2.1), so one cosmetic setting is added outside the quota.
+
+    At most one, and only if the quota did not already place one: this is a
+    floor, not a second budget. The reference operator is left alone, because a
+    world needs a feed that departs from nothing (`_rebalance`).
+    """
+    if any(s.cosmetic and s.conflict in placed for s in settings):
+        return
+    pool = [s for s in settings if s.cosmetic]
+    if not pool:
+        return
+    for i in range(len(pool) - 1, 0, -1):
+        j = int(rng.random() * (i + 1))
+        pool[i], pool[j] = pool[j], pool[i]
+    for setting in pool:
+        blocked = any(
+            other in setting.excludes or setting.conflict in _excludes_of(cat, other)
+            for other in placed
+        )
+        if blocked:
+            continue
+        need = REQUIRES.get(setting.conflict)
+        if need is not None and getattr(op, need) == 0:
+            continue
+        usable = tuple(
+            v
+            for v in setting.generate
+            if _expressible(setting, v, cat)
+            and not _masked(setting, v, manifest)
+            and not _geometry_over_budget(setting, v, manifest, cat)
+        )
+        if not usable:
+            continue
+        manifest[setting.group][setting.key] = _pick(rng, usable, bias=min(1.0, tier / 5.0))
+        placed.add(setting.conflict)
+        return
 
 
 def _conflicts_of(

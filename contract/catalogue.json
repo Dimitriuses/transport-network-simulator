@@ -37,6 +37,30 @@
       ]
     },
     {
+      "conflict": "A-route-label",
+      "section": "A",
+      "group": "naming",
+      "key": "route_label",
+      "off": "name",
+      "cosmetic": true,
+      "generate": [
+        "code",
+        "terminus_pair"
+      ]
+    },
+    {
+      "conflict": "A-headsign",
+      "section": "A",
+      "group": "naming",
+      "key": "headsign",
+      "off": "destination",
+      "cosmetic": true,
+      "generate": [
+        "route_and_destination",
+        "via"
+      ]
+    },
+    {
       "conflict": "A-coordinate-precision",
       "section": "A",
       "group": "geometry",

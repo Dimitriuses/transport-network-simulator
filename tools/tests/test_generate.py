@@ -156,21 +156,75 @@ def test_the_same_seed_gives_the_same_world() -> None:
         assert first == again, f"tier {tier} is not reproducible from its seed"
 
 
-def test_a_tier_with_room_to_choose_produces_different_worlds() -> None:
-    """Different seeds must give different worlds — where the tier has a choice.
+def test_every_tier_produces_different_worlds_from_different_seeds() -> None:
+    """Different seeds must give different worlds. **Tier 1 included.**
 
-    **Tier 1 does not.** Its quota asks for two settings from section A and the
-    catalogue holds exactly two cosmetic ones, so every Tier 1 world draws both
-    and the only freedom left is which naming variant. That is a true statement
-    about the ladder rather than a bug in the generator, and it is recorded as
-    such (`KNOWN-ISSUES.md` #43): a tier whose quota exhausts its section has no
-    variety, and Tier 1 is the narrowest rung.
+    It used not to. Tier 1 is cosmetic-only, its quota asks for two settings
+    from section A, and the catalogue held exactly two cosmetic ones — so every
+    Tier 1 world drew both and the only freedom left was which naming variant
+    (`KNOWN-ISSUES.md` #43). A tier that produces one world satisfies "two
+    worlds of a tier are different worlds of comparable difficulty" by making
+    the first half vacuous, which is the shape of `#32`.
+
+    Fixed by giving the cosmetic end of section A room — `A-route-label` and
+    `A-headsign` — rather than by lowering the quota, which would have bought
+    variety by making the bottom rung thinner still.
     """
     specs = _specs()
-    for tier in (2, 3, 5):
+    for tier in (1, 2, 3, 5):
         first = generate.generate_manifests(specs, tier, 4242)
         assert first != generate.generate_manifests(specs, tier, 4243), (
             f"tier {tier} produced the same world from two different seeds"
+        )
+
+
+def test_tier_one_has_more_settings_than_its_quota_asks_for() -> None:
+    """The condition behind `#43`, stated as the invariant rather than a symptom.
+
+    A rung whose pool is exactly its quota has nothing to choose, however many
+    seeds it is given — and the variety test above would then be passing on the
+    naming variant alone. This one fails the moment a quota grows to meet its
+    section, which is the change that would silently reintroduce the defect.
+    """
+    #: Sections known to hold exactly as many settings as some tier asks for,
+    #: with the issue that owns them. **Exemptions, not exceptions**: section B
+    #: holds one setting and every tier from 2 up draws it; section D holds
+    #: three and Tier 5 draws all three. Both still produce different worlds
+    #: from different seeds — the test above proves it at Tier 5 — because
+    #: their settings carry several values apiece.
+    #:
+    #: `#43` is the record of why that is weaker than a choice of settings: the
+    #: value is drawn with a tier-scaled bias that lands on the same rung most
+    #: of the time, which is how Tier 1 produced one world from every seed.
+    NARROW = {"B": "KNOWN-ISSUES.md #47", "D": "KNOWN-ISSUES.md #47"}
+
+    cat = catalogue.load()
+    for tier, quota in cat.tier_quota.items():
+        pool: dict[str, int] = {}
+        for setting in cat.for_tier(tier):
+            pool[setting.section] = pool.get(setting.section, 0) + 1
+        for section, wanted in quota.items():
+            if wanted <= 0 or section in NARROW:
+                continue
+            assert pool.get(section, 0) > wanted, (
+                f"tier {tier} asks for {wanted} of section {section} and only "
+                f"{pool.get(section, 0)} are available to it - nothing to choose"
+            )
+
+    # And the exemptions must still be true, or they are stale comments.
+    for section, issue in NARROW.items():
+        widest = max(
+            (q.get(section, 0) for q in cat.tier_quota.values()),
+            default=0,
+        )
+        available = max(
+            (sum(1 for s in cat.for_tier(tier) if s.section == section) for tier in cat.tier_quota),
+            default=0,
+        )
+        assert available <= widest, (
+            f"section {section} now holds {available} settings against a widest "
+            f"quota of {widest}; it has room to choose, so remove the exemption "
+            f"and close {issue}"
         )
 
 

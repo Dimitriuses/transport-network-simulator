@@ -444,7 +444,24 @@ export interface PlayerOptions {
     | "competent"
     | "competent-deaf"
     | "tuned";
+  /**
+   * How long to keep trying to reach the control API before giving up.
+   *
+   * A player is routinely started *before* the simulator it talks to — the
+   * harness spawns it, then brings up the control and operator APIs — so the
+   * first ingestion attempt failing is the normal case rather than an error.
+   * The wait belongs here, next to the fetch that fails, and not in a caller
+   * that would have to tear the listener down to retry (`KNOWN-ISSUES.md` #46).
+   */
+  readonly ingestBudgetMs?: number;
 }
+
+/**
+ * The default wait for the control API, and it **must exceed the simulator's
+ * own** `PLAYER_BOOT_BUDGET_MS` — otherwise the player gives up first and the
+ * simulator reports `never became ready` for a player that stopped trying.
+ */
+export const DEFAULT_INGEST_BUDGET_MS = 90_000;
 
 interface Held {
   travellerRef: string;
@@ -782,13 +799,52 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
     })().catch(() => json(res, 500, { title: "internal error", status: 500 }));
   });
 
+  // **Bind once, ingest until it works.** Binding the port and reading the
+  // brief are two different failures and only one of them is worth retrying:
+  // the port is either ours or somebody else's, while the control API is
+  // simply not up yet. Retrying both together is what `KNOWN-ISSUES.md` #46
+  // was — the first attempt bound the port, ingestion failed, the listener was
+  // never closed, and every retry died on EADDRINUSE while `/v1/health`
+  // answered `starting` from the socket the first attempt had left behind.
+  const budgetMs = opts.ingestBudgetMs ?? DEFAULT_INGEST_BUDGET_MS;
+
   return new Promise((resolve, reject) => {
     server.on("error", reject);
     server.listen(opts.port, "127.0.0.1", () => {
-      ingest().then(
-        () => resolve(server),
-        (err) => reject(err),
-      );
+      const startedMs = Date.now();
+      let announced = false;
+
+      const attempt = (): void => {
+        ingest().then(
+          () => resolve(server),
+          (err: unknown) => {
+            if (Date.now() - startedMs >= budgetMs) {
+              // Give the port back, so whatever starts next gets a clean
+              // failure rather than inheriting a listener that answers.
+              server.close();
+              reject(
+                new Error(
+                  `could not read the brief from ${opts.controlUrl} within ` +
+                    `${(budgetMs / 1000).toFixed(0)}s: ${String(err)}`,
+                ),
+              );
+              return;
+            }
+            if (!announced) {
+              // Once, not every 50 ms: a run that ends in `never became ready`
+              // should say what the player was waiting for, without burying it.
+              announced = true;
+              console.error(
+                `player: ${opts.controlUrl} is not answering yet (${String(err)}); ` +
+                  `retrying for up to ${(budgetMs / 1000).toFixed(0)}s`,
+              );
+            }
+            setTimeout(attempt, 50);
+          },
+        );
+      };
+
+      attempt();
     });
   });
 }

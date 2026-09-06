@@ -31,35 +31,13 @@ if (raw !== undefined && !(modes as readonly string[]).includes(raw)) {
 }
 const mode = (raw ?? "naive") as (typeof modes)[number];
 
-// The control API may not be listening the instant we start. Retry rather than
-// racing it; the simulator polls /v1/health and will wait.
-//
-// **The budget must exceed the simulator's own**, or this process gives up
-// first and the simulator reports `never became ready` for a player that was
-// still trying. It was 100 attempts at 50 ms on both sides — five seconds each,
-// which raced on cold CI runners where starting a runtime and parsing source
-// can take longer than the whole budget.
-const CONTROL_API_BUDGET_MS = 90_000;
-
-async function boot(): Promise<void> {
-  const startedMs = Date.now();
-  let lastError: unknown = null;
-  while (Date.now() - startedMs < CONTROL_API_BUDGET_MS) {
-    try {
-      await startPlayer({ port, controlUrl, mode });
-      return;
-    } catch (err) {
-      lastError = err;
-      await new Promise((r) => setTimeout(r, 50));
-    }
-  }
-  throw new Error(
-    `could not reach the control API at ${controlUrl} within ` +
-      `${(CONTROL_API_BUDGET_MS / 1000).toFixed(0)}s: ${String(lastError)}`,
-  );
-}
-
-boot().catch((err) => {
+// The control API may not be listening the instant we start; `startPlayer`
+// waits for it. **This process must not wrap that in a retry of its own** —
+// retrying `startPlayer` retries the `listen` as well, and the second bind
+// fails on a port the first attempt is still holding. That is
+// `KNOWN-ISSUES.md` #46, and it turned a lost race into a permanent
+// `starting`.
+startPlayer({ port, controlUrl, mode }).catch((err: unknown) => {
   console.error(err);
   process.exit(1);
 });
