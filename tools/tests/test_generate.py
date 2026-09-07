@@ -327,3 +327,55 @@ def test_the_staleness_ladder_has_not_collapsed_silently() -> None:
         "no staleness setting in the catalogue can conceal anything against "
         f"a minimum announcement lead of {cat.policy.notice_lead_min_s}s"
     )
+
+
+def test_a_ladder_is_climbed_by_tier_and_a_list_of_kinds_is_not() -> None:
+    """The two halves of `#48`'s fix, asserted against each other.
+
+    A tier is a claim about how far a world departs from publishing honestly, so
+    an *ordinal* setting must reach further up its values as the tier rises —
+    `C-coordinate-offset` runs 30, 60, 130 metres and 130 is worse. A
+    *categorical* one has no end to reach for: `epoch_s`, `epoch_ms` and
+    `local_naive` are three traps, and drawing them with a strength bias made
+    Tier 5 publish `local_naive` 92 % of the time, which is how two Tier-5
+    worlds came to share a memorisable answer key.
+
+    **Both directions are asserted**, because either alone passes on a
+    generator that ignores the tier entirely, or on one that ignores the flag.
+    """
+    cat = catalogue.load()
+    by_key = {(x.group, x.key): x for x in cat.settings}
+    seeds = [3000 + i for i in range(24)]
+
+    def drawn(tier: int, conflict: str) -> list[object]:
+        out: list[object] = []
+        for seed in seeds:
+            for m in generate.generate_manifests(_specs(), tier, seed):
+                for (group, key), setting in by_key.items():
+                    if setting.conflict != conflict:
+                        continue
+                    v = m.get(group, {}).get(key, setting.off)
+                    if v != setting.off:
+                        out.append(v)
+        return out
+
+    # Categorical: every value must show up at the top of the ladder, where the
+    # bias used to collapse the draw onto one of them.
+    encodings = drawn(5, "B-time-encoding")
+    assert len(encodings) >= 10, "too few draws to say anything"
+    assert len(set(encodings)) == 3, (
+        f"Tier 5 drew {sorted(set(encodings))} for B-time-encoding; a categorical "
+        "setting must not converge on one kind (KNOWN-ISSUES.md #48)"
+    )
+
+    # Ordinal: the strongest rung must still be reached for more often at the
+    # top of the ladder than at the bottom.
+    strongest = by_key[("realtime", "staleness_s")].generate[-1]
+    low = drawn(3, "D-staleness")
+    high = drawn(5, "D-staleness")
+    share_low = sum(1 for v in low if v == strongest) / max(1, len(low))
+    share_high = sum(1 for v in high if v == strongest) / max(1, len(high))
+    assert share_high > share_low, (
+        f"D-staleness reached its strongest value {share_high:.0%} of the time at "
+        f"Tier 5 and {share_low:.0%} at Tier 3 — a ladder must be climbed by tier"
+    )

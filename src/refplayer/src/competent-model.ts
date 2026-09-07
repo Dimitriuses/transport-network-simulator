@@ -13,7 +13,7 @@ import {
   type MatchedStop,
   type Timetable,
 } from "./competent.ts";
-import { tunedDecoder, type Tuning } from "./tuning.ts";
+import { tunedDecoder, tunedRealtimeReader, type Tuning } from "./tuning.ts";
 
 export interface CompetentModel {
   readonly stops: readonly MatchedStop[];
@@ -159,9 +159,13 @@ export function applyRealtime(
   model: CompetentModel,
   operator: string,
   updates: readonly { trip_id: string; status: string; delay?: number }[],
+  /** A memorised vocabulary, for `tuned`. Absent means infer it, as usual. */
+  tuning?: Tuning,
 ): void {
   const previously = new Set([...model.seenTrips].filter((k) => k.startsWith(`${operator}:`)));
-  const view = readRealtime(operator, updates, previously);
+  const baked = tuning?.operators[operator];
+  const read = baked ? tunedRealtimeReader(baked) : readRealtime;
+  const view = read(operator, updates, previously);
   for (const k of view.cancelled) model.cancelled.add(k);
   for (const [k, d] of view.delayed) model.delayed.set(k, d);
 }

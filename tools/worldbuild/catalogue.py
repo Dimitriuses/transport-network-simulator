@@ -36,6 +36,10 @@ class Setting:
     plausible_max: object | None
     plausible_because: str | None
     excludes: tuple[str, ...]
+    #: `generate` holds kinds rather than severities, so a stronger world must
+    #: not prefer its later entries. See the field's note in
+    #: `src/schema/src/catalogue.ts` and `KNOWN-ISSUES.md` #48.
+    categorical: bool = False
 
     def is_plausible(self, value: object) -> bool:
         """Whether a value stays inside what two real operators could differ by."""
@@ -117,6 +121,7 @@ def load() -> Catalogue:
             plausible_max=(s.get("plausible") or {}).get("max"),
             plausible_because=(s.get("plausible") or {}).get("because"),
             excludes=tuple(s.get("excludes", ())),
+            categorical=bool(s.get("categorical", False)),
         )
         for s in raw["settings"]
     )

@@ -31,6 +31,7 @@
       "key": "variant",
       "off": "official",
       "cosmetic": true,
+      "categorical": true,
       "generate": [
         "abbreviated",
         "colloquial"
@@ -43,6 +44,7 @@
       "key": "route_label",
       "off": "name",
       "cosmetic": true,
+      "categorical": true,
       "generate": [
         "code",
         "terminus_pair"
@@ -55,6 +57,7 @@
       "key": "headsign",
       "off": "destination",
       "cosmetic": true,
+      "categorical": true,
       "generate": [
         "route_and_destination",
         "via"
@@ -95,6 +98,7 @@
       "excludes": [
         "B-dst-offset"
       ],
+      "categorical": true,
       "generate": [
         "epoch_s",
         "epoch_ms",
@@ -114,6 +118,7 @@
       "excludes": [
         "B-time-encoding"
       ],
+      "categorical": true,
       "generate": [
         -3600,
         3600
@@ -169,6 +174,7 @@
       "excludes": [
         "D-silent-cancellation"
       ],
+      "categorical": true,
       "generate": [
         "CANCELLED",
         "C",

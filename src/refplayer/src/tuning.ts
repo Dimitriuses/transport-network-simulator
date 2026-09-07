@@ -52,6 +52,25 @@ export interface OperatorTuning {
   readonly dLon: number;
   /** The encoding this operator used, in the world this was baked from. */
   readonly encoding: "iso_offset" | "local_naive" | "epoch_s" | "epoch_ms";
+  /**
+   * The word this operator used for a cancellation, and the unit it used for a
+   * delay.
+   *
+   * **Added at P2M0, because a key that holds two things can only test two
+   * things** (`KNOWN-ISSUES.md` #48). At Tier 3 geometry and time carry most of
+   * what a solver must work out, so a key holding those collapsed convincingly
+   * when it was carried to another world. At Tier 5 they do not: two calibrated
+   * Tier-5 worlds differed in section B and the memorised decoder was *right on
+   * both anyway*, because `local_naive` and an `iso_offset` feed claiming the
+   * wrong zone decode identically for any reader that ignores the claim — which
+   * is what a correct reader does.
+   *
+   * These two are inferred by `competent` from the feed (a vocabulary, and a
+   * magnitude), so baking them is memorisation in exactly the sense the fixture
+   * means, and they are where a Tier-5 world keeps its difficulty.
+   */
+  readonly cancelledToken?: string;
+  readonly delayUnit?: "seconds" | "minutes";
 }
 
 export interface Tuning {
@@ -62,6 +81,55 @@ export interface Tuning {
 
 export function readTuning(path: string): Tuning {
   return JSON.parse(readFileSync(path, "utf8")) as Tuning;
+}
+
+/**
+ * Read a realtime feed with a memorised vocabulary instead of an inferred one.
+ *
+ * `competent` recognises the states that mean *running* and treats everything
+ * else as trouble, and works the delay unit out from magnitude. This does
+ * neither: it matches one remembered word and applies one remembered unit.
+ *
+ * On the world it was baked from that is exact. On another it is a solution
+ * looking for `cancelled` in a feed that says `3`, finding nothing, and
+ * concluding that every service is running — **deliberately unguarded, for the
+ * reason the module comment gives: a fallback would defeat the fixture.**
+ */
+export function tunedRealtimeReader(
+  tuning: OperatorTuning,
+): (
+  operator: string,
+  updates: readonly { trip_id: string; status: string; delay?: number }[],
+  previouslySeen: ReadonlySet<string>,
+) => { cancelled: Set<string>; delayed: Map<string, number> } {
+  const token = tuning.cancelledToken ?? "cancelled";
+  const unit = tuning.delayUnit ?? "seconds";
+  return (operator, updates, previouslySeen) => {
+    const cancelled = new Set<string>();
+    const delayed = new Map<string, number>();
+    const present = new Set<string>();
+
+    for (const u of updates) {
+      const key = `${operator}:${u.trip_id}`;
+      present.add(key);
+      if (u.status === token) {
+        cancelled.add(key);
+        continue;
+      }
+      if (u.status === "delayed") {
+        const seconds = unit === "minutes" ? (u.delay ?? 0) * 60 : (u.delay ?? 0);
+        if (seconds > 0) delayed.set(key, seconds);
+      }
+    }
+
+    // A trip that has vanished has still gone: this much is not memorised,
+    // because it is not something the answer key could hold.
+    for (const key of previouslySeen) {
+      if (key.startsWith(`${operator}:`) && !present.has(key)) cancelled.add(key);
+    }
+
+    return { cancelled, delayed };
+  };
 }
 
 /**

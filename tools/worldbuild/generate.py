@@ -258,6 +258,15 @@ def _pick(rng: random.Random, options: tuple[object, ...], bias: float) -> objec
     `bias` runs 0 (always the weakest) to 1 (always the strongest). Implemented
     with a single `random()` draw and integer arithmetic, deliberately: see the
     determinism note in the module docstring.
+
+    **Pass `bias=0` for a categorical setting**, whose `generate` list holds
+    kinds rather than severities. At Tier 5 the bias picks the last entry 92 %
+    of the time, which is right for a ladder and wrong for a list of traps: it
+    made every top-rung world publish the same time encoding and the same
+    cancellation token, and a memorised answer key transferred between two
+    Tier-5 worlds because of it (`KNOWN-ISSUES.md` #48). The draw is one
+    `random()` either way, so the stream is the same length and a seed still
+    reproduces.
     """
     if not options:
         raise ValueError("no options to pick from")
@@ -266,6 +275,18 @@ def _pick(rng: random.Random, options: tuple[object, ...], bias: float) -> objec
     skewed = draw ** (1.0 - 0.8 * bias) if bias > 0 else draw
     index = int(skewed * len(options))
     return options[min(index, len(options) - 1)]
+
+
+def _bias_for(setting: catalogue.Setting, tier: int) -> float:
+    """How hard to lean on the strong end of this setting's values.
+
+    A tier is a claim about *how much* a world departs from publishing honestly,
+    so a higher tier reaches further up a ladder — `C-coordinate-offset` runs
+    30, 60, 130 metres and 130 is unambiguously worse. A categorical setting has
+    no such end to reach for, and pretending otherwise costs variety at exactly
+    the rung that has least of it (`KNOWN-ISSUES.md` #48).
+    """
+    return 0.0 if setting.categorical else min(1.0, tier / 5.0)
 
 
 def _excludes_of(cat: catalogue.Catalogue, conflict: str) -> tuple[str, ...]:
@@ -352,7 +373,7 @@ def generate_manifests(
                     continue
                 if wanted.get(setting.section, 0) <= 0:
                     continue
-                value = _pick(rng, usable, bias=min(1.0, tier / 5.0))
+                value = _pick(rng, usable, bias=_bias_for(setting, tier))
                 manifest[setting.group][setting.key] = value
                 placed.add(setting.conflict)
                 wanted[setting.section] = wanted.get(setting.section, 0) - 1
@@ -427,7 +448,7 @@ def _cosmetic_floor(
         )
         if not usable:
             continue
-        manifest[setting.group][setting.key] = _pick(rng, usable, bias=min(1.0, tier / 5.0))
+        manifest[setting.group][setting.key] = _pick(rng, usable, bias=_bias_for(setting, tier))
         placed.add(setting.conflict)
         return
 

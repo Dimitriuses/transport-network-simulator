@@ -40,7 +40,10 @@ const operators: Record<string, OperatorTuning> = {};
 
 for (const op of world.manifest.operators) {
   const { timetable, resolution } = projectOperator(world, op.id, 0);
-  const manifest = op.manifest as { time: { encoding: OperatorTuning["encoding"] } };
+  const manifest = op.manifest as {
+    time: { encoding: OperatorTuning["encoding"] };
+    realtime?: { cancelled_token?: string; delay_unit?: OperatorTuning["delayUnit"] };
+  };
 
   // The systematic displacement: the mean signed difference between where this
   // operator says a stop is and where it actually is. Averaged over the quays a
@@ -72,6 +75,8 @@ for (const op of world.manifest.operators) {
     dLat: n === 0 ? 0 : sumLat / n,
     dLon: n === 0 ? 0 : sumLon / n,
     encoding: manifest.time.encoding,
+    cancelledToken: manifest.realtime?.cancelled_token ?? "cancelled",
+    delayUnit: manifest.realtime?.delay_unit ?? "seconds",
   };
 }
 
@@ -82,10 +87,13 @@ console.log("");
 console.log(`  ANSWER KEY — ${worldArg}`);
 console.log(`  world ${world.manifest.contentHash.slice(0, 16)}`);
 console.log("");
-console.log("    operator     displacement (m)   encoding");
+console.log("    operator     displacement (m)   encoding      cancelled   delay");
 for (const [id, t] of Object.entries(operators)) {
   const metres = Math.sqrt((t.dLat * 111_320) ** 2 + (t.dLon * 111_320 * 0.64) ** 2);
-  console.log(`    ${id.padEnd(12)} ${metres.toFixed(0).padStart(16)}   ${t.encoding}`);
+  console.log(
+    `    ${id.padEnd(12)} ${metres.toFixed(0).padStart(16)}   ${(t.encoding as string).padEnd(12)}  ` +
+      `${(t.cancelledToken ?? "").padEnd(10)}  ${t.delayUnit ?? ""}`,
+  );
 }
 console.log("");
 console.log(`  written ${outPath}`);

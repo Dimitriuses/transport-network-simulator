@@ -59,6 +59,29 @@ export interface CatalogueSetting {
    */
   readonly generate: readonly (string | number | boolean)[];
   /**
+   * `generate` holds *kinds*, not severities, so a stronger world may not
+   * prefer the later entries.
+   *
+   * **The generator draws a value with a bias towards the strong end, scaled by
+   * tier** — right for `C-coordinate-offset`'s `[30, 60, 130]`, where 130 m is
+   * unambiguously worse than 30 m. It is wrong for `B-time-encoding`'s
+   * `epoch_s | epoch_ms | local_naive`: those are three different traps, and
+   * putting them in a list did not make the last one hardest. At Tier 5 the
+   * bias picks the final entry **92 %** of the time, so every top-rung world
+   * drew the same trap, two Tier-5 worlds shared 80 % of their conflicts, and a
+   * memorised answer key transferred between them (`KNOWN-ISSUES.md` #48).
+   *
+   * Marked settings are drawn **uniformly**, which varies *which* trap a world
+   * holds without making it any easier — the difficulty of a kind does not
+   * depend on the tier, which is precisely what "kind" means here.
+   *
+   * The test for whether a list is ordinal is not whether it *can* be ordered:
+   * it is whether a world that wants to be harder should prefer the later
+   * entries. If ordering them meant ranking how a *particular* reader fails
+   * rather than how much the conflict costs, it is categorical.
+   */
+  readonly categorical?: boolean;
+  /**
    * How `generate` was derived from the world's own parameters, when it was.
    *
    * **A setting's values were chosen for plausibility alone, and plausibility
@@ -130,6 +153,9 @@ export const CATALOGUE: readonly CatalogueSetting[] = [
     key: "variant",
     off: "official",
     cosmetic: true,
+    // An abbreviation and a colloquial name are two ways of not being the
+    // official name, not two strengths of it.
+    categorical: true,
     generate: ["abbreviated", "colloquial"],
   },
   {
@@ -154,6 +180,7 @@ export const CATALOGUE: readonly CatalogueSetting[] = [
     key: "route_label",
     off: "name",
     cosmetic: true,
+    categorical: true,
     generate: ["code", "terminus_pair"],
   },
   {
@@ -170,6 +197,7 @@ export const CATALOGUE: readonly CatalogueSetting[] = [
     key: "headsign",
     off: "destination",
     cosmetic: true,
+    categorical: true,
     generate: ["route_and_destination", "via"],
   },
   {
@@ -203,6 +231,12 @@ export const CATALOGUE: readonly CatalogueSetting[] = [
     // an operator publishing `epoch_s` has no offset to get wrong, and one
     // publishing `local_naive` has already removed it (`KNOWN-ISSUES.md` #48).
     excludes: ["B-dst-offset"],
+    // Three traps, not three severities. Epoch seconds are a unit problem, epoch
+    // milliseconds are a magnitude problem, and a naive local string is a
+    // problem of a fact stated nowhere in the feed — no ordering of those is a
+    // ladder, and treating them as one made Tier 5 draw `local_naive` every
+    // time (`KNOWN-ISSUES.md` #48).
+    categorical: true,
     generate: ["epoch_s", "epoch_ms", "local_naive"],
   },
   {
@@ -231,6 +265,9 @@ export const CATALOGUE: readonly CatalogueSetting[] = [
     // an operator's own passengers would have said so.
     plausible: { max: 3600, because: "one hour is the DST step; beyond it nobody would keep publishing" },
     excludes: ["B-time-encoding"],
+    // The sign is a direction, not a severity: an hour early and an hour late
+    // are the same size of error and the same size of mistake.
+    categorical: true,
     generate: [-3600, 3600],
   },
 
@@ -290,9 +327,13 @@ export const CATALOGUE: readonly CatalogueSetting[] = [
     key: "cancelled_token",
     off: "cancelled",
     excludes: ["D-silent-cancellation"],
-    // Weakest first: a reader doing a case-insensitive compare survives the
-    // first, one that checks a prefix survives the second, and nothing but
-    // reading the feed's own value space survives the third.
+    // **Three vocabularies, not three strengths**, which corrects the note this
+    // entry carried when it was added an hour earlier. That note ranked them by
+    // how a *particular* reader fails — case-insensitive compare, prefix check,
+    // value-space inspection — and how one implementation happens to break is
+    // not how much a conflict costs. Ordering it that way would also have made
+    // Tier 5 publish `3` every time (`KNOWN-ISSUES.md` #48).
+    categorical: true,
     generate: ["CANCELLED", "C", "3"],
   },
 

@@ -569,7 +569,7 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
         if (competent) {
           // Infers delay units from magnitude, and treats a trip that has
           // vanished since the last look as cancelled rather than punctual.
-          applyRealtime(competent, op.id, feed.updates ?? []);
+          applyRealtime(competent, op.id, feed.updates ?? [], tuning);
           for (const k of competent.cancelled) trouble.add(k);
           for (const k of competent.delayed.keys()) trouble.add(k);
           if (deaf) {

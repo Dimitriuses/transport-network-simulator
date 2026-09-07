@@ -1805,3 +1805,67 @@ The geometry half fared no better: 60 m against 0 m is a mis-correction small en
 **A categorical setting should be drawn uniformly**, which varies *which* trap a world holds without making it any easier. That is the missing half of this fix and it is a change to what a `generate` list means, so it is raised rather than assumed.
 
 **And the fixture has a limit worth recording separately:** `tuned` memorises two things — displacement and encoding. At Tier 3 those carry most of what a solver must work out. At Tier 5 most of the difficulty is in section D, which the answer key does not cover at all, so the test cannot see whether *that* is memorisable. A wider key would be a wider test.
+
+
+---
+
+## 48 (continued). A ladder is climbed by tier; a list of kinds is not
+
+`_pick` skews a setting's value towards the end of its `generate` list, scaled by `tier / 5`. That is right for `C-coordinate-offset`'s `[30, 60, 130]` metres, where 130 is unambiguously worse. It is wrong for `B-time-encoding`'s `epoch_s | epoch_ms | local_naive`, which are three *traps*: epoch seconds are a unit problem, epoch milliseconds a magnitude problem, and a naive local string a problem of a fact stated nowhere in the feed. Putting them in a list did not make the last one hardest — but the bias picked it **92 %** of the time at Tier 5.
+
+**The catalogue now marks such settings `categorical`, and the generator draws them uniformly.** It varies *which* trap a world holds without making the world easier, because the difficulty of a kind does not depend on the tier — which is what "kind" means. Six settings are marked: `A-naming`, `A-route-label`, `A-headsign`, `B-time-encoding`, `B-dst-offset` (an hour early and an hour late are the same size of mistake) and `C-cancellation-token`.
+
+**The test for whether a list is ordinal is not whether it *can* be ordered.** It is whether a world that wants to be harder should prefer the later entries. `C-cancellation-token` shipped an hour earlier with a note ranking `CANCELLED | C | 3` by how a reader fails — case-insensitive compare, prefix check, value-space inspection. That ranks *implementations*, not costs, and the note is corrected in place.
+
+| tier | same conflicts+values, before #48 | after widening | after uniform draws |
+|---|---|---|---|
+| 3 | 41 % | 29 % | **28 %** |
+| 5 | 66 % | 57 % | **47 %** |
+
+The strongest-value rate at Tier 5 fell from 92 % to 63 %, and the remaining 63 % is the genuinely ordinal settings — staleness and coordinate offset — which *should* skew at the top of the ladder.
+
+`tools/tests/test_generate.py` asserts both directions against each other: every kind must appear at Tier 5, and `D-staleness` must still reach its strongest rung more often at Tier 5 than at Tier 3. Either alone passes on a generator that ignores the tier entirely, or on one that ignores the flag.
+
+### The answer key was too narrow to see the rest, and now is not
+
+`tuned` memorised two things — displacement and encoding. At Tier 3 those carry most of what a solver must work out; at Tier 5 they do not. The key now also holds **the cancellation token and the delay unit**, both of which `competent` infers from the feed (a vocabulary, and a magnitude), so baking them is memorisation in exactly the sense the fixture means.
+
+At Tier 3 that sharpened the collapse slightly: `tuned` 0.348 → **−0.839**, against −0.832 with the narrow key. Both halves still hold.
+
+### Tier 5 still reads *too alike*, and the cause is now exact
+
+```
+    solution      home     away     change
+    competent     0.424    0.404   -0.020
+    tuned         0.419    0.411   -0.008
+```
+
+The per-conflict attribution on the home world says why:
+
+```
+per-conflict on journey time, each acting alone:
+    4.93m  B-time-encoding:nordline
+    2.43m  B-time-encoding:ostline
+    0.66m  C-delay-unit:nordline
+    0.40m  C-coordinate-offset:ostline
+    ...
+```
+
+**Tier 5's cost is dominated by the time encoding**, by a factor of seven over the next conflict. And the two worlds' B conflicts are:
+
+* cal5-a — `B-time-encoding: local_naive`, publishing `2031-04-07T06:00:00`
+* cal5-b — `B-dst-offset: +3600`, publishing `2031-04-07T06:00:00+04:00` in a `+03:00` city
+
+**Those decode identically for any reader that ignores a false offset claim — which is what a correct reader does.** The memorised `local_naive` decoder is right on both. The differences the wider key added — a `cancelled` / `3` token mismatch on the operator carrying 40 % of the network, a delay unit, 50 m of geometry — are together worth 0.008 of capture, because at Tier 5 they are not what the score is made of.
+
+### The finding underneath it, and it is about the catalogue rather than the ladder
+
+**`B-dst-offset` is a different conflict in cause and the same conflict in effect.** It was added an hour earlier to give section B something to choose, and it does — the conflict lists differ, the audit distinguishes them, the manifests differ. For *a time decoder*, which is what the answer key holds, it is a near-duplicate of `local_naive`.
+
+`excludes` exists to stop one conflict masking another **within** a world. Nothing stops two conflicts **coinciding in effect across** worlds, and a transfer test is precisely the instrument that notices. *A catalogue can be varied in what it declares and uniform in what it demands.*
+
+**Options for the next step, none chosen:**
+
+* **Give section B a setting that differs in what a reader must *do***, not only in what the feed says — a static timetable and a realtime feed in different encodings is the obvious one, and no single memorised encoding covers it.
+* **Have the calibration search reject a pair whose answer keys are behaviourally equivalent**, which is a check on the instrument's inputs rather than on the world.
+* **State the exit clause per tier.** Tier 5's difficulty is concentrated in one dimension, and a rung whose cost is 77 % one conflict may simply not be a good test of memorisability.
