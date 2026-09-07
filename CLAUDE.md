@@ -6,13 +6,15 @@ Guidance for Claude Code and for anyone else working in this repository.
 
 A simulation game about integration engineering. A generated city, several independent transport operators whose data disagrees in deliberate and specific ways, and a player who must unify them. See [`README.md`](README.md).
 
-**Current state: Phase 0 complete. All gates pass as of 2026-09-04.**
+**Current state: Phases 0 and 1 complete. Phase 2 is current as of 2026-09-07.**
 
 P0M0–P0M6 delivered one hand-built Tier-2 world and were recorded as passing all three gates. P1M0 found that result had been measured with a blind instrument, Phase 0 was reopened, and P0M7–P0M10 rebuilt the instruments, the world and the references. `npm run gates` reports **all gates pass**: 1a solvable, 1b not trivial, 1c PASS *by decision*, 2 discriminating, 3 at **36 % of headroom** against a ratified 20 % bar. Re-measured at P1M2, when `KNOWN-ISSUES.md` #19 was fixed in the world itself — both staleness settings had been below the shortest announcement lead and so concealed nothing, leaving catalogue D decorative.
 
 **Two things that PASS does not say.** Gate 1c is scope rather than evidence — nothing is known about whether a stranger can discover this world's conflicts (`docs/KNOWN-ISSUES.md` #3), and the playtest is still owed. And the competent reference solution is a **regression detector, not a gate instrument**: it was written by people who had seen the world.
 
-Next is **Phase 1 — generation**, in [`ROADMAP.md`](ROADMAP.md).
+**Phase 1 closed on 2026-09-07** — worlds are generated rather than authored, and two calibrated worlds of one tier match on every reference while a solution memorised from either collapses on the other. `docs/BUILD-LOG.md` carries the record under *Phase 1 — closed*, including the milestone plans the roadmap used to hold.
+
+Next is **Phase 2 — the living world**, in [`ROADMAP.md`](ROADMAP.md): the closed loop, `realtime`, the monitoring UI, and — last, deliberately — the external playtest that Gate 1c has been waiting on since P1M0.
 
 **The constraint that shapes all of it:** a conflict must stay realistic. Two operators can disagree about where a stop is; at 500 m apart that is a broken map, not a disagreement, and it teaches something other than integration. Every route to a passing gate that runs through "make the conflict bigger" is closed.
 

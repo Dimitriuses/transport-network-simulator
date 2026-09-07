@@ -270,6 +270,8 @@ The gates pass, so Phase 1 may begin. But the ablation is a sharper instruction 
 
 ## Phase 1 — Generation
 
+**Complete, 2026-09-07.** Five milestones; the record is in [`BUILD-LOG.md`](BUILD-LOG.md) under *Phase 1 — closed*. The completion clause below was amended twice during P1M4 and is reproduced in its amended form; what it measures now is `npm run profile` and `npm run transfer`, and it was met on one calibrated tier-3 pair — **evidence, not coverage**, with a second pair carried into Phase 2 as P2M0.
+
 **Delivers:** the ability to produce worlds instead of hand-authoring them — *for the content that Phase 0's attribution showed was carrying the difficulty, and no other.*
 
 Expected order, subject to that evidence:
@@ -290,6 +292,8 @@ Expected order, subject to that evidence:
 ---
 
 ## Phase 2 — The living world
+
+**Current from 2026-09-07**, planned in [`../ROADMAP.md`](../ROADMAP.md) as P2M0–P2M4. Two items reach it from earlier phases: the router's non-monotonicity (`KNOWN-ISSUES.md` #40), because everything here is measured through it, and the external playtest (#3), which is scheduled last.
 
 **Delivers:** the sandbox half of the project, which Phase 0 deliberately skipped.
 
@@ -362,4 +366,4 @@ By Phase 5 there will be four phases of evidence about what a city actually need
 | **4** | packaging, benchmark and assessment modes | a stranger can run it |
 | **5** | procedural city generation | generated cities match imported ones in difficulty |
 
-Phases 1–5 are sketches. They will be rewritten as each becomes current — and Phase 0's findings will rewrite Phase 1 in particular, which is the intent rather than a shortcoming.
+Phases 2–5 are sketches. They will be rewritten as each becomes current, which is the intent rather than a shortcoming: Phase 0's findings rewrote Phase 1's exit clause twice, and Phase 1's findings have already added two items to Phase 2.

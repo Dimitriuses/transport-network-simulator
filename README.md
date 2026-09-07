@@ -12,7 +12,7 @@ There is no reference solution, and no single right answer. You are scored on wh
 
 ## Status
 
-**Phase 0 complete. All gates pass.**
+**Phases 0 and 1 complete. All gates pass — on a generated world as well as the committed one.**
 
 The loop runs end to end: a hand-built 34-quay city, **three operators whose data genuinely disagrees**, live operator APIs, a reference player in its own process, and a capture-scored scorecard — reproducibly, byte for byte.
 
@@ -31,7 +31,9 @@ The world is now **live**: services run late and get cancelled, each operator's 
 
 Runs now produce a full scorecard — three families, a named profile, tier clearance, and a report of **where the capture went**. A player that plans with information no feed published is caught by the information-set audit even though its score looks perfect.
 
-Four solutions of different quality separate cleanly, and a player planning with information no feed published is caught by the information-set audit even though its score looks perfect. The third gate — that the *declared conflicts* are what makes the world hard — was recorded as passing at 61 % and **now fails**. P1M0 found the instrument wrong at both ends: the baseline had been handed the true disruption set and never read a published feed, and the reference it was divided by is granted foresight of disruptions before they are announced, which no player can have. Measured against a reference held to the same information, the conflicts cost **3 % of the headroom a player competes for**. Phase 1 opens on that correction rather than around it. See [`docs/PHASES.md`](docs/PHASES.md).
+Four solutions of different quality separate cleanly, and a player planning with information no feed published is caught by the information-set audit even though its score looks perfect.
+
+The third gate — that the *declared conflicts* are what makes the world hard — has the most instructive history in the project. It was recorded as passing at 61 %, and P1M0 found the instrument wrong at both ends: the baseline had been handed the true disruption set and never read a published feed, while the reference it was divided by was granted foresight of disruptions before they were announced, which no player can have. Against a matched reference it read **3 %** and the gate failed. Phase 0 was reopened for four milestones to fix the instruments, the world and the references; it now reads **36 %** on the committed world and **31 %** on a generated one, against a ratified 20 % bar. *The original numbers are kept in [`docs/PHASES.md`](docs/PHASES.md), because a result that is quietly rewritten cannot be challenged.*
 
 ```
 npm run gates                  # the three Phase 0 proof gates
@@ -40,7 +42,7 @@ npm run conformance -- URL     # check a player speaks the contract
 
 **Want to build a solution?** [`docs/PLAYING.md`](docs/PLAYING.md).
 
-Next is **Phase 1 — generation**, scoped in [`ROADMAP.md`](ROADMAP.md).
+Phase 1 generated the worlds: a whole city, its operators' disagreements, its names and its scored journeys, calibrated so that two worlds of one tier ask the same amount of a solver without asking it the same way. Next is **Phase 2 — the living world**, scoped in [`ROADMAP.md`](ROADMAP.md).
 
 ---
 

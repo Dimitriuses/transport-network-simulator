@@ -73,6 +73,8 @@ No internal work can close this. The gate output says so in its own text so the 
 
 **Still owed:** the playtest itself. [`PLAYTEST-KIT.md`](PLAYTEST-KIT.md) needs an engineer who has not seen this repository, and quests will not substitute — they measure directed search, not undirected discovery.
 
+**Scheduled 2026-09-07 as P2M4, the last milestone of Phase 2.** It was carried through the whole of Phase 1 as P1M0 part A and never run, which is its own small finding: an item that needs a person does not get done by being listed. Placing it at the end of a phase rather than the start of one is deliberate — a live world and a traveller timeline that explains itself are what make the session about the player's understanding rather than about missing tooling, and **fresh eyes can only be spent once per person**. Gate 1c stays PASS *by decision* until it runs.
+
 ---
 
 ## 4. Gap estimates are noisy at this world size — `fixed at P0M9`
