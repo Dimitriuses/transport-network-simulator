@@ -48,12 +48,23 @@ export interface OperatorManifest {
     /** Systematic displacement in metres — a legacy datum, converted badly. */
     readonly offset_m: number;
   };
-  readonly time: { readonly encoding: TimeEncoding };
+  readonly time: {
+    readonly encoding: TimeEncoding;
+    /**
+     * Seconds added to the *claimed* UTC offset, leaving the local reading
+     * alone. A stale timezone table, or a DST transition applied the wrong way
+     * (`KNOWN-ISSUES.md` #48). Optional: a bundle built before it existed is a
+     * valid bundle and claims the offset it actually uses.
+     */
+    readonly offset_shift_s?: number;
+  };
   readonly realtime: {
     readonly staleness_s: number;
     readonly cancellations: "explicit" | "silent_drop";
     readonly delay_unit: "seconds" | "minutes";
     readonly publishes_delays: boolean;
+    /** What this operator calls a cancellation. Optional; defaults to the word. */
+    readonly cancelled_token?: string;
   };
 }
 
@@ -213,10 +224,19 @@ export function publishedTime(
   encoding: TimeEncoding,
   isoWithOffset: string,
   epochS: number,
+  /**
+   * Seconds added to the offset this timestamp *claims* to be in, leaving the
+   * local reading untouched (`B-dst-offset`).
+   *
+   * Only `iso_offset` carries an offset to be wrong about; the catalogue makes
+   * the two mutually exclusive, and this ignores the shift for the other
+   * encodings rather than relying on that.
+   */
+  offsetShiftS = 0,
 ): string | number {
   switch (encoding) {
     case "iso_offset":
-      return isoWithOffset;
+      return offsetShiftS === 0 ? isoWithOffset : withClaimedOffset(isoWithOffset, offsetShiftS);
     case "epoch_s":
       return epochS;
     case "epoch_ms":
@@ -225,6 +245,25 @@ export function publishedTime(
       // The same wall-clock reading, with the offset simply removed.
       return isoWithOffset.slice(0, 19);
   }
+}
+
+/**
+ * Rewrite the offset an ISO timestamp claims, keeping its local reading.
+ *
+ * `2031-04-07T08:15:00+03:00` shifted by `-3600` becomes
+ * `2031-04-07T08:15:00+02:00`: the same eight-fifteen on the same platform,
+ * asserted to be a different instant.
+ */
+function withClaimedOffset(isoWithOffset: string, shiftS: number): string {
+  const m = /([+-])(\d{2}):(\d{2})$/.exec(isoWithOffset);
+  if (!m) return isoWithOffset;
+  const currentS = (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 3600 + Number(m[3]) * 60);
+  const claimed = currentS + shiftS;
+  const sign = claimed < 0 ? "-" : "+";
+  const abs = Math.abs(claimed);
+  const hh = String(Math.floor(abs / 3600)).padStart(2, "0");
+  const mm = String(Math.floor((abs % 3600) / 60)).padStart(2, "0");
+  return `${isoWithOffset.slice(0, isoWithOffset.length - m[0].length)}${sign}${hh}:${mm}`;
 }
 
 // ------------------------------------------------------- route presentation

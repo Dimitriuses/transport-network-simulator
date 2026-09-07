@@ -199,7 +199,39 @@ export const CATALOGUE: readonly CatalogueSetting[] = [
     group: "time",
     key: "encoding",
     off: "iso_offset",
+    // A wrong offset is a defect *in* an offset, so the two cannot both be on:
+    // an operator publishing `epoch_s` has no offset to get wrong, and one
+    // publishing `local_naive` has already removed it (`KNOWN-ISSUES.md` #48).
+    excludes: ["B-dst-offset"],
     generate: ["epoch_s", "epoch_ms", "local_naive"],
+  },
+  {
+    // **The timestamp is right and the zone it claims is wrong**, which is what
+    // a stale timezone table or a DST transition handled in the wrong direction
+    // produces. The local reading is correct — a passenger reading `08:15` is
+    // told the truth — and a consumer that trusts the `+02:00` suffix converts
+    // it to an instant an hour away from the one meant.
+    //
+    // It is recoverable, and the route to recovering it is the thing worth
+    // teaching: the *brief* states the world's timezone, and no operator does
+    // (`PLAYER-CONTRACT.md` §3). One published fact, checked against another,
+    // settles it — which is the same move that makes an offsetless timestamp
+    // decodable in the first place.
+    //
+    // Added at P2M0 to give section B something to choose between: it held one
+    // setting against a quota of one, so every world of every tier from 2 up
+    // drew the same conflict (`KNOWN-ISSUES.md` #47, #48).
+    conflict: "B-dst-offset",
+    section: "B",
+    group: "time",
+    key: "offset_shift_s",
+    off: 0,
+    // An hour is the DST step and the size of most timezone-table errors. Two
+    // hours is not a clock misconfiguration, it is a different schedule, and
+    // an operator's own passengers would have said so.
+    plausible: { max: 3600, because: "one hour is the DST step; beyond it nobody would keep publishing" },
+    excludes: ["B-time-encoding"],
+    generate: [-3600, 3600],
   },
 
   // --- C: units and value semantics ---------------------------------------
@@ -236,6 +268,32 @@ export const CATALOGUE: readonly CatalogueSetting[] = [
     key: "delay_unit",
     off: "seconds",
     generate: ["minutes"],
+  },
+  {
+    // **Divergent enumerations** (`CORECONCEPT.md` §2.1 C). The row is present,
+    // the trip is named, and the word for "this service will not run" is not
+    // the word the reader is matching on. A consumer that compares against one
+    // spelling does not see a cancellation it was told about in full.
+    //
+    // Distinct from `D-silent-cancellation` in cause and in remedy: that one
+    // withholds the row, and no amount of parsing recovers it; this one hands
+    // over everything and is solved by looking at the value space instead of
+    // assuming it. They may not be generated together, because a row that was
+    // never published has no token to get wrong.
+    //
+    // Added at P2M0 with `B-dst-offset`, for the same reason: section C's third
+    // setting is `C-latlon-order`, which excludes most of section A and so is
+    // rarely available, leaving a quota of two to choose from two.
+    conflict: "C-cancellation-token",
+    section: "C",
+    group: "realtime",
+    key: "cancelled_token",
+    off: "cancelled",
+    excludes: ["D-silent-cancellation"],
+    // Weakest first: a reader doing a case-insensitive compare survives the
+    // first, one that checks a prefix survives the second, and nothing but
+    // reading the feed's own value space survives the third.
+    generate: ["CANCELLED", "C", "3"],
   },
 
   // --- D: realtime truthfulness -------------------------------------------

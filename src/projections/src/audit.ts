@@ -74,10 +74,11 @@ function metres(aLat: number, aLon: number, bLat: number, bLon: number): number 
 }
 
 /** The same world with some of one operator's geometry settings overridden. */
-function withGeometry(
+function withGroup<G extends "geometry" | "time">(
   world: World,
   operatorId: string,
-  patch: Partial<OperatorManifest["geometry"]>,
+  group: G,
+  patch: Partial<OperatorManifest[G]>,
 ): World {
   return {
     ...world,
@@ -89,7 +90,7 @@ function withGeometry(
               ...o,
               manifest: {
                 ...(o.manifest as OperatorManifest),
-                geometry: { ...(o.manifest as OperatorManifest).geometry, ...patch },
+                [group]: { ...(o.manifest as OperatorManifest)[group], ...patch },
               },
             }
           : o,
@@ -97,6 +98,12 @@ function withGeometry(
     },
   };
 }
+
+const withGeometry = (
+  world: World,
+  operatorId: string,
+  patch: Partial<OperatorManifest["geometry"]>,
+): World => withGroup(world, operatorId, "geometry", patch);
 
 /**
  * How far each published position sits from where the same operator would have
@@ -280,6 +287,42 @@ function checkOperator(
     );
   }
 
+  // B-dst-offset: the local reading must be right and the offset it claims
+  // must be wrong, which is the whole of the conflict. Checking the offset
+  // alone would pass on a feed that had shifted the times to match it — that
+  // would be an operator in a different timezone, not one misreporting its own.
+  if ((m.time.offset_shift_s ?? 0) !== 0) {
+    const sample = timetable.trips[0]?.stop_times[0]?.depart;
+    const claimed = typeof sample === "string" ? /([+-])(\d{2}):(\d{2})$/.exec(sample) : null;
+    const claimedS = claimed
+      ? (claimed[1] === "-" ? -1 : 1) * (Number(claimed[2]) * 3600 + Number(claimed[3]) * 60)
+      : null;
+    const expected = world.manifest.utcOffsetS + (m.time.offset_shift_s ?? 0);
+
+    // The same instant, published by an operator that claims nothing wrong.
+    const honest = projectOperator(
+      withGroup(world, operatorId, "time", { offset_shift_s: 0 }),
+      operatorId,
+      tau,
+    ).timetable;
+    const honestSample = honest.trips[0]?.stop_times[0]?.depart;
+    const sameLocal =
+      typeof sample === "string" &&
+      typeof honestSample === "string" &&
+      sample.slice(0, 19) === honestSample.slice(0, 19);
+
+    add(
+      "B-dst-offset",
+      claimedS === expected && sameLocal,
+      claimedS === null
+        ? `published departure ${JSON.stringify(sample)} carries no offset to be wrong about`
+        : `published departure ${JSON.stringify(sample)} claims ` +
+          `${(claimedS / 3600).toFixed(0)}h where the world runs ` +
+          `${(world.manifest.utcOffsetS / 3600).toFixed(0)}h` +
+          (sameLocal ? "" : " — but the local reading moved too, which is a different world"),
+    );
+  }
+
   // ---- realtime (catalogue D) --------------------------------------------
   //
   // These are checked by *comparing the feed against the truth*, which is the
@@ -289,7 +332,8 @@ function checkOperator(
     m.realtime.staleness_s > 0 ||
     m.realtime.cancellations !== "explicit" ||
     m.realtime.delay_unit !== "seconds" ||
-    !m.realtime.publishes_delays
+    !m.realtime.publishes_delays ||
+    (m.realtime.cancelled_token ?? "cancelled") !== "cancelled"
   ) {
     // A moment by which plenty has been announced.
     const probe = 12 * 3600;
@@ -333,9 +377,33 @@ function checkOperator(
       );
     }
 
+    // C-cancellation-token: the cancellation must be *there*, under another
+    // name. The distinction from `D-silent-cancellation` is the whole point, so
+    // the evidence has to be able to tell them apart: a row with the declared
+    // token, and nothing using the word a reader would match on.
+    const token = m.realtime.cancelled_token ?? "cancelled";
+    if (token !== "cancelled") {
+      const cancelled = knownStale.filter((d) => d.kind === "cancellation");
+      const underToken = feed.updates.filter((u) => u.status === token).length;
+      const underWord = feed.updates.filter((u) => u.status === "cancelled").length;
+      add(
+        "C-cancellation-token",
+        cancelled.length > 0 && underToken > 0 && underWord === 0,
+        cancelled.length === 0
+          ? "no cancellation had been announced by the probe instant"
+          : `${underToken}/${cancelled.length} cancellations published as ` +
+            `${JSON.stringify(token)}, and ${underWord} as "cancelled"`,
+      );
+    }
+
     if (m.realtime.cancellations === "silent_drop") {
       const cancelled = knownStale.filter((d) => d.kind === "cancellation");
-      const reported = feed.updates.filter((u) => u.status === "cancelled").length;
+      // Whatever this operator calls one — otherwise an operator that both
+      // renamed the token and published honestly would look like it had
+      // dropped the rows.
+      const reported = feed.updates.filter(
+        (u) => u.status === (m.realtime.cancelled_token ?? "cancelled"),
+      ).length;
       add(
         "D-silent-cancellation",
         reported === 0 && cancelled.length > 0,

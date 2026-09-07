@@ -42,6 +42,14 @@ export interface RealtimePolicy {
   readonly delay_unit: DelayUnit;
   /** Whether delays are reported at all. */
   readonly publishes_delays: boolean;
+  /**
+   * The word this operator uses for a cancellation (`C-cancellation-token`).
+   *
+   * The row is there and the trip is named; a reader matching on one spelling
+   * simply does not see it. Divergent enumerations, `CORECONCEPT.md` §2.1 C —
+   * and the remedy is to look at the value space rather than to assume it.
+   */
+  readonly cancelled_token?: string;
 }
 
 export const DEFAULT_REALTIME_POLICY: RealtimePolicy = {
@@ -49,11 +57,19 @@ export const DEFAULT_REALTIME_POLICY: RealtimePolicy = {
   cancellations: "explicit",
   delay_unit: "seconds",
   publishes_delays: true,
+  cancelled_token: "cancelled",
 };
 
 export interface PublishedUpdate {
   readonly trip_id: string;
-  readonly status: "on_time" | "delayed" | "cancelled";
+  /**
+   * `on_time`, `delayed`, or whatever this operator calls a cancellation.
+   *
+   * Deliberately not a union of the three words: an operator publishing `3`
+   * for a cancelled trip is a real feed, and a type that forbade it would have
+   * moved the conflict into the type system instead of the world.
+   */
+  readonly status: string;
   /** In the operator's own unit. Absent when it publishes no delays. */
   readonly delay?: number;
 }
@@ -115,7 +131,7 @@ export function projectRealtime(
       // The ghost-trip case: say nothing at all, and let the player work out
       // that absence means something.
       if (policy.cancellations === "silent_drop") continue;
-      updates.push({ trip_id: tripId, status: "cancelled" });
+      updates.push({ trip_id: tripId, status: policy.cancelled_token ?? "cancelled" });
       continue;
     }
 
@@ -140,6 +156,7 @@ export function projectRealtime(
       m.time.encoding,
       renderSimTime(anchor, observed),
       observed - world.manifest.utcOffsetS,
+      m.time.offset_shift_s ?? 0,
     ),
     updates,
   };

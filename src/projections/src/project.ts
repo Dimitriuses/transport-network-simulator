@@ -93,7 +93,12 @@ export function projectOperator(world: World, operatorId: string, tau: number): 
   // `epoch_s` operator's data has already been through, and which the player
   // has to undo without being told the offset.
   const at = (tau: number): string | number =>
-    publishedTime(m.time.encoding, renderSimTime(anchor, tau), tau - world.manifest.utcOffsetS);
+    publishedTime(
+      m.time.encoding,
+      renderSimTime(anchor, tau),
+      tau - world.manifest.utcOffsetS,
+      m.time.offset_shift_s ?? 0,
+    );
 
   // An operator publishes only its own network. It has no idea the others
   // exist, which is the whole problem the player is there to solve.

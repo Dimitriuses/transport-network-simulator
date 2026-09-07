@@ -81,6 +81,20 @@ export function detectTimeDecoder(t: Timetable, worldOffsetS: number): (v: strin
     const m = /([+-])(\d{2}):(\d{2})$/.exec(v);
     if (!m) return local;
     const offset = (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 3600 + Number(m[3]) * 60);
+
+    // **An offset that contradicts the brief is wrong, and the local reading is
+    // not** (`B-dst-offset`). One city, one timezone, stated in the brief and
+    // by no operator; a feed claiming `+02:00` for services in a `+03:00` city
+    // is a stale timezone table or a DST step applied backwards. The times a
+    // passenger reads on the platform are still correct, so keep them and
+    // discard the claim.
+    //
+    // Trusting the suffix instead costs exactly the size of the error — an
+    // hour, on every departure — and the operator's feed remains perfectly
+    // self-consistent while it happens, which is what makes it worth checking
+    // one published fact against another rather than reading harder.
+    if (offset !== worldOffsetS) return local;
+
     return local - (offset - worldOffsetS);
   };
 }
@@ -304,7 +318,19 @@ export interface RealtimeView {
  *   * **staleness** — `as_of` says what instant the feed describes, which is
  *     not when it was fetched. A feed five minutes behind is not evidence that
  *     nothing has happened.
+ *   * **vocabulary** — the word for "this will not run" is this operator's to
+ *     choose, and `CANCELLED`, `C` and `3` are all real (catalogue C). What is
+ *     *not* negotiable is that a running service is reported as running, so the
+ *     states that mean "fine" are the ones worth recognising and everything
+ *     else is a trip not to board.
  */
+/**
+ * The states that mean a service is running.
+ *
+ * Everything else in a feed is a reason not to board. See `readRealtime`.
+ */
+const RUNNING: ReadonlySet<string> = new Set(["on_time", "delayed", "scheduled", "ok"]);
+
 export function readRealtime(
   operator: string,
   updates: readonly { trip_id: string; status: string; delay?: number }[],
@@ -320,7 +346,15 @@ export function readRealtime(
 
   for (const u of updates) {
     present.add(`${operator}:${u.trip_id}`);
-    if (u.status === "cancelled") {
+
+    // **Recognise "running", and treat the rest as trouble.** Matching on the
+    // single word `cancelled` misses `CANCELLED`, `C` and `3` — the same feed,
+    // the same row, the same trip named in full, and a reader that quietly
+    // decides the service is fine. Inverting the test is what makes the
+    // vocabulary somebody else's problem: an operator that invents a *fourth*
+    // word for trouble is still handled, and one that invents a new word for
+    // "fine" costs a wasted avoidance rather than a missed cancellation.
+    if (!RUNNING.has(u.status.toLowerCase())) {
       cancelled.add(`${operator}:${u.trip_id}`);
       continue;
     }

@@ -187,16 +187,17 @@ def test_tier_one_has_more_settings_than_its_quota_asks_for() -> None:
     section, which is the change that would silently reintroduce the defect.
     """
     #: Sections known to hold exactly as many settings as some tier asks for,
-    #: with the issue that owns them. **Exemptions, not exceptions**: section B
-    #: holds one setting and every tier from 2 up draws it; section D holds
-    #: three and Tier 5 draws all three. Both still produce different worlds
-    #: from different seeds — the test above proves it at Tier 5 — because
-    #: their settings carry several values apiece.
+    #: with the issue that owns them. **An exemption, not an exception**:
+    #: section D holds three settings and Tier 5 asks for three.
+    #:
+    #: Section B was here too, holding one setting against a quota of one, until
+    #: `B-dst-offset` was added at P2M0 — and this assertion is what says so,
+    #: because it fails the moment an exemption stops being true (`#48`).
     #:
     #: `#43` is the record of why that is weaker than a choice of settings: the
     #: value is drawn with a tier-scaled bias that lands on the same rung most
     #: of the time, which is how Tier 1 produced one world from every seed.
-    NARROW = {"B": "KNOWN-ISSUES.md #47", "D": "KNOWN-ISSUES.md #47"}
+    NARROW = {"D": "KNOWN-ISSUES.md #47"}
 
     cat = catalogue.load()
     for tier, quota in cat.tier_quota.items():

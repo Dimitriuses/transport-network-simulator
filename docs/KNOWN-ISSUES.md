@@ -1622,7 +1622,7 @@ Semantic content at tiers 2 and 3 is now **about two conflicts per world higher 
 
 ---
 
-## 47. Two more rungs exhaust their section, and only their values save them — `open; at Tier 5 the values did not save them — see #48`
+## 47. Two more rungs exhaust their section, and only their values save them — `section B fixed at P2M0; section D still open`
 
 Written as a structural invariant while fixing `#43`, `tools/tests/test_generate.py` reports that section A was not the only place it holds:
 
@@ -1700,7 +1700,7 @@ Tiny, and it is the only *proven* gap between this search and an optimal one, so
 
 ---
 
-## 48. The top of the ladder is its least varied rung, and a memorised solution transfers across it — `open, and it blocks a phase-exit clause`
+## 48. The top of the ladder is its least varied rung, and a memorised solution transfers across it — `partly fixed at P2M0; the verdict has not flipped`
 
 **Found by the instrument built to find it.** `npm run transfer` on a calibrated Tier-5 pair returns the row the two-sided test exists to catch:
 
@@ -1744,7 +1744,15 @@ Same encodings, similar displacements. There is nothing for a memorising solutio
 
 `PHASES.md` §284's second clause — non-memorisable tasks of equal difficulty — **holds at Tier 3 and fails at Tier 5**. Phase 1 closed on evidence from one tier, and P2M0's coverage item is what found the limit. That is the milestone working, but the clause is not general and should not be quoted as though it were.
 
-**And Tier 1 cannot be tested at all**, for a different reason worth recording beside this one: it is cosmetic-only, so two Tier-1 worlds produce *byte-identical* answer keys — all zero displacement, all `iso_offset`. There is nothing to memorise, so the test's second half is undefined rather than failing.
+**And Tier 1 cannot be transfer-tested at all** — for the opposite reason to Tier 5's, which is why the two are easy to confuse:
+
+| | Tier 1 | Tier 5 |
+|---|---|---|
+| two worlds share a conflict list | 29 % — **the most varied rung** | 80 % |
+| what `tuned` memorises | nothing: no offsets, no encodings | encodings and displacements that match anyway |
+| the test's verdict | **undefined** — there is no answer key | **fails** — the answer key transfers |
+
+Tier 1 is cosmetic-only by design (`TIER_COSMETIC_ONLY`), so both worlds' keys are byte-identical: all zero displacement, all `iso_offset`. **Its variety is real and was restored by `#43`** — it is the *semantic* content the transfer test needs, and a rung that exists to be recognisable rather than hard does not have any. That is a limit on the instrument, not a defect in the rung.
 
 ### The options, none chosen
 
@@ -1753,3 +1761,47 @@ Same encodings, similar displacements. There is nothing for a memorising solutio
 * **State the claim per tier.** Non-memorisability holds where it is measured; Tier 5 is the configuration nearest "every conflict at full strength", and a rung that is nearly one world may be what the top of a ladder should be. Honest, cheap, and it weakens the assessment use case exactly where that use case is most likely to be used.
 
 **This is `#43` at the other end**, and the symmetry is the useful part: a rung is varied only where the quota leaves settings unchosen *and* the strength bias leaves rungs unpicked. The bottom failed the first condition and was fixed by adding settings; the top fails both.
+
+
+---
+
+## 48 (continued). Widened at the strong end — variety improved everywhere, and Tier 5 still reads *too alike*
+
+Two settings were added, both from `CORECONCEPT.md` §2.1 and both chosen to bite rather than to decorate:
+
+* **`B-dst-offset`** — the local reading is right and the offset it claims is wrong, which is a stale timezone table or a DST step applied backwards. Section B held **one** setting against a quota of one, so every world of every tier from 2 up drew the same conflict; it now has two.
+* **`C-cancellation-token`** — divergent enumerations. The row is published, the trip is named in full, and the word for "will not run" is `CANCELLED`, `C` or `3`. Distinct from `D-silent-cancellation` in both cause and remedy, and excluded against it, because a row that was never published has no token to get wrong.
+
+Both are answerable, and the answers are the lesson: check one published fact against another — *the brief states the city's timezone and no operator does* — and read the feed's own vocabulary instead of assuming it. `competent` does both; a Tier-5 world passes all three gates with conflicts costing **58 %** of headroom and a lazy integrator capturing 0.013.
+
+**Variety improved at every tier**, measured the same way as before, ten seeds, pairwise:
+
+| tier | same conflicts | → | same conflicts+values | → |
+|---|---|---|---|---|
+| 2 | 68 % | **53 %** | 39 % | **30 %** |
+| 3 | 65 % | **47 %** | 41 % | **29 %** |
+| 5 | 80 % | **67 %** | 66 % | **57 %** |
+
+### And the transfer verdict at Tier 5 did not flip
+
+```
+    solution      home     away     change
+    competent     0.424    0.404   -0.020
+    tuned         0.419    0.427   +0.008     <- still transfers
+```
+
+The two answer keys are now genuinely different — cal5-a is `local_naive` with 60 m on Ostline, cal5-b is `iso_offset` with a `+3600` claim and no displacement — and **it made no difference, for two reasons worth separating.**
+
+**1. The strength bias makes Tier 5 deterministic in the value, whatever the pool.** `_pick` skews by `bias = tier / 5`; at Tier 5 the exponent is `0.2` and the strongest listed value wins **92 %** of the time (86 % before, and it rose because there are now more settings drawing at the top). So section B always lands on the last entry of whatever it drew.
+
+**2. Two of section B's settings decode identically.** `B-time-encoding: local_naive` publishes `2031-04-07T06:00:00`; `B-dst-offset` publishes `2031-04-07T06:00:00+04:00` in a `+03:00` city. **A reader that ignores a claimed offset gets the right answer from both** — which is exactly what a correct reader does, since the claim is a lie. Different conflicts, same behaviour, so a memorised decoder carries between them.
+
+The geometry half fared no better: 60 m against 0 m is a mis-correction small enough for the matching tolerances to absorb.
+
+### What that says about the fix, and about the instrument
+
+**The catalogue's `generate` lists are drawn as if they were strength ladders, and several of them are not.** `epoch_s | epoch_ms | local_naive` are three *kinds* of trap, not three severities; so are `CANCELLED | C | 3` and `abbreviated | colloquial`. Drawing a categorical setting with a strength bias is what makes the top rung pick the same trap every time — and widening the pool cannot fix it, because the bias operates *inside* each setting.
+
+**A categorical setting should be drawn uniformly**, which varies *which* trap a world holds without making it any easier. That is the missing half of this fix and it is a change to what a `generate` list means, so it is raised rather than assumed.
+
+**And the fixture has a limit worth recording separately:** `tuned` memorises two things — displacement and encoding. At Tier 3 those carry most of what a solver must work out. At Tier 5 most of the difficulty is in section D, which the answer key does not cover at all, so the test cannot see whether *that* is memorisable. A wider key would be a wider test.

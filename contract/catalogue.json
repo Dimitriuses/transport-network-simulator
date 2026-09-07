@@ -92,10 +92,31 @@
       "group": "time",
       "key": "encoding",
       "off": "iso_offset",
+      "excludes": [
+        "B-dst-offset"
+      ],
       "generate": [
         "epoch_s",
         "epoch_ms",
         "local_naive"
+      ]
+    },
+    {
+      "conflict": "B-dst-offset",
+      "section": "B",
+      "group": "time",
+      "key": "offset_shift_s",
+      "off": 0,
+      "plausible": {
+        "max": 3600,
+        "because": "one hour is the DST step; beyond it nobody would keep publishing"
+      },
+      "excludes": [
+        "B-time-encoding"
+      ],
+      "generate": [
+        -3600,
+        3600
       ]
     },
     {
@@ -137,6 +158,21 @@
       "off": "seconds",
       "generate": [
         "minutes"
+      ]
+    },
+    {
+      "conflict": "C-cancellation-token",
+      "section": "C",
+      "group": "realtime",
+      "key": "cancelled_token",
+      "off": "cancelled",
+      "excludes": [
+        "D-silent-cancellation"
+      ],
+      "generate": [
+        "CANCELLED",
+        "C",
+        "3"
       ]
     },
     {
