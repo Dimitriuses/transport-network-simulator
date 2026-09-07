@@ -195,6 +195,8 @@ Gate **1c** (discoverable) is deliberately not in the exit criteria: nothing com
 | **2 — discriminating** | PASS. Four solutions, four distinct scores, in the order `REFERENCE-POLICY.md` §8 wants. |
 | **3 — conflicts doing the work** | PASS. Conflicts cost **3.01m, 36 % of headroom**, against a ratified 20 % bar. |
 
+*Re-measured at P2M0, on a router whose walk transfers are no longer rationed by a budget of rides (`KNOWN-ISSUES.md` #40): 6.19m reachable of **8.48m**, conflicts **2.98m at 35 %**, all gates still passing. The figures above are what Phase 0 exited on and are kept as recorded.*
+
 ```
 mode        capture   information   headline   arrived
 null         -1.000         0.000     -0.600     89/98

@@ -1782,3 +1782,43 @@ The second clause of the first sentence is the one that matters and the harder o
 * **`competent` moving 0.001 is tighter than the world's own seed-to-seed noise**, which `#42` measured at roughly 0.02–0.065 on `naive`. That is the calibration search working as designed rather than a suspiciously good result, but it is a *mean over two seeds* and should not be quoted as a precision.
 * **`tuned` scores 0.430 at home against `competent`'s 0.441.** An exact answer key should be at least as good as an inferred one; the eleven-thousandths gap is inside the noise, and the plausible cause is that baked geometry corrects every operator to the truth while inference corrects them to a *consensus frame* the rest of the model was built against. Worth knowing before reading anything into a `tuned` home score.
 * **The fixture had to be made safe before it could be read.** `tuned`'s decoder returns `NaN` on a world it was not baked for, deliberately, and `NaN` fails the comparison that kept the planner's label set acyclic — the first transfer run hung for 21 minutes and produced nothing (`KNOWN-ISSUES.md` #45).
+
+
+---
+
+## P2M0 — The numbers, before the world starts moving
+
+### `route` was never broken — the property it was accused of violating is not true of transit
+
+`KNOWN-ISSUES.md` #40 stood open for the whole of Phase 1, holding that the router was not optimal and that *every number this project produces goes through it*. The evidence was a test: adding disruptions improved 28 of 200 journeys, which no optimal search can do, because *a disruption can only remove a journey or delay it*.
+
+**The second half of that sentence does not follow from the first.** Delaying a service moves its departure later, and a later departure is one a slightly late traveller can catch. The violation, in full:
+
+```
+clean:      ... walk to q-w1, arriving 47266
+            ride line-12-outbound-029, departing 47988  -> 24.4m
+disrupted:  ... walk to q-w1, arriving 47266
+            ride line-12-outbound-028, departing 47388  -> 14.4m
+
+  line-12-outbound-028: scheduled 46800, delayed +300
+```
+
+`028` leaves q-w1 at 47088 on a clean day and the traveller arrives at 47266 — missed by three minutes. Five minutes late, it is still standing there. **The held connection that saves a real passenger, reproduced faithfully by a search accused of being broken because of it.**
+
+Separating the kinds settles it. Cancellations alone improve **0 of 98** journeys on the committed world and **0 of 200** on a generated one, while making 7 and 21 of them worse — so removal-monotonicity holds exactly, and the check has something to detect. Delays alone improve 14 and 32.
+
+### The same premise had been written into a bound
+
+`information-set.ts` said it in as many words: *"Reality only ever adds delay and cancellation — it never makes a journey quicker than planned."* True of one journey, false of the set of itineraries a traveller can choose between. Compared against the optimum on the day that actually happened — a floor under anything anyone can realise — the bound sat **above an achievable outcome on 12 of 98 journeys on the committed world and 30 of 200 on a generated one**. Every one of them would have been flagged for luck by an audit whose own comment reads *"a bound that flags honest players is worse than no bound."*
+
+The bound now takes **every delay** and only the cancellations the player could have known. Sound, and the fix is not free: a bound planning over a superset of the day's options is by construction weaker than the `P0` quarantine the scorecard already applies, so **the time comparison stopped being the leak detector**. The blind-hit statistic is — which the module's own note had already worked out, having found time comparisons "too permissive to catch anything". `cheat` is still caught, by *never once boarding a service it could not have known was cancelled where an optimal planner would have done so six times*, and the test now asserts that mechanism by name rather than the message the old bound used to produce.
+
+### One real gap, and it was somewhere else entirely
+
+The walk phase relaxed only from quays the ride phase had just improved, so a two-link transfer needed a ride between its halves — and `MAX_ROUNDS` is a budget of rides, not walks. Chaining walks to a fixpoint changes **2 of 596** query-policy pairs across both worlds and improves both, one by 3.1 minutes. Small, and it is the only demonstrated gap between this search and an optimal one, so it is closed rather than recorded.
+
+### What it cost, and the shape of the mistake
+
+An issue open across five milestones, a `todo` test standing as a monument to it, a warning in `CLAUDE.md`, a risk in the roadmap, and a sentence in every summary of the project's standing saying *headroom is understated*. All of it from one plausible sentence nobody measured.
+
+This project's recurring failure has a name — *a right number compared against the wrong thing* — and #19 and #28 were its previous form: **tests that could not fail**. This is the opposite and it is worth naming separately: **a test that could not pass**, asserting a property the world does not have. The tell is the same in both directions: an assertion whose truth was argued rather than measured, in an area where the arguing is easy and the measuring is cheap.

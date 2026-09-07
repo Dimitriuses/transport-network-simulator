@@ -86,7 +86,20 @@ test("the information-set audit flags a planted leak", { skip }, async () => {
 
   assert.equal(audit.clean, false, "a player planning with the oracle's information was not caught");
   assert.ok(audit.findings.length > 0);
-  assert.match(audit.findings[0]!.explanation, /beat its information set/);
+
+  // **The statistic is what catches it, and this test says so on purpose.**
+  // It used to assert the *time* comparison fired (`beat its information set`).
+  // That bound rested on "reality only ever makes things worse", which delays
+  // falsify, and making it sound made it weaker than the `P0` quarantine
+  // (`KNOWN-ISSUES.md` #40). What remains is the sharper instrument anyway: a
+  // player that never boards a doomed service, where an optimal planner with
+  // the same feeds would board several, is not lucky.
+  assert.ok(
+    audit.blindHits < audit.expectedBlindHits,
+    `the cheat took ${audit.blindHits} doomed services against an expected ` +
+      `${audit.expectedBlindHits} — the statistical tell did not fire`,
+  );
+  assert.match(audit.findings[0]!.explanation, /that is not luck|beat its information set/);
 });
 
 test("a cheat scores far above an honest player, which is why the audit exists", { skip }, async () => {

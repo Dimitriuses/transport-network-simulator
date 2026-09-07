@@ -14,11 +14,13 @@ Milestones are numbered **`P<phase>M<milestone>`** — `P2M2` is the third miles
 
 | Gate | Result |
 |---|---|
-| 1a — solvable | PASS. 6.20m reachable of 8.37m headroom; unresolvable ambiguity 2 % against a 25 % bar |
+| 1a — solvable | PASS. 6.19m reachable of 8.48m headroom; unresolvable ambiguity 2 % against a 25 % bar |
 | 1b — not trivial | PASS. A lazy integrator captures 0.186 of reachable headroom |
 | 1c — discoverable | PASS **by decision** — scope, not evidence |
 | 2 — discriminating | PASS. Four distinct scores, in the order §8 wants |
-| 3 — conflicts doing the work | PASS. 3.01m, **36 % of headroom**, bar 20 % |
+| 3 — conflicts doing the work | PASS. 2.98m, **35 % of headroom**, bar 20 % |
+
+*Re-measured at P2M0 after `KNOWN-ISSUES.md` #40 let walk transfers chain. Headroom rose from 8.37m to 8.48m — the oracle got slightly better at two journeys — so the conflicts' share of it fell a point without the conflicts changing at all. The Phase 0 figures are kept in `docs/PHASES.md`.*
 
 **Phase 1 is complete as of 2026-09-07.** Worlds are generated rather than authored — city, network, conflicts, names and the scored query set — and the phase exit is met: two calibrated worlds of one tier produce matching difficulty profiles, a solution that reasons carries between them, and one that memorised either collapses on the other. The record is in [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md) under *Phase 1 — closed*, including the milestone plans this file used to carry.
 
@@ -48,15 +50,19 @@ Milestones are numbered **`P<phase>M<milestone>`** — `P2M2` is the third miles
 
 ---
 
-### P2M0 — The numbers, before the world starts moving
+### P2M0 — The numbers, before the world starts moving — **two of three; the third found `#48`**
 
 Phase 1 ended with one defect and two measurement debts, and all three get worse once the world stops being a fixed trajectory.
 
-* **`KNOWN-ISSUES.md` #40 — `route` is not optimal, and not even monotone.** Routing a scored journey on a disrupted index beats routing it on a clean one for 28 of 200 queries, which no optimal search can do: a disruption removes a journey or delays it. `src/router/test/monotone.test.ts` states the property and is marked `todo`. **Fix it or bound it** — an honest bound stated in `SCORING.md` is an acceptable outcome; silence is not.
-* **Re-measure the calibrated pair.** Rebuild cal-a and cal-b on the current generator and re-run `npm run profile` and `npm run transfer`. The recorded figures are honest measurements of a generator that has since changed, which is the same defect as quoting a Phase 0 number after the denominator moved.
-* **Transfer coverage.** A second pair at another rung — Tier 5 for the top, and Tier 1 now that `#43` has given it more than one world — and three seeds rather than two.
+* ✅ **`KNOWN-ISSUES.md` #40 — answered, and the premise was wrong.** The claim was that a disrupted index offers a subset of a clean one's options, so routing on it cannot do better — and 28 of 200 journeys did. **Delaying a service moves its departure later, and a later departure is one a slightly late traveller catches.** Separating the kinds: cancellations alone improve **0 of 98** journeys on the committed world and **0 of 200** on a generated one, while making 7 and 21 worse. Removal-monotonicity holds exactly; the test asserts that half, demonstrates the other on a two-stop fixture, and is no longer `todo`.
 
-**Exit:** the monotonicity test is no longer `todo`; every difficulty figure quoted in the documentation was measured on the current generator; and the transfer verdict holds at a second tier.
+  The same premise sat in the information-set audit's bound, which was **above an achievable outcome on 12 of 98 journeys** on the committed world and 30 of 200 on a generated one. It now takes every delay and only the cancellations a player could know — sound, and deliberately weaker than the `P0` quarantine, so the leak detector is the blind-hit statistic.
+
+  One real gap turned up while checking and is closed: walk transfers were rationed by a budget of *rides*. Chaining them changes 2 of 596 query-policy pairs and improves both. The committed world's headroom rose from **8.37m to 8.48m** — the first time "headroom is understated" has had a number rather than an argument behind it.
+* ✅ **The calibrated pair, re-measured** on the current generator at three seeds. `competent` 0.365 → 0.422, `tuned` 0.371 → **−0.619**: both halves hold at Tier 3. On the four-reference profile three references agree within noise and `blind` differs by **1.1×** it, which the report calls *not matching* — a marginal verdict on three samples, and honest either way. The generated world's gates are unchanged at **31 %** of headroom, because the walk fix touched only the committed world.
+* ❌ **Transfer coverage — the verdict does not hold at Tier 5** (`KNOWN-ISSUES.md` #48). `tuned` carried cal5-a's answer key to cal5-b and scored *better* (+0.045): **the worlds are too alike**, which is the row the two-sided test exists to catch. Two Tier-5 worlds share 80 % of their conflict list and 66 % of their conflicts-with-strengths, against 65 % and 41 % at Tier 3, because the quota exhausts sections B and D at the top *and* `_pick`'s bias draws the strongest rung 86 % of the time. **Tier 1 cannot be tested at all**: cosmetic-only worlds produce byte-identical answer keys, so there is nothing to memorise.
+
+**Exit:** the monotonicity test is no longer `todo` ✅; every difficulty figure quoted in the documentation was measured on the current generator ✅; the transfer verdict holds at a second tier ❌ — **`#48` owns it, and its three options are a decision about what the top of the ladder means**, not an implementation.
 
 ---
 

@@ -8,6 +8,20 @@
 // Deliberately the plain textbook form: P0M1's network is 20 quays and ~300
 // journeys, and the interesting engineering is elsewhere. Optimisation waits
 // for a measurement (CLAUDE.md).
+//
+// **What it guarantees, stated because a whole issue turned on assuming more.**
+// Earliest arrival among itineraries using at most `MAX_ROUNDS` transit legs.
+// Walk transfers are chained to a fixpoint within a round, so they are not
+// rationed by that budget; a journey needing a fifth ride is not found, and no
+// world here has one worth having.
+//
+// **What is NOT a property of it, and cost `KNOWN-ISSUES.md` #40 a milestone to
+// establish: adding disruptions cannot only make things worse.** Cancelling a
+// journey removes an option and can only hurt. *Delaying* one moves a departure
+// later, and a later departure can be caught by a traveller who would have
+// missed it — so a delayed day can beat a clean one, for the same reason a held
+// connection saves a real passenger. `test/monotone.test.ts` asserts the half
+// that is true and demonstrates the half that is not.
 
 import type { World } from "@tns/schema";
 import type { Disruption } from "@tns/core";
@@ -221,35 +235,58 @@ export function route(
     }
 
     // -- walk ---------------------------------------------------------------
-    for (const quayId of [...improved].sort()) {
-      const from = best.get(quayId)!;
-      const links = [...(ix.walkFrom.get(quayId) ?? [])].sort((a, b) =>
-        a.toQuay < b.toQuay ? -1 : 1,
-      );
+    //
+    // **To a fixpoint, not one hop.** This used to walk only from the quays the
+    // ride phase had just improved, so a transfer of two links — A to B, then B
+    // to C — could not happen without a ride in between, and `MAX_ROUNDS` is a
+    // budget of *rides*. Measured over both worlds and both policies, 596
+    // query-policy pairs: chaining changes 2 of them and improves both, one by
+    // 3.1 minutes (`KNOWN-ISSUES.md` #40). Small, and it is the only *proven*
+    // gap between this search and an optimal one, so it is closed rather than
+    // documented.
+    //
+    // It terminates because a quay is queued again only on a strict
+    // improvement, and walk links cost `>= 0` seconds — a cycle would have to
+    // lower an arrival time to keep going. That argument is written down
+    // because two of this project's hangs were unbounded relaxations whose
+    // termination nobody had stated (`#44`, `#45`).
+    let pending = [...improved].sort();
+    while (pending.length > 0) {
+      const nextPending: string[] = [];
 
-      for (const link of links) {
-        if (policy === "obvious") {
-          // Only interchanges everyone knows about: quays of the same Site.
-          if (ix.siteOfQuay.get(quayId) !== ix.siteOfQuay.get(link.toQuay)) continue;
-        }
-        const arriveS = from.arriveS + link.seconds;
-        const existing = best.get(link.toQuay);
-        if (existing && existing.arriveS <= arriveS) continue;
+      for (const quayId of pending) {
+        const from = best.get(quayId)!;
+        const links = [...(ix.walkFrom.get(quayId) ?? [])].sort((a, b) =>
+          a.toQuay < b.toQuay ? -1 : 1,
+        );
 
-        best.set(link.toQuay, {
-          arriveS,
-          leg: {
-            mode: "walk",
-            fromQuay: quayId,
-            toQuay: link.toQuay,
-            departS: from.arriveS,
+        for (const link of links) {
+          if (policy === "obvious") {
+            // Only interchanges everyone knows about: quays of the same Site.
+            if (ix.siteOfQuay.get(quayId) !== ix.siteOfQuay.get(link.toQuay)) continue;
+          }
+          const arriveS = from.arriveS + link.seconds;
+          const existing = best.get(link.toQuay);
+          if (existing && existing.arriveS <= arriveS) continue;
+
+          best.set(link.toQuay, {
             arriveS,
-          },
-          prevQuay: quayId,
-          round,
-        });
-        improved.add(link.toQuay);
+            leg: {
+              mode: "walk",
+              fromQuay: quayId,
+              toQuay: link.toQuay,
+              departS: from.arriveS,
+              arriveS,
+            },
+            prevQuay: quayId,
+            round,
+          });
+          improved.add(link.toQuay);
+          nextPending.push(link.toQuay);
+        }
       }
+
+      pending = nextPending.sort();
     }
 
     frontier = [...improved].sort();

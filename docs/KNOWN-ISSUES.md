@@ -1157,7 +1157,7 @@ A lookup of one city's names is not a naming defect; it is that city's phraseboo
 
 ---
 
-## 40. `route` is not optimal, and not even monotone — `open, and larger than it first looked`
+## 40. `route` is not optimal, and not even monotone — `answered at P2M0; the premise was wrong`
 
 > **Retitled at P1M4.** This began as "the information-set audit's bound is beaten by a traveller that never replanned". The bound was sound; the router underneath it is not. The investigation is kept below because the elimination is what identified the cause.
 
@@ -1622,7 +1622,7 @@ Semantic content at tiers 2 and 3 is now **about two conflicts per world higher 
 
 ---
 
-## 47. Two more rungs exhaust their section, and only their values save them — `open, and narrower than #43`
+## 47. Two more rungs exhaust their section, and only their values save them — `open; at Tier 5 the values did not save them — see #48`
 
 Written as a structural invariant while fixing `#43`, `tools/tests/test_generate.py` reports that section A was not the only place it holds:
 
@@ -1634,3 +1634,122 @@ Neither currently produces identical worlds, because both sections' settings car
 **Why it is still worth recording.** `#43`'s Tier 1 also had a setting with two values and still produced one world from every seed, because the value is drawn with a tier-scaled bias that lands on the same rung most of the time. *A choice of values is a weaker guarantee than a choice of settings*, and these two rungs rest on the weaker one.
 
 The fix is the same shape as `#43`'s and is content work: section B wants a second setting — `CORECONCEPT.md` §2.1 B lists service days past midnight (`25:10:00` against `01:10:00`) and calendar representation, both unimplemented. It is exempted by name in the test, which fails if the exemption goes stale.
+
+
+---
+
+## 40 (continued). Answered — a delay is not a disruption in the sense the premise needed
+
+**The property was false, and everything built on it inherited that.**
+
+> A disruption can only remove a journey or delay it, so a disrupted index offers a subset of the clean one's options, each no earlier. Routing on it cannot produce a better answer.
+
+The second half does not follow from the first. **Delaying a service moves its departure later, and a later departure can be caught by a traveller who would have missed it.** It is the ordinary experience of a held connection, and the search was reporting it correctly all along.
+
+`g882` on the committed world, in full:
+
+```
+clean:      walk -> t-university, ride to t-mill, walk to q-w1 (arrive 47266),
+            ride line-12-outbound-029 dep 47988  -> arrive 48447   (24.4m)
+disrupted:  ... same walk to q-w1 (arrive 47266),
+            ride line-12-outbound-028 dep 47388  -> arrive 47847   (14.4m)
+
+  line-12-outbound-028: canonical start 46800, delay +300
+```
+
+Journey `028` departs q-w1 at 47088 on a clean day and the traveller gets there at 47266 — missed by three minutes. Delayed by five, it is still standing there. It arrives 300 s later than it would have, and still ten minutes before the next service. **Nothing is wrong with the search; the traveller was lucky.**
+
+### The split that settles it
+
+Running the same comparison with the disruption kinds separated:
+
+| | cancellations only | delays only |
+|---|---|---|
+| committed `m1`, 98 queries | **0 better** (7 worse) | 14 better, worst 10.0m |
+| generated, 200 queries | **0 better** (21 worse) | 32 better, worst 14.1m |
+
+**Removal-monotonicity holds exactly**, on both worlds, and the check is not vacuous — cancellations make 7 and 21 queries worse, so it has something to detect. `src/router/test/monotone.test.ts` now asserts that half and *demonstrates* the other half on a two-stop fixture, so the stronger claim cannot be restored by reading the code and reasoning about it, which is how it arrived.
+
+### The bound the audit relies on had the same premise, and was unsound
+
+`information-set.ts` stated it outright: *"Reality only ever adds delay and cancellation — it never makes a journey quicker than planned."* True of any one journey, false of the set of itineraries. Measured by comparing the bound against the optimum on the day that actually happened — a floor under anything a traveller can realise:
+
+| | bound as written | bound granted every delay |
+|---|---|---|
+| committed `m1` | above an achievable outcome on **12 of 98** | **0** |
+| generated | **30 of 200** | **0** |
+
+Every one of those was a traveller the audit would have flagged for being lucky, on a check whose own comment says *"a bound that flags honest players is worse than no bound"*.
+
+**The bound now takes every delay, known or not, and only the cancellations the player could have known.** Delays create opportunities, so withholding one while reality hands it to the traveller is what made it unsound; cancellations remove them, and charging the bound for one nobody published is what made an earlier version pessimistic.
+
+**And the cost of soundness is stated rather than hidden.** A bound planning over a superset of the day's options is weaker than the `P0` quarantine the scorecard already applies, so the time comparison is no longer the leak detector — **the blind-hit statistic is**, which the module's own note had already concluded (*"comparing times against a sound bound turns out to be too permissive to catch anything"*). The planted-leak test proves it: `cheat` is still caught, now by *never once boarding a service it could not have known was cancelled, where an optimal planner with the same information would have done so six times*. The test asserts that mechanism by name.
+
+### One real gap, found while checking, and closed
+
+The walk phase relaxed only from quays the ride phase had just improved, so a two-link transfer needed a ride between its halves — and `MAX_ROUNDS` is a budget of rides. Chaining walks to a fixpoint changes **2 of 596** query-policy pairs across both worlds, improving both, one by 3.1 minutes.
+
+Tiny, and it is the only *proven* gap between this search and an optimal one, so it is closed rather than documented. Termination is argued in the code — a quay is requeued only on a strict improvement and walk links cost `>= 0` — because two of this project's hangs were unbounded relaxations whose termination nobody had written down (`#44`, `#45`).
+
+### What this changes about everything measured so far
+
+* **`route` is not shown to be non-optimal**, and the claim that *headroom is understated* loses its evidence. What remains is the stated limit: earliest arrival among itineraries of at most `MAX_ROUNDS` transit legs, with walks no longer rationed by that budget.
+* **`#40` is not a member of the label-relaxation family** after all. `#44` and `#45` are; this was a specification error about transit, not a defect in a search.
+* **The lesson is the project's oldest one in a new place.** *A right number compared against the wrong thing* — except here the wrong thing was a property nobody measured before asserting, and it was asserted in a comment, a test name and a bound. `KNOWN-ISSUES.md` #19 and #28 were tests that could not fail; this was a test that could not pass, and it took a milestone to notice the difference.
+
+
+---
+
+## 48. The top of the ladder is its least varied rung, and a memorised solution transfers across it — `open, and it blocks a phase-exit clause`
+
+**Found by the instrument built to find it.** `npm run transfer` on a calibrated Tier-5 pair returns the row the two-sided test exists to catch:
+
+```
+    solution      home     away     change
+    competent     0.357    0.409   +0.052
+    tuned         0.367    0.412   +0.045
+
+  **The worlds are too alike.**
+```
+
+`tuned` memorised cal5-a's answer key and did *better* on cal5-b. The same test on a Tier-3 pair, run an hour earlier, behaves as it should: `tuned` 0.371 → **−0.619**.
+
+### Why
+
+Two independently drawn worlds of one tier, ten seeds, measured pairwise:
+
+| tier | share the same conflict list | the same conflicts *and* strengths | drew the strongest rung |
+|---|---|---|---|
+| 1 | 29 % | 22 % | 70 % |
+| 2 | 68 % | 39 % | 44 % |
+| 3 | 65 % | 41 % | 61 % |
+| 4 | 70 % | 46 % | 62 % |
+| **5** | **80 %** | **66 %** | **86 %** |
+
+**Both of the generator's variety mechanisms saturate at the top, and they saturate together.**
+
+* *Which* conflicts land: `TIER_QUOTA` at Tier 5 asks for three of section D, which holds three, and one of section B, which holds one — `#47`, now with a consequence attached.
+* *At what strength*: `_pick` skews by `bias = tier / 5`, so at Tier 5 the exponent is `0.2` and the strongest value wins **86 %** of the time. Not by design — by arithmetic that nobody had plotted.
+
+The two tier-5 answer keys, side by side, are the mechanism in one line:
+
+```
+cal5-a   nordline 11m local_naive | ostline  2m local_naive | sudbahn 0m iso_offset
+cal5-b   nordline 17m local_naive | ostline 10m local_naive | sudbahn 0m iso_offset
+```
+
+Same encodings, similar displacements. There is nothing for a memorising solution to get wrong.
+
+### What it blocks
+
+`PHASES.md` §284's second clause — non-memorisable tasks of equal difficulty — **holds at Tier 3 and fails at Tier 5**. Phase 1 closed on evidence from one tier, and P2M0's coverage item is what found the limit. That is the milestone working, but the clause is not general and should not be quoted as though it were.
+
+**And Tier 1 cannot be tested at all**, for a different reason worth recording beside this one: it is cosmetic-only, so two Tier-1 worlds produce *byte-identical* answer keys — all zero displacement, all `iso_offset`. There is nothing to memorise, so the test's second half is undefined rather than failing.
+
+### The options, none chosen
+
+* **Cap the strength bias** below 1.0 — say `tier / 6`, or an explicit ceiling — so the top rung still draws from a range. Cheapest, and it makes Tier 5 slightly easier, which is a change to what the top of the ladder *means*.
+* **Widen the catalogue at the strong end.** More settings in sections B, C and D, which is `#47`'s fix and is content work. It raises the ceiling rather than lowering the top rung, and it is the only option that makes Tier 5 both hard *and* varied.
+* **State the claim per tier.** Non-memorisability holds where it is measured; Tier 5 is the configuration nearest "every conflict at full strength", and a rung that is nearly one world may be what the top of a ladder should be. Honest, cheap, and it weakens the assessment use case exactly where that use case is most likely to be used.
+
+**This is `#43` at the other end**, and the symmetry is the useful part: a rung is varied only where the quota leaves settings unchosen *and* the strength bias leaves rungs unpicked. The bottom failed the first condition and was fixed by adding settings; the top fails both.

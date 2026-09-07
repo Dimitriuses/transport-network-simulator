@@ -16,6 +16,16 @@
 // simulator sits on both sides of every request — it is complete whether or not
 // the player cooperates. A player trying to hide simply cannot.
 //
+// **The time comparison is no longer the strong check, and saying so is part
+// of the fix.** Its bound rested on "reality only ever makes things worse",
+// which is false for delays (`KNOWN-ISSUES.md` #40); making it sound means
+// granting it every delay, and a bound that plans over a superset of the day's
+// options is by construction weaker than the `P0` quarantine the scorecard
+// already applies. What survives it is a *localised* version of that quarantine
+// — one traveller, one query, named — and **the detector for an information
+// leak is the blind-hit statistic**, which the note above `TOLERANCE_S` already
+// found to be the sharper instrument.
+//
 // The bound below is stronger than comparing against the oracle. The oracle
 // knows the whole day; a player planning at τ could not have. So the honest
 // ceiling is *the best outcome achievable by a perfect planner that knew only
@@ -41,14 +51,21 @@ export interface LeakFinding {
   /** Seconds by which it beat its own information set. */
   readonly excessS: number;
   /**
-   * The same route with **no** disruptions at all — the most optimistic
-   * prediction anything can make about this journey.
+   * The best this journey could have gone **on the day that actually
+   * happened** — the clairvoyant optimum, `P0`'s own number for this query.
    *
-   * The bound is already optimistic: it pretends the disruptions nobody had
-   * published do not exist. So `optimisticS <= boundS <= realised` should hold,
-   * and when it does not this says which link broke. If a realised journey
-   * beats even *this*, the router is not returning the optimum and the finding
-   * is about `route`, not about the player.
+   * It is the floor under any realised journey, because a realised journey is
+   * by definition one the day allowed. So `optimisticS <= realised` always, and
+   * `optimisticS <= boundS` too, since the bound is granted a strict superset
+   * of the day's options. A realised journey below *this* is not a leak and not
+   * luck: it is a defect in `route` or in the harness, and it is the same
+   * signal the `P0` quarantine raises, localised to one traveller.
+   *
+   * **It used to be the perfect day — the same route with no disruptions at
+   * all — on the reasoning that nothing could beat a day where nothing went
+   * wrong.** A day with a delay can beat it: a service that runs late is a
+   * service that is still there when a slightly late traveller arrives
+   * (`KNOWN-ISSUES.md` #40).
    */
   readonly optimisticS: number;
   /** What it appears to have known early. */
@@ -187,20 +204,42 @@ export function auditInformationSets(
     const query = world.queries.find((q) => q.id === outcome.queryId);
     if (!query) continue;
 
-    // The ceiling, and it has to be a *sound* one.
+    // The floor, and it has to be a *sound* one.
     //
     // Take the optimal plan available under what had actually been served, and
-    // its predicted arrival. Reality only ever adds delay and cancellation —
-    // it never makes a journey quicker than planned — so any player restricted
-    // to that information realises a time no better than this prediction, even
-    // if it picks a different plan. Beating it is not skill.
+    // its predicted arrival. A player restricted to that information cannot
+    // realise better — that was the argument, and **the premise under it was
+    // false** (`KNOWN-ISSUES.md` #40). It read: *reality only ever adds delay
+    // and cancellation, and never makes a journey quicker than planned.* True
+    // of any one journey, false of the set of itineraries: a delayed service is
+    // a service that has not left yet, and a traveller who would have missed it
+    // catches it. Measured, the bound as written sat above an achievable
+    // outcome on **12 of 98** scored journeys on the committed world and **30
+    // of 200** on a generated one — every one of which it would have flagged.
     //
-    // An earlier version used the reactive executor as the bound, which is a
-    // *heuristic* and therefore not an upper bound on performance at all: a
-    // player whose plan happened to survive reality beat it and was flagged.
-    // A bound that flags honest players is worse than no bound.
+    // So the bound is granted **every delay**, known or not, and only the
+    // cancellations this player could have known:
+    //
+    //   * delays create opportunities, so withholding one from the bound while
+    //     reality hands it to the traveller is what made it unsound;
+    //   * cancellations remove them, and charging the bound for one the player
+    //     had not been shown is what made an earlier version pessimistic.
+    //
+    // The bound then plans over a superset of the day's options, so it cannot
+    // exceed what the day allowed, and it cannot flag an honest player. **A
+    // bound that flags honest players is worse than no bound** — which an even
+    // earlier version was, having used the reactive executor, a heuristic and
+    // therefore no bound at all.
+    //
+    // The cost of soundness is stated plainly in the module comment: this is
+    // now weaker than the `P0` quarantine, and the leak detector is the
+    // blind-hit statistic below rather than this comparison.
     const known = knowableBy(world, disruptions, ingestion, o.issuedAt);
-    const boundIx = buildIndex(world, known);
+    const knownByRef = new Set(known);
+    const boundIx = buildIndex(world, [
+      ...known,
+      ...disruptions.filter((d) => d.kind === "delay" && !knownByRef.has(d)),
+    ]);
     const optimal = route(
       boundIx,
       accessFor(query.id, "origin"),
@@ -231,10 +270,12 @@ export function auditInformationSets(
     }
 
     const boundS = optimal.arriveS - query.departAfterS;
-    // The same query on a day where nothing goes wrong. Cheap, and it is the
-    // only thing that separates "the bound is unsound" from "the router is".
+    // The same query on the day that actually happened. Nothing a traveller
+    // realises can beat it, so it separates "this player was lucky or lying"
+    // from "the search is wrong", which is the distinction the bound alone
+    // cannot make.
     const perfect = route(
-      buildIndex(world),
+      buildIndex(world, disruptions),
       accessFor(query.id, "origin"),
       accessFor(query.id, "destination"),
       query.departAfterS,
