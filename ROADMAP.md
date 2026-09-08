@@ -31,6 +31,20 @@ Milestones are numbered **`P<phase>M<milestone>`** — `P2M2` is the third miles
 | Two calibrated worlds, four references | agree within noise; `naive` 0.119 apart → 0.022 |
 | Transfer, `competent` / `tuned` | 0.441 → 0.441 / 0.430 → **−0.665** |
 
+**Phase 1 was reopened on 2026-09-08**, before Phase 2's second milestone, and the reason is `KNOWN-ISSUES.md` #48: *a tier is a claim about a world's conflicts and about nothing else.* Every generated world ever built — tier 0 through 5, every seed — is the same city:
+
+| | tier 3 | tier 5 |
+|---|---|---|
+| sites / quays / lines | 59 / 60 / 13 | 59 / 60 / 13 |
+| operators | 3, named `nordline`, `ostline`, `sudbahn` | the same 3, the same names |
+| position of `site-e1` | 50.45020, 30.52403 | 50.45020, 30.52403 |
+
+The seed jitters quay positions within a Site by a few metres and draws the conflicts. It does not change the shape, and neither does the tier: `NetworkSpec()` is constructed with its defaults everywhere outside the tests.
+
+**That is the root of three issues, not one.** `#43` (the bottom rung had no variety), `#47` (two sections exhaust their quota) and `#48` (the top rung is memorisable) are all the same complaint: *a catalogue of a dozen settings on one fixed city cannot supply variety at both ends of a six-rung ladder.* The project has deliberately closed "make the conflict bigger" — every setting has a realism ceiling — which leaves exactly two levers on difficulty, and only one of them has ever been used.
+
+**Phase 2 pauses behind it**, as Phase 0 paused behind P1M0's finding in 2026-09-02. `P2M0` keeps its two delivered clauses; its third — *the transfer verdict holds at a second tier* — moves to `P1M7`, which is where it can now be met.
+
 **What Phase 1 leaves Phase 2**, stated plainly because it shapes the milestones below:
 
 * **The generator is trustworthy and the numbers are not current.** The last change of Phase 1 stopped a tier's quota being spent on texture, which raised semantic content at tiers 2–3 by about two conflicts per world. Every difficulty figure recorded before it — including the transfer figures above — was measured on the older generator.
@@ -40,7 +54,68 @@ Milestones are numbered **`P<phase>M<milestone>`** — `P2M2` is the third miles
 
 ---
 
-# Phase 2 — The living world
+# Phase 1 (reopened) — The structural ladder
+
+**Goal:** make a tier a claim about the *world* — its size, its operators and their modes — and not only about the conflicts drawn over it. **Difficulty by structure is the one axis realism does not cap**, and it is untouched.
+
+**The ladder becomes two-dimensional**, which is the design decision this phase rests on:
+
+* **Scale is the ordered axis, and it is the tier.** A small town with two bus companies; a medium town with three and a metro; a large city with four and a metro; and above that, several towns joined by rail. More network, more operators, more modes — monotone, and monotone by measurement rather than by assertion.
+* **Shape is a declared axis and is not ordered.** Single-centre and polycentric are different problems, not different amounts of one problem. Calling "five towns and a railway" twenty per cent harder than "a large city" would invent a number, and the clearance ladder would inherit it.
+
+**A world therefore declares `(tier, shape)`.** Two worlds of the same tier and different shapes should be comparably hard — that is what makes shape an axis rather than a hidden difficulty lever, and `P1M7` states it as a measured exit rather than a hope.
+
+---
+
+### P1M5 — The ladder becomes data
+
+**A rung is an entry in an ordered list, not a number in six tables.** Today `TIER_SECTIONS`, `TIER_QUOTA`, `TIER_COSMETIC_ONLY`, `TIER_DENSITY` and `CLEARANCE_LADDER` are each keyed by the literals 0–5, and seventeen places in the Python side iterate `range(6)`. Adding a rung means editing all of them and hoping nothing was missed.
+
+* **One ordered list of rung definitions**, each carrying its structural parameters, its section quota and its clearance bar. The tier number becomes the *index*, and the five tables become views over one list.
+* **Every rung carries a stable id** — `small-town`, `metro-city` — that does not move when the numbering does. **A world bundle records the rung id and the ladder version beside the numeric tier**, so a result measured on a six-rung ladder is still interpretable after the ladder becomes nine. Without that, renumbering silently invalidates every recorded score, which is `KNOWN-ISSUES.md` #20 in a new place: *a number ratified against one scale, reused after the scale moved.*
+* **Interpolation is the point of the shape.** Inserting an intermediate rung should be one entry in one list — not a decision about what five other tables should say at 2.5.
+
+**Why first:** it is cheap, it is the mechanism the rest of the phase edits, and doing it afterwards means rewriting the structural tables twice.
+
+**Exit:** inserting a rung between two existing ones is a one-entry change, asserted by a test that inserts one and requires no other file to move; every existing rung keeps its id; and **every tier still generates a byte-identical world**, because this milestone changes how the ladder is written down and nothing about what it says.
+
+---
+
+### P1M6 — Scale: operators, modes and size become tier parameters
+
+The generator's three operators are hard-coded — the ids `nordline`, `ostline` and `sudbahn` are string literals, and the roles are radials / ring-and-chords / regional. That fixed shape is also why a memorised answer key always resolves: **the operator it was baked against is present, under the same name, in every world that exists.**
+
+* **`NetworkSpec` levers move into the rung definition**: arms, sites per arm, hub quays, chords, and the operator roster.
+* **Operators are generated** — count, roles, ids and names — so two worlds need not share a single operator identity.
+* **Modes arrive as operator kinds.** A metro is not a bus with a different name: higher frequency, its own right of way, fewer and larger stations, and therefore a genuine `A-granularity` habit rather than a drawn conflict.
+* **The invariants generalise to N operators**: `max_reach_share`, the reach-weighted conflict placement, and #38's division of labour all assume exactly three roles today.
+
+**Exit, stated in numbers because the instrument exists:** every rung passes all three gates; the reference profile is **monotone across rungs by measurement**, not by assertion; and pairwise similarity within a rung falls below what it is today at the rung that is worst for it (Tier 5, 67 % of conflicts shared, 47 % with strengths).
+
+---
+
+### P1M7 — Shape: the second axis, and the transfer verdict at the top
+
+* **`polycentric`** — several towns joined by rail, against today's single centre. Inter-town lines are infrequent, so a missed connection is expensive, which is exactly the headroom the scoring rewards; the query set must span centres, and `npm run headroom`'s criterion needs re-checking against journeys of that shape rather than assumed to carry over.
+* **`P2M0`'s third clause lands here.** With operator identities and counts differing across worlds of a rung, a memorised key has nothing to resolve against — which is `#48`'s root rather than another widening of the catalogue.
+
+**Exit:** two worlds of the same tier and *different shapes* have difficulty profiles that agree within noise — **the claim that makes shape an axis rather than a difficulty lever in disguise**; the transfer verdict holds at the top rung and at one other; and a polycentric world's scored set still rewards integration on the same criterion, measured rather than assumed.
+
+---
+
+### P1M8 — Re-measure, and re-establish the exit
+
+Everything recorded against the old ladder describes a generator that no longer exists — the same debt `P2M0` paid off, at a larger scale.
+
+* Calibrate each rung, profile it, and re-derive every clearance bar from the references' scores on the new worlds.
+* Re-run the gates per rung and per shape; re-run `npm run transfer` at the top, the middle and the bottom.
+* Close `#47` and `#48` against measurements, or restate what remains of them.
+
+**Exit — this is Phase 1's exit, on the new ladder:** two independently generated worlds at the same declared tier produce matching difficulty profiles, a solution that reasons carries between them, and one that memorised either collapses on the other — **at more than one rung**, which is the coverage the first closing of this phase did not have.
+
+---
+
+# Phase 2 — The living world — **paused behind the reopened Phase 1**
 
 **Goal** (`docs/PHASES.md`): the sandbox half of the project, which Phase 0 deliberately skipped — travellers who actually consult the player, a clock that tracks wall time, and a view that explains what happened.
 
@@ -64,7 +139,9 @@ Phase 1 ended with one defect and two measurement debts, and all three get worse
 
 **Exit:** the monotonicity test is no longer `todo` ✅; every difficulty figure quoted in the documentation was measured on the current generator ✅; the transfer verdict holds at a second tier ❌.
 
-**Work done against that third clause, and what it bought.** The catalogue was widened at its strong end (`B-dst-offset`, `C-cancellation-token`), `generate` lists that hold *kinds* rather than severities are now drawn uniformly instead of by tier, and the answer key was widened from two dimensions to four. Two Tier-5 worlds now share **47 %** of their conflicts-with-strengths against 66 % before, and Tier 3's collapse sharpened to −0.839. **The Tier-5 verdict has not flipped**, and `#48` now says exactly why rather than approximately: that rung's cost is 77 % one conflict, and the two worlds' versions of it decode identically. The options that remain are about which conflict to add next, not about whether the diagnosis is right.
+**Reassigned to `P1M7` on 2026-09-08.** It is not reachable while every world of every tier holds the same three operators under the same names, which is what reopening Phase 1 fixes.
+
+**Work done against that third clause before it moved, and what it bought.** The catalogue was widened at its strong end (`B-dst-offset`, `C-cancellation-token`), `generate` lists that hold *kinds* rather than severities are now drawn uniformly instead of by tier, and the answer key was widened from two dimensions to four. Two Tier-5 worlds now share **47 %** of their conflicts-with-strengths against 66 % before, and Tier 3's collapse sharpened to −0.839. **The Tier-5 verdict has not flipped**, and `#48` now says exactly why rather than approximately: that rung's cost is 77 % one conflict, and the two worlds' versions of it decode identically. The options that remain are about which conflict to add next, not about whether the diagnosis is right.
 
 ---
 
@@ -133,7 +210,8 @@ Map replay, vehicle and passenger flows, an API request view, and the traveller 
 | Trajectory in-bundle vs regenerated from seed | `DATA-MODEL.md` §6 | **P2M2** |
 | What `capture` normalises against once the day is no longer fixed | `SCORING.md` §2 | **P2M2**, before the first scored closed-loop run |
 | `verbatim` logging, and the three trace disclosure levels | `OBSERVABILITY.md` §7, §8 | **P2M3**; assessment-mode redaction in Phase 4 |
-| `KNOWN-ISSUES.md` #47 — sections B and D offer no choice of *settings* | `#43`'s invariant test | Phase 3, with the ladder — it is catalogue content |
+| `KNOWN-ISSUES.md` #47 — section D offers no choice of *settings* | `#43`'s invariant test | **P1M8**, against measurements on the new ladder |
+| `KNOWN-ISSUES.md` #48 — the top rung is memorisable | `npm run transfer` | **P1M6**–**P1M7**: the structural ladder is the answer chosen for it |
 | `SCORING.md` — `P0a`'s ambiguity floor | `KNOWN-ISSUES.md` #23 | Phase 3. Three measurements say 1 %, and none was taken on a city with a large interchange, which is the case that would change the answer |
 | The Information family registers realtime failures and scores them at 0.001 | `SCORING.md` OPEN | Ratified 2026-09-05 to stay open. Reopen on evidence, not on taste |
 | `latency: sim` and non-atomic pagination — must arrive together | `DATA-MODEL.md` §4 | Phase 3, or whichever milestone adds pagination |
@@ -143,6 +221,10 @@ Map replay, vehicle and passenger flows, an API request view, and the traveller 
 ---
 
 ## Risks
+
+**Reopening a phase is cheap to decide and expensive to finish.** Phase 0 was reopened once, at P1M0, and cost four milestones. This reopening is larger in scope: it changes what a tier *is*, so every calibrated world, every clearance bar and every recorded difficulty figure is re-derived at `P1M8`. The argument for paying it now rather than later is that Phase 2 builds a live world, a UI and a playtest **on top of the ladder** — and a playtest run against a world whose tier means something different afterwards is an hour of a stranger's attention spent twice.
+
+**A two-dimensional ladder invites a third dimension.** Scale and shape are enough to state the exit against; the temptation will be to add a mode axis, a demand axis, a fidelity axis, each defensible on its own. **Every axis multiplies what must be measured per release** — the gates, the profile and the transfer test already run per rung. Adding one is a decision to be argued in `PHASES.md`, not a parameter to be introduced in the generator.
 
 **A closed loop removes the fixed denominator that makes two scores comparable.** This is the largest design risk in the phase and it is not a coding problem: `capture` is measured against `P1` and `P0a` on *the same day*, and a day that responds to the player's advice is not the same day. Deciding it late means either a scoring change after results exist, or a sandbox that quietly cannot be scored. **P2M2 states the decision as a deliverable** for that reason.
 

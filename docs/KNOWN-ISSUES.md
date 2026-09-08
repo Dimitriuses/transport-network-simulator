@@ -1700,7 +1700,7 @@ Tiny, and it is the only *proven* gap between this search and an optimal one, so
 
 ---
 
-## 48. The top of the ladder is its least varied rung, and a memorised solution transfers across it — `partly fixed at P2M0; the verdict has not flipped`
+## 48. The top of the ladder is its least varied rung, and a memorised solution transfers across it — `open; answered by reopening Phase 1 (P1M5-P1M8)`
 
 **Found by the instrument built to find it.** `npm run transfer` on a calibrated Tier-5 pair returns the row the two-sided test exists to catch:
 
@@ -1869,3 +1869,36 @@ per-conflict on journey time, each acting alone:
 * **Give section B a setting that differs in what a reader must *do***, not only in what the feed says — a static timetable and a realtime feed in different encodings is the obvious one, and no single memorised encoding covers it.
 * **Have the calibration search reject a pair whose answer keys are behaviourally equivalent**, which is a check on the instrument's inputs rather than on the world.
 * **State the exit clause per tier.** Tier 5's difficulty is concentrated in one dimension, and a rung whose cost is 77 % one conflict may simply not be a good test of memorisability.
+
+
+---
+
+## 48 (continued). The answer chosen: give the ladder a second dimension
+
+**Decided 2026-09-08, and it makes `#43`, `#47` and `#48` one issue.** All three are the same complaint — *a catalogue of a dozen settings on one fixed city cannot supply variety at both ends of a six-rung ladder* — and two rounds of widening the catalogue bought real improvement without flipping the top rung's verdict.
+
+The measurement that settles it is not about the catalogue at all:
+
+| | tier 3 world | tier 5 world |
+|---|---|---|
+| sites / quays / lines | 59 / 60 / 13 | 59 / 60 / 13 |
+| operators | 3, named `nordline`, `ostline`, `sudbahn` | the same 3, the same names |
+| position of `site-e1` | 50.45020, 30.52403 | 50.45020, 30.52403 |
+
+**A tier declares which conflicts a world holds and nothing else.** `NetworkSpec()` is constructed with its defaults everywhere outside the tests; the seed jitters quays within a Site by metres and draws the conflict set. So every world this project has generated is one city wearing different clothes — and the operator ids are string literals, which is why **a memorised answer key always resolves**: the operator it was baked against exists, under that name, in every world there is.
+
+**Difficulty by structure is the one axis the realism constraint does not cap.** Every setting has a ceiling with a stated cause, deliberately; a bigger network with more operators and more modes is harder without any conflict being less plausible.
+
+### The shape of the answer
+
+* **Scale is the ordered axis and it is the tier** — a small town with two bus companies, up to several towns joined by rail.
+* **Shape is declared and unordered.** Single-centre and polycentric are different problems, not different amounts of one. Ordering them would invent a number and the clearance bars would inherit it.
+* **A world declares `(tier, shape)`**, and `P1M7`'s exit is that two worlds of one tier and different shapes agree within noise — which is what makes shape an axis rather than a difficulty lever in disguise.
+
+### And the numbering stops being magic
+
+Six tables are keyed by the literals 0–5 and seventeen Python call sites iterate `range(6)`. `P1M5` replaces them with **one ordered list of rung definitions**, each carrying a stable id and its own parameters, so inserting an intermediate rung is one entry rather than a decision about what five tables should say at 2.5.
+
+**A rung's id travels with a result; its index does not.** A bundle records the rung id and the ladder version beside the numeric tier, so a score measured on a six-rung ladder is still interpretable when the ladder becomes nine. Without it, renumbering silently invalidates every recorded result — `#20` in a new place: *a number ratified against one scale and reused after the scale moved.*
+
+**What P2M0 delivered against this stays.** The catalogue is genuinely wider and the draws are genuinely better: Tier 5's conflicts-with-strengths similarity fell 66 % → 47 % across the two rounds, and Tier 3's collapse sharpened to −0.839. It was not enough on its own, and the reason is above.
