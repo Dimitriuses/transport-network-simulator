@@ -191,15 +191,25 @@ def operators_for(
     net = net or network.Network(city.SITES, city.QUAYS, city.LINES)
     reach = network.operator_reach(net)
     collapsible = network.operator_collapsible_sites(net)
+    # **Who the operators are is a property of the network, not of `city`.**
+    # A generated world's roster is generated with it — its size, its roles and
+    # its ids — and reading the hand-authored three here is what made every
+    # world this project built share the same three operator names, and a
+    # memorised answer key resolve in all of them (`KNOWN-ISSUES.md` #48).
+    roster: tuple[tuple[str, str, str], ...] = (
+        tuple((o.id, o.name, o.dialect) for o in net.operators)
+        if net.operators
+        else tuple((o["id"], o["name"], o["dialect"]) for o in city.OPERATORS)
+    )
     specs = tuple(
         generate.OperatorSpec(
-            o["id"],
-            o["name"],
-            o["dialect"],
-            reach.get(o["id"], 0),
-            collapsible.get(o["id"], 0),
+            oid,
+            name,
+            dialect,
+            reach.get(oid, 0),
+            collapsible.get(oid, 0),
         )
-        for o in city.OPERATORS
+        for oid, name, dialect in roster
     )
     return generate.generate_manifests(specs, tier, seed)
 
@@ -281,6 +291,32 @@ def _declared_conflicts(operators: tuple[dict, ...]) -> list[str]:
     return sorted(found)
 
 
+def spec_for_tier(tier: int | None) -> network.NetworkSpec | None:
+    """The city this tier asks for, or `None` for the default shape.
+
+    **A tier is a claim about the world, not only about its conflicts** — the
+    root of `KNOWN-ISSUES.md` #48, fixed at P1M6. The levers live on the rung
+    (`src/schema/src/ladder.ts`) and arrive here through the contract, so adding
+    a rung does not mean editing a generator.
+    """
+    if tier is None:
+        return None
+    rung = catalogue.load().rung_at(tier)
+    if rung is None:
+        return None
+    w = rung.world
+    return network.NetworkSpec(
+        arms=w.arms,
+        sites_per_arm=w.sites_per_arm,
+        hub_quays=w.hub_quays,
+        chords=w.chords,
+        regional_lines=w.regional_lines,
+        metro_lines=w.metro_lines,
+        roster=w.roster,
+        max_reach_share=w.max_reach_share,
+    )
+
+
 def network_for(
     generate: bool, seed: int, spec: network.NetworkSpec | None = None
 ) -> network.Network:
@@ -338,7 +374,7 @@ def build(
     # also the lever a calibration search needs: re-drawing the conflicts
     # while holding the city fixed is the adjustment step, and re-drawing the
     # city would invalidate the scored query set it was selected against.
-    net = network_for(generate_network, seed, spec)
+    net = network_for(generate_network, seed, spec or spec_for_tier(tier))
     queries = queries_for(net, scored_ids)
     operators = operators_for(tier, conflict_seed if conflict_seed is not None else seed, net)
     out_path.parent.mkdir(parents=True, exist_ok=True)

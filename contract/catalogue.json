@@ -235,6 +235,19 @@
       "id": "clean",
       "name": "a world that publishes honestly",
       "sections": [],
+      "world": {
+        "arms": 6,
+        "sitesPerArm": 3,
+        "hubQuays": 2,
+        "chords": 2,
+        "regionalLines": 0,
+        "metroLines": 0,
+        "roster": [
+          "radial",
+          "ring"
+        ],
+        "maxReachShare": 0.62
+      },
       "quota": {
         "A": 0,
         "B": 0,
@@ -256,6 +269,19 @@
         "A"
       ],
       "cosmeticOnly": true,
+      "world": {
+        "arms": 6,
+        "sitesPerArm": 3,
+        "hubQuays": 2,
+        "chords": 2,
+        "regionalLines": 0,
+        "metroLines": 0,
+        "roster": [
+          "radial",
+          "ring"
+        ],
+        "maxReachShare": 0.62
+      },
       "quota": {
         "A": 2,
         "B": 0,
@@ -278,6 +304,20 @@
         "B",
         "C"
       ],
+      "world": {
+        "arms": 8,
+        "sitesPerArm": 3,
+        "hubQuays": 2,
+        "chords": 3,
+        "regionalLines": 0,
+        "metroLines": 2,
+        "roster": [
+          "radial",
+          "ring",
+          "metro"
+        ],
+        "maxReachShare": 0.55
+      },
       "quota": {
         "A": 3,
         "B": 1,
@@ -301,6 +341,21 @@
         "C",
         "D"
       ],
+      "world": {
+        "arms": 8,
+        "sitesPerArm": 4,
+        "hubQuays": 2,
+        "chords": 4,
+        "regionalLines": 3,
+        "metroLines": 2,
+        "roster": [
+          "radial",
+          "ring",
+          "metro",
+          "regional"
+        ],
+        "maxReachShare": 0.5
+      },
       "quota": {
         "A": 3,
         "B": 1,
@@ -324,6 +379,22 @@
         "C",
         "D"
       ],
+      "world": {
+        "arms": 12,
+        "sitesPerArm": 4,
+        "hubQuays": 3,
+        "chords": 5,
+        "regionalLines": 4,
+        "metroLines": 3,
+        "roster": [
+          "radial",
+          "ring",
+          "radial",
+          "metro",
+          "regional"
+        ],
+        "maxReachShare": 0.45
+      },
       "quota": {
         "A": 4,
         "B": 1,
@@ -347,6 +418,23 @@
         "C",
         "D"
       ],
+      "world": {
+        "arms": 12,
+        "sitesPerArm": 5,
+        "hubQuays": 3,
+        "chords": 6,
+        "regionalLines": 5,
+        "metroLines": 3,
+        "roster": [
+          "radial",
+          "ring",
+          "radial",
+          "ring",
+          "metro",
+          "regional"
+        ],
+        "maxReachShare": 0.4
+      },
       "quota": {
         "A": 4,
         "B": 1,

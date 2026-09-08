@@ -149,8 +149,14 @@ def test_every_line_calls_only_at_quays_that_exist() -> None:
 
 def test_a_spec_that_cannot_work_is_refused() -> None:
     """Loudly, and where the cause is, rather than in a calibration later."""
-    with pytest.raises(ValueError, match="even and at least 4"):
+    with pytest.raises(ValueError, match="arms must be one of"):
         N.NetworkSpec(arms=5)
+    # Ten is even, and its directions need cos 36 written as a surd — which is
+    # possible and has not been needed. Refused rather than approximated: a
+    # direction from `math.cos` is not the same bits on every machine, and the
+    # content hash is compared across Python builds (`network.py`).
+    with pytest.raises(ValueError, match="arms must be one of"):
+        N.NetworkSpec(arms=10)
     with pytest.raises(ValueError, match="A-granularity unplaceable"):
         N.NetworkSpec(hub_quays=1)
     with pytest.raises(ValueError, match="needs a middle"):
@@ -211,3 +217,29 @@ def test_the_ring_belongs_to_the_operator_that_does_not_run_the_radials() -> Non
         assert ring.operator not in radials, (
             f"seed {seed}: the ring is run by {ring.operator}, which also runs the radials"
         )
+
+
+def test_every_arm_count_makes_a_circle_rather_than_a_fan() -> None:
+    """Opposite arms must actually be opposite.
+
+    The directions were one tuple of eight and a six-arm city took the first
+    six of them — N, NE, E, SE, S, SW, which is three quarters of a circle. The
+    generator pairs arm `a` with arm `a + arms // 2` into a through line, so in
+    that fan the line "through" the hub from the north came back out to the
+    south-east. Every world ever built had eight arms, so nothing noticed until
+    P1M6 gave the rungs different sizes.
+    """
+    for arms, dirs in N._DIRECTION_TABLE.items():
+        assert len(dirs) == arms
+        assert len(N._ARM_NAME_TABLE[arms]) == arms
+
+        for north, east in dirs:
+            # A unit vector, to the precision `sqrt` gives.
+            assert abs(north * north + east * east - 1.0) < 1e-12
+
+        half = arms // 2
+        for a in range(half):
+            north, east = dirs[a]
+            onorth, oeast = dirs[a + half]
+            assert abs(north + onorth) < 1e-12, f"{arms} arms: {a} and {a + half} are not opposite"
+            assert abs(east + oeast) < 1e-12, f"{arms} arms: {a} and {a + half} are not opposite"

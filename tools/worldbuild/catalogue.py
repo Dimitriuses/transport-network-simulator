@@ -73,6 +73,20 @@ class DisruptionPolicy:
 
 
 @dataclass(frozen=True)
+class RungWorld:
+    """The city a rung asks for (`src/schema/src/ladder.ts`)."""
+
+    arms: int
+    sites_per_arm: int
+    hub_quays: int
+    chords: int
+    regional_lines: int
+    metro_lines: int
+    roster: tuple[str, ...]
+    max_reach_share: float
+
+
+@dataclass(frozen=True)
 class Rung:
     """One rung of the ladder, read from the contract.
 
@@ -88,6 +102,7 @@ class Rung:
     cosmetic_only: bool
     quota: dict[str, int]
     density: float
+    world: RungWorld
 
 
 @dataclass(frozen=True)
@@ -178,6 +193,16 @@ def load() -> Catalogue:
             cosmetic_only=bool(r.get("cosmeticOnly", False)),
             quota={sec: int(n) for sec, n in r["quota"].items()},
             density=float(r["density"]),
+            world=RungWorld(
+                arms=int(r["world"]["arms"]),
+                sites_per_arm=int(r["world"]["sitesPerArm"]),
+                hub_quays=int(r["world"]["hubQuays"]),
+                chords=int(r["world"]["chords"]),
+                regional_lines=int(r["world"]["regionalLines"]),
+                metro_lines=int(r["world"]["metroLines"]),
+                roster=tuple(r["world"]["roster"]),
+                max_reach_share=float(r["world"]["maxReachShare"]),
+            ),
         )
         for r in raw["ladder"]
     )

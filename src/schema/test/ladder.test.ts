@@ -31,6 +31,16 @@ const INTERMEDIATE: Rung = {
   id: "test-intermediate",
   name: "a rung inserted by a test",
   sections: ["A", "B"],
+  world: {
+    arms: 6,
+    sitesPerArm: 3,
+    hubQuays: 2,
+    chords: 2,
+    regionalLines: 1,
+    metroLines: 0,
+    roster: ["radial", "ring"],
+    maxReachShare: 0.62,
+  },
   quota: { A: 1, B: 1, C: 0, D: 0 },
   density: 0.42,
   clearance: { from: "blind", to: "naive", at: 0.5, because: "halfway" },
@@ -128,6 +138,21 @@ test("the shipped ladder still says what the six tables said", () => {
     LADDER.map((r) => r.density),
     [0, 1, 0.55, 0.6, 0.7, 0.8],
   );
+  // The scale, which is the ordered axis: every rung is at least as large as
+  // the one below it, and the roster never shrinks.
+  for (let i = 1; i < LADDER.length; i++) {
+    const below = LADDER[i - 1]!.world;
+    const here = LADDER[i]!.world;
+    assert.ok(here.arms >= below.arms, `rung ${i} has fewer arms than ${i - 1}`);
+    assert.ok(
+      here.arms * here.sitesPerArm >= below.arms * below.sitesPerArm,
+      `rung ${i} is a smaller city than ${i - 1}`,
+    );
+    assert.ok(
+      here.roster.length >= below.roster.length,
+      `rung ${i} has fewer operators than ${i - 1}`,
+    );
+  }
   assert.deepEqual(
     CLEARANCE_LADDER.map((b) => `${b.from}->${b.to}@${b.at}`),
     [

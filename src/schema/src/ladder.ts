@@ -26,10 +26,11 @@
 // been made twice here — the clearance table when `capture`'s denominator
 // changed, and Gate 3's threshold when its metric did.
 //
-// **What a rung does not yet carry is its world.** `P1M6` gives each one its
-// size, its operator roster and their modes; the ids below already name the
-// world each rung intends, so that milestone fills them in rather than renaming
-// anything (`ROADMAP.md`, Phase 1 reopened).
+// **And since P1M6 a rung carries its world**: how many arms, how long, how many
+// quays at the hub, and who runs it. A tier declared which conflicts a world
+// held and nothing else, so every generated world at every tier was the same
+// city with the same three operators under the same hard-coded names — the root
+// of `KNOWN-ISSUES.md` #43, #47 and #48 alike.
 
 import type { CatalogueSection } from "./catalogue.ts";
 
@@ -42,6 +43,52 @@ import type { CatalogueSection } from "./catalogue.ts";
  * now".
  */
 export const LADDER_VERSION = 1;
+
+/**
+ * The city a rung asks for.
+ *
+ * **A tier used to declare which conflicts a world held and nothing else**, so
+ * every generated world — tier 0 through 5, every seed — was the same 59 sites,
+ * 60 quays and 13 lines run by the same three operators under the same
+ * hard-coded names (`KNOWN-ISSUES.md` #48). Difficulty by structure is the one
+ * axis the realism constraint does not cap: a bigger network with more
+ * operators is harder without any conflict being less plausible.
+ */
+export interface RungWorld {
+  /** Radial arms out of the hub. Even, so opposite arms pair into through lines. */
+  readonly arms: number;
+  /** Sites along each arm, at increasing radius. */
+  readonly sitesPerArm: number;
+  /** Quays at the hub. More than one, always. */
+  readonly hubQuays: number;
+  /** Chord lines bypassing the hub, on the ring operators. */
+  readonly chords: number;
+  /** Lines on the regional operators. */
+  readonly regionalLines: number;
+  /** Lines on the metro operators, each running through the centre. */
+  readonly metroLines: number;
+  /**
+   * Who runs it, by role, in order.
+   *
+   * `radial` runs the star, `ring` the orbital and the chords *and its own
+   * stops a short walk from the radials* — that walk is the headroom — and
+   * `regional` is fast, infrequent and deliberately low-reach. A world needs a
+   * radial and a ring or it has no undeclared interchange to find.
+   *
+   * **The ids are generated from the world's seed**, so two worlds of one rung
+   * share no operator identity.
+   */
+  readonly roster: readonly string[];
+  /**
+   * The largest share of line-stops any one operator may serve.
+   *
+   * Scales with the roster, because it must: two operators cannot both be under
+   * a half, and a cap nobody can satisfy is a generator that always throws.
+   * `#38` is about one operator carrying *most* of a city while also collecting
+   * most of its conflicts, which two equal companies do not do.
+   */
+  readonly maxReachShare: number;
+}
 
 /** One rung: what a tier declares about a world. */
 export interface Rung {
@@ -56,6 +103,8 @@ export interface Rung {
   readonly sections: readonly CatalogueSection[];
   /** Section A appears as texture and nothing else. */
   readonly cosmeticOnly?: boolean;
+  /** The city this rung asks for. */
+  readonly world: RungWorld;
   /** How many settings from each section a dirty operator departs on. */
   readonly quota: Readonly<Record<CatalogueSection, number>>;
   /**
@@ -86,6 +135,7 @@ export const LADDER: readonly Rung[] = [
     id: "clean",
     name: "a world that publishes honestly",
     sections: [],
+    world: { arms: 6, sitesPerArm: 3, hubQuays: 2, chords: 2, regionalLines: 0, metroLines: 0, roster: ["radial", "ring"], maxReachShare: 0.62 },
     quota: { A: 0, B: 0, C: 0, D: 0 },
     density: 0,
     clearance: {
@@ -100,6 +150,7 @@ export const LADDER: readonly Rung[] = [
     name: "texture only: the same facts, spelled differently",
     sections: ["A"],
     cosmeticOnly: true,
+    world: { arms: 6, sitesPerArm: 3, hubQuays: 2, chords: 2, regionalLines: 0, metroLines: 0, roster: ["radial", "ring"], maxReachShare: 0.62 },
     quota: { A: 2, B: 0, C: 0, D: 0 },
     density: 1,
     clearance: {
@@ -113,6 +164,7 @@ export const LADDER: readonly Rung[] = [
     id: "metro-town",
     name: "the first conflicts that mean something",
     sections: ["A", "B", "C"],
+    world: { arms: 8, sitesPerArm: 3, hubQuays: 2, chords: 3, regionalLines: 0, metroLines: 2, roster: ["radial", "ring", "metro"], maxReachShare: 0.55 },
     quota: { A: 3, B: 1, C: 1, D: 0 },
     density: 0.55,
     clearance: {
@@ -126,6 +178,7 @@ export const LADDER: readonly Rung[] = [
     id: "metro-city",
     name: "realtime joins in, and starts lying",
     sections: ["A", "B", "C", "D"],
+    world: { arms: 8, sitesPerArm: 4, hubQuays: 2, chords: 4, regionalLines: 3, metroLines: 2, roster: ["radial", "ring", "metro", "regional"], maxReachShare: 0.5 },
     quota: { A: 3, B: 1, C: 1, D: 2 },
     density: 0.6,
     clearance: {
@@ -139,6 +192,7 @@ export const LADDER: readonly Rung[] = [
     id: "towns-and-rail",
     name: "more of everything, and further to go",
     sections: ["A", "B", "C", "D"],
+    world: { arms: 12, sitesPerArm: 4, hubQuays: 3, chords: 5, regionalLines: 4, metroLines: 3, roster: ["radial", "ring", "radial", "metro", "regional"], maxReachShare: 0.45 },
     quota: { A: 4, B: 1, C: 2, D: 2 },
     density: 0.7,
     clearance: {
@@ -152,6 +206,7 @@ export const LADDER: readonly Rung[] = [
     id: "region",
     name: "the whole catalogue, at strength",
     sections: ["A", "B", "C", "D"],
+    world: { arms: 12, sitesPerArm: 5, hubQuays: 3, chords: 6, regionalLines: 5, metroLines: 3, roster: ["radial", "ring", "radial", "ring", "metro", "regional"], maxReachShare: 0.4 },
     quota: { A: 4, B: 1, C: 2, D: 3 },
     density: 0.8,
     clearance: {

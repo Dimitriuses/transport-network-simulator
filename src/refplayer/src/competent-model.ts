@@ -88,6 +88,16 @@ export function buildCompetentModel(
 
   for (const t of timetables) {
     const baked = tuning?.operators[t.operator];
+
+    // **An operator the answer key never heard of is one this solution cannot
+    // read.** Since P1M6 a world generates its own operators, so two worlds of
+    // a rung need not share an identity — and a memorised solution meeting
+    // `verbovaline` when it was built against `nordline` has no handling wired
+    // in for it. Falling back to inference here would quietly turn `tuned` into
+    // `competent` and the fixture would measure nothing, which is the same
+    // mistake as the decoder fallback `tuning.ts` refuses.
+    if (tuning && !baked) continue;
+
     decoders.set(
       t.operator,
       baked ? tunedDecoder(baked, worldOffsetS) : detectTimeDecoder(t, worldOffsetS),
@@ -122,7 +132,8 @@ export function buildCompetentModel(
   const seenTrips = new Set<string>();
 
   for (const t of timetables) {
-    const decode = decoders.get(t.operator)!;
+    const decode = decoders.get(t.operator);
+    if (!decode) continue; // an operator this solution was never built for
     for (const trip of t.trips) {
       const tripKey = `${t.operator}:${trip.trip_id}`;
       seenTrips.add(tripKey);

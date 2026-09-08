@@ -1902,3 +1902,24 @@ Six tables are keyed by the literals 0–5 and seventeen Python call sites itera
 **A rung's id travels with a result; its index does not.** A bundle records the rung id and the ladder version beside the numeric tier, so a score measured on a six-rung ladder is still interpretable when the ladder becomes nine. Without it, renumbering silently invalidates every recorded result — `#20` in a new place: *a number ratified against one scale and reused after the scale moved.*
 
 **What P2M0 delivered against this stays.** The catalogue is genuinely wider and the draws are genuinely better: Tier 5's conflicts-with-strengths similarity fell 66 % → 47 % across the two rounds, and Tier 3's collapse sharpened to −0.839. It was not enough on its own, and the reason is above.
+
+
+---
+
+## 49. A city of six arms was three quarters of a circle — `found and fixed at P1M6, never shipped`
+
+The generator held one tuple of eight compass directions and took a prefix of it:
+
+```python
+directions = _DIRECTIONS[: spec.arms]
+```
+
+For the default eight arms that is the whole compass. For six it is **N, NE, E, SE, S, SW** — a fan with the west side missing. And the radial operator pairs arm `a` with arm `a + arms // 2` to make a line *through* the hub, so in that fan the through line from the north came back out to the south-east: a city whose "opposite" arms are 135° apart, with every radial bending around one side of the centre.
+
+**It never shipped, because every world this project has built had eight arms** — `NetworkSpec()` was constructed with its defaults everywhere outside the tests, which is `KNOWN-ISSUES.md` #48's finding wearing a different hat. P1M6 gives the rungs different sizes and would have produced bent cities at the two smallest.
+
+**The fix is a table per arm count** rather than a prefix: 4, 6, 8 and 12 arms, each evenly spaced, each built from `sqrt` alone — `cos 45 = sqrt(0.5)`, `cos 30 = sqrt(3)/2` — because a direction from `math.cos` is not the same bits on every machine and CI compares the content hash across Python builds. Ten arms is refused rather than approximated: `cos 36` is a surd and writing it exactly has not been needed.
+
+`tools/tests/test_network.py` asserts what the prefix silently broke: every table is as long as its arm count, every vector is a unit vector, and **arm `a` and arm `a + arms/2` point in opposite directions**.
+
+*A default that is never varied is a parameter nobody has tested.* Both of this milestone's first two findings have that shape.

@@ -86,7 +86,7 @@ The seed jitters quay positions within a Site by a few metres and draws the conf
 
 ---
 
-### P1M6 — Scale: operators, modes and size become tier parameters
+### P1M6 — Scale: operators, modes and size become tier parameters — **in progress**
 
 The generator's three operators are hard-coded — the ids `nordline`, `ostline` and `sudbahn` are string literals, and the roles are radials / ring-and-chords / regional. That fixed shape is also why a memorised answer key always resolves: **the operator it was baked against is present, under the same name, in every world that exists.**
 
@@ -96,6 +96,55 @@ The generator's three operators are hard-coded — the ids `nordline`, `ostline`
 * **The invariants generalise to N operators**: `max_reach_share`, the reach-weighted conflict placement, and #38's division of labour all assume exactly three roles today.
 
 **Exit, stated in numbers because the instrument exists:** every rung passes all three gates; the reference profile is **monotone across rungs by measurement**, not by assertion; and pairwise similarity within a rung falls below what it is today at the rung that is worst for it (Tier 5, 67 % of conflicts shared, 47 % with strengths).
+
+**Delivered.** The rungs carry their cities, the operators are generated, and the metro is an operator *kind*:
+
+| rung | arms | sites | quays | lines | operators | roles | conflicts | biggest reach / cap |
+|---|---|---|---|---|---|---|---|---|
+| `clean` | 6 | 32 | 33 | 7 | 2 | radial, ring | 0 | 55 % / 62 % |
+| `small-town` | 6 | 32 | 33 | 7 | 2 | radial, ring | 2 | 55 % / 62 % |
+| `metro-town` | 8 | 51 | 61 | 11 | 3 | + metro | 11 | 44 % / 55 % |
+| `metro-city` | 8 | 72 | 86 | 15 | 4 | + regional | 21 | 40 % / 50 % |
+| `towns-and-rail` | 12 | 105 | 126 | 20 | 5 | 2 radials | 33 | 36 % / 45 % |
+| `region` | 12 | 120 | 141 | 22 | 6 | 2 radials, 2 rings | 39 | 23 % / 40 % |
+
+Every rung generates, audits clean — no MISS and no INRT at any of them — and passes the realism check. `max_reach_share` is a rung parameter because it has to be: two operators cannot both be under a half, and a cap nobody can satisfy is a generator that always throws.
+
+**A metro is not a bus company with a different name.** Its own alignment, its own stations at 90 m from the kerb in their own Sites — undeclared interchanges, the same construction that makes the ring operator's stops worth finding — **two platforms per station**, and a train every four minutes. The platforms are what give `A-granularity` something real to collapse: a station and the platform a train leaves from are different things, and an operator publishing at Site granularity says they are not.
+
+**The operator ids are generated from the world's seed**, so two worlds of a rung share **0 of 4** operator identities at `metro-city`. An answer key baked against `akademichnaline` resolves nothing in a world run by `sobornaline`, and `tuned` now drops a feed it has no entry for rather than falling back to inference — which would have quietly turned it into `competent`.
+
+**The operator ids are generated from the world's seed**, so two worlds of a rung share **0 of 3** operator identities at `metro-city`. That is `#48`'s memorisation half addressed at its root: an answer key baked against `akademichnaline` resolves nothing in a world run by `sobornaline`, and `tuned` now drops a feed it has no entry for rather than falling back to inference, which would have quietly turned it into `competent`.
+
+**Conflict composition moved less than identity did, and that is the honest half.** Role-keyed similarity — the only comparison that means anything now, since an id-keyed one reports 0 % for free:
+
+| rung | same conflicts | same conflicts+strengths |
+|---|---|---|
+| `small-town` | 35 % | 17 % |
+| `metro-town` | 56 % | 34 % |
+| `metro-city` | **46 %** | **27 %** |
+| `towns-and-rail` | 63 % | 36 % |
+| `region` | **68 %** | **44 %** |
+
+`metro-city` improved (47 % → 46 %, 28 % → 27 % against the pre-P1M6 numbers) and `region` did not (67 % → 68 %, 47 % → 44 %). **Structure fixed identity; composition is still governed by the quota against the catalogue's size**, which is `#47`'s section D and not something a bigger city changes.
+
+### The profile across rungs, and what it says
+
+Two seeds per rung, one uncalibrated draw each:
+
+| rung | `null` | `blind` | `naive` | `competent` |
+|---|---|---|---|---|
+| `small-town` | −0.600 | 0.072 | 0.380 | **0.582** |
+| `metro-town` | −0.600 | 0.121 | 0.420 | **0.606** |
+| `metro-city` | −0.600 | −2.660 | −2.550 | **0.214** |
+| `towns-and-rail` | −0.600 | −0.193 | −0.051 | **0.212** |
+| `region` | −0.600 | −1.420 | −1.290 | **0.236** |
+
+**`competent` orders the ladder as far as `metro-city` and then flattens**: 0.606 → 0.214 → 0.212 → 0.236, the last three inside each other's noise. So the scale is monotone across the bottom half and undifferentiated across the top — which is a finding about the rungs rather than about the generator, and the levers to fix it (quota, density, size) are all in one list now.
+
+**And `blind`/`naive` swing between −0.05 and −2.66 across adjacent rungs.** That is `#42` at a new scale: an uncalibrated world is a draw from a distribution, and these are single draws. `npm run calibrate:tier` per rung is what the monotonicity claim actually needs, which makes it **P1M8's** measurement rather than this milestone's.
+
+**Still to do in this milestone:** the per-rung gate runs. The monotone-by-measurement clause moves to `P1M8`, where the worlds are calibrated — measuring it on single draws would be quoting a calibration as a difficulty, which this project has a rule against.
 
 ---
 

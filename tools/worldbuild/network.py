@@ -92,20 +92,173 @@ from .city import Line, Quay, Site
 _M_PER_DEG = 111320.0
 _LON_SCALE = 0.64
 
-#: The eight compass directions as unit vectors, north-first and clockwise.
-#: `sqrt` is IEEE-exact, so these are the same bits on every machine — which
-#: `math.cos(math.radians(45))` would not be.
-_DIAG = math.sqrt(0.5)
-_DIRECTIONS: tuple[tuple[float, float], ...] = (
-    (1.0, 0.0),  # N
-    (_DIAG, _DIAG),  # NE
-    (0.0, 1.0),  # E
-    (-_DIAG, _DIAG),  # SE
-    (-1.0, 0.0),  # S
-    (-_DIAG, -_DIAG),  # SW
-    (0.0, -1.0),  # W
-    (_DIAG, -_DIAG),  # NW
-)
+#: Compass directions as unit vectors, north-first and clockwise.
+#:
+#: **Built from `sqrt` and nothing else**, so they are the same bits on every
+#: machine — which `math.cos(math.radians(45))` would not be, and the content
+#: hash is compared across Python builds in CI.
+#:
+#: **A fan is not a prefix of a compass.** These used to be one tuple of eight
+#: and a city of six arms took `_DIRECTIONS[:6]` — N, NE, E, SE, S, SW, which is
+#: three quarters of a circle with the west side missing. Worse, the generator
+#: pairs arm `a` with arm `a + arms // 2` to make a through line, and in that
+#: fan the "opposite" of north is south-east. Nothing noticed because every
+#: world ever built had eight arms; `P1M6` gives the rungs different sizes and
+#: would have quietly shipped bent cities.
+_DIAG = math.sqrt(0.5)  # cos 45
+_HALF_ROOT3 = math.sqrt(3.0) / 2.0  # cos 30
+
+_DIRECTION_TABLE: dict[int, tuple[tuple[float, float], ...]] = {
+    4: ((1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)),
+    6: (
+        (1.0, 0.0),
+        (0.5, _HALF_ROOT3),
+        (-0.5, _HALF_ROOT3),
+        (-1.0, 0.0),
+        (-0.5, -_HALF_ROOT3),
+        (0.5, -_HALF_ROOT3),
+    ),
+    8: (
+        (1.0, 0.0),
+        (_DIAG, _DIAG),
+        (0.0, 1.0),
+        (-_DIAG, _DIAG),
+        (-1.0, 0.0),
+        (-_DIAG, -_DIAG),
+        (0.0, -1.0),
+        (_DIAG, -_DIAG),
+    ),
+    12: (
+        (1.0, 0.0),
+        (_HALF_ROOT3, 0.5),
+        (0.5, _HALF_ROOT3),
+        (0.0, 1.0),
+        (-0.5, _HALF_ROOT3),
+        (-_HALF_ROOT3, 0.5),
+        (-1.0, 0.0),
+        (-_HALF_ROOT3, -0.5),
+        (-0.5, -_HALF_ROOT3),
+        (0.0, -1.0),
+        (0.5, -_HALF_ROOT3),
+        (_HALF_ROOT3, -0.5),
+    ),
+}
+
+#: Arm names, one per direction, matching the tables above.
+_ARM_NAME_TABLE: dict[int, tuple[str, ...]] = {
+    4: ("n", "e", "s", "w"),
+    6: ("n", "ne", "se", "s", "sw", "nw"),
+    8: ("n", "ne", "e", "se", "s", "sw", "w", "nw"),
+    12: (
+        "n",
+        "nne",
+        "ene",
+        "e",
+        "ese",
+        "sse",
+        "s",
+        "ssw",
+        "wsw",
+        "w",
+        "wnw",
+        "nnw",
+    ),
+}
+
+#: The arm counts a city may have: those whose evenly spaced directions come out
+#: of `sqrt` exactly. Adding 10 means writing cos 36 as a surd, which is
+#: possible and has not been needed.
+_ARM_COUNTS: tuple[int, ...] = tuple(sorted(_DIRECTION_TABLE))
+
+
+#: What an operator is for. The roles are a division of labour, not a partition
+#: of one company, and the network is built out of them (`KNOWN-ISSUES.md` #38).
+#:
+#:   radial    the star: centre to outskirts and back, through the hub.
+#:   ring      the orbital and the chords, connecting the ends to each other
+#:             *without* passing through the centre — and its own stops, a short
+#:             walk from the radial operator's. **That walk is the headroom.**
+#:   regional  fast, infrequent, terminus to terminus, deliberately low reach.
+#:   metro     its own alignment and its own stations, several platforms each,
+#:             every few minutes. **Not a bus company with a different name**:
+#:             a metro station is a Site with platforms in it, which is what
+#:             gives `A-granularity` something real to collapse, and it is
+#:             reached on foot from the kerb rather than by sharing it.
+#:
+#: A world needs at least one radial and one ring or it has no undeclared
+#: interchange to find, which is the thing this game is about.
+ROLES: tuple[str, ...] = ("radial", "ring", "regional", "metro")
+
+
+@dataclass(frozen=True)
+class OperatorPlan:
+    """One operator: who it is, and what it runs.
+
+    **Generated, not named in the source.** Until P1M6 the ids were the string
+    literals `nordline`, `ostline` and `sudbahn`, in every world this project
+    had ever built. That is why a memorised answer key always resolved: the
+    operator it was baked against existed, under that name, everywhere
+    (`KNOWN-ISSUES.md` #48).
+    """
+
+    id: str
+    name: str
+    short: str
+    dialect: str
+    role: str
+
+
+#: Suffixes that make a transport company's name, by role. Nordline Transit and
+#: Sudbahn Regional were hand-written; these are the same shapes, generated.
+_ROLE_STYLE: dict[str, tuple[str, str]] = {
+    "radial": ("line", "Transit"),
+    "ring": ("line", "Tram"),
+    "regional": ("bahn", "Regional"),
+    "metro": ("", "Metro"),
+}
+
+#: Cycled rather than drawn, so a roster of four has four different dialects
+#: before it repeats one. Which dialect an operator publishes is texture; that
+#: they differ is not.
+_DIALECTS: tuple[str, ...] = ("proprietary", "gtfs_like", "legacy")
+
+
+def plan_operators(roster: tuple[str, ...], seed: int) -> tuple[OperatorPlan, ...]:
+    """Name a roster of roles.
+
+    Deterministic in `seed`, and distinct: two operators of the same role in one
+    world take different stems, so `Lyvarnaline Transit` and `Mlynovaline
+    Transit` are two companies rather than one written twice.
+    """
+    rng = random.Random(seed ^ 0x0F5E)
+    stems = [local for _english, local in names_mod.STEMS]
+    # Fisher-Yates over a single `random()` stream, for the reason the module
+    # docstring gives.
+    for i in range(len(stems) - 1, 0, -1):
+        j = int(rng.random() * (i + 1))
+        stems[i], stems[j] = stems[j], stems[i]
+
+    out: list[OperatorPlan] = []
+    used: set[str] = set()
+    for index, role in enumerate(roster):
+        if role not in _ROLE_STYLE:
+            raise ValueError(f"unknown operator role {role!r}; known: {sorted(_ROLE_STYLE)}")
+        suffix, word = _ROLE_STYLE[role]
+        stem = stems[index % len(stems)]
+        oid = f"{stem}{suffix}".lower()
+        if oid in used:
+            raise ValueError(f"two operators would share the id {oid!r}")
+        used.add(oid)
+        out.append(
+            OperatorPlan(
+                id=oid,
+                name=f"{stem}{suffix} {word}",
+                short=(stem[:2] + suffix[:1]).upper(),
+                dialect=_DIALECTS[index % len(_DIALECTS)],
+                role=role,
+            )
+        )
+    return tuple(out)
 
 
 @dataclass(frozen=True)
@@ -149,6 +302,16 @@ class NetworkSpec:
     #: stops being usable, and because it carries most of the network a player
     #: who ignores it outscores one who tries (`KNOWN-ISSUES.md` #38).
     max_reach_share: float = 0.5
+    #: Lines on the metro operators, each running through the centre.
+    metro_lines: int = 2
+    #: Which operators this world has, by role, in order.
+    #:
+    #: **The roster is a tier parameter** (`ROADMAP.md` P1M6): a small town runs
+    #: two bus companies, a city runs four and a metro. The ids are generated
+    #: from the seed, so two worlds of one rung need not share a single operator
+    #: identity — which is what stops a memorised answer key resolving
+    #: (`KNOWN-ISSUES.md` #48).
+    roster: tuple[str, ...] = ("radial", "ring", "regional")
     #: The closest two distinct quays may be.
     #:
     #: **Not cosmetic.** `naiveMatchThresholdM` derives the lazy integrator's
@@ -168,10 +331,12 @@ class NetworkSpec:
     min_quay_separation_m: float = 40.0
 
     def __post_init__(self) -> None:
-        if self.arms % 2 != 0 or self.arms < 4:
-            raise ValueError(f"arms must be even and at least 4, got {self.arms}")
-        if self.arms > len(_DIRECTIONS):
-            raise ValueError(f"at most {len(_DIRECTIONS)} arms; got {self.arms}")
+        if self.arms not in _DIRECTION_TABLE:
+            raise ValueError(
+                f"arms must be one of {_ARM_COUNTS}, got {self.arms}. Every arm count "
+                "needs evenly spaced directions that come out of `sqrt` exactly, or the "
+                "content hash stops reproducing across Python builds."
+            )
         if self.hub_quays < 2:
             raise ValueError(
                 "a hub with one quay makes every transfer free and A-granularity unplaceable"
@@ -190,6 +355,9 @@ class Network:
     #: Every name each entity goes by, keyed by entity id. Empty for the
     #: hand-authored city, whose variants `city.place_names()` supplies.
     names: dict[str, names_mod.PlaceNames] = field(default_factory=dict)
+    #: Who runs what. Empty for the hand-authored city, whose three operators
+    #: are written down in `city.OPERATORS`.
+    operators: tuple[OperatorPlan, ...] = ()
 
 
 def _offset(lat: float, lon: float, north_m: float, east_m: float) -> tuple[float, float]:
@@ -204,8 +372,8 @@ def _offset(lat: float, lon: float, north_m: float, east_m: float) -> tuple[floa
     )
 
 
-def _arm_names() -> tuple[str, ...]:
-    return ("n", "ne", "e", "se", "s", "sw", "w", "nw")
+def _arm_names(arms: int) -> tuple[str, ...]:
+    return _ARM_NAME_TABLE[arms]
 
 
 #: How far a boarding point sits from the centre of the station it belongs to.
@@ -253,8 +421,24 @@ def generate_network(
     time, and no way to tell which seeds those were.
     """
     rng = random.Random(seed)
-    names = _arm_names()
-    directions = _DIRECTIONS[: spec.arms]
+    names = _arm_names(spec.arms)
+    directions = _DIRECTION_TABLE[spec.arms]
+
+    # Who runs this city. Drawn from their own seeded stream, before anything is
+    # laid out, so that adding an arm does not rename the bus company.
+    operators = plan_operators(spec.roster, seed)
+    by_role: dict[str, list[OperatorPlan]] = {}
+    for op in operators:
+        by_role.setdefault(op.role, []).append(op)
+    if not by_role.get("radial") or not by_role.get("ring"):
+        raise ValueError(
+            f"roster {spec.roster!r} has no radial or no ring operator: a world without "
+            "both has no undeclared interchange to find"
+        )
+    radials = by_role["radial"]
+    rings = by_role["ring"]
+    regionals = by_role.get("regional", [])
+    metros = by_role.get("metro", [])
 
     # Real names, and the several forms each place goes by. Drawn up front from
     # their own seeded stream so that adding a line does not rename the city
@@ -344,11 +528,15 @@ def generate_network(
         stand = stands[a % spec.hub_quays]
         route = (*reversed(outward(a)), f"q-hub-{stand}", *outward(opposite))
         headway = 15 * 60 + int(rng.random() * 4) * 300
+        # **Dealt round, not split down the middle.** Two bus companies in one
+        # town do not each take a contiguous half of the compass; they
+        # interleave, which is also what keeps either from owning a whole
+        # quarter of the city and tripping `max_reach_share`.
         lines.append(
             Line(
                 f"line-{a + 1}",
                 str(a + 1),
-                "nordline",
+                radials[a % len(radials)].id,
                 route,
                 6 * 3600,
                 22 * 3600,
@@ -372,7 +560,7 @@ def generate_network(
     mid = spec.sites_per_arm // 2
     orbital = tuple(f"q-{names[a]}{mid + 1}" for a in range(spec.arms))
     lines.append(
-        Line("line-orbital", "O", "ostline", orbital, 6 * 3600, 22 * 3600, 24 * 60, 7.5, 30)
+        Line("line-orbital", "O", rings[0].id, orbital, 6 * 3600, 22 * 3600, 24 * 60, 7.5, 30)
     )
 
     # ---- operator B: its own sites, a short walk from A's ------------------
@@ -439,7 +627,7 @@ def generate_network(
             Line(
                 f"line-t{c + 1}",
                 f"T{c + 1}",
-                "ostline",
+                rings[c % len(rings)].id,
                 tuple(chord),
                 6 * 3600,
                 22 * 3600,
@@ -468,10 +656,122 @@ def generate_network(
     sites.append(Site("site-t-hub", hub_tram.official, _sl, _so))
     quays.append(Quay("t-hub", "site-t-hub", hub_tram.official, hub_tram_lat, hub_tram_lon))
     spur = (tram_at[1], "t-hub", tram_at[len(tram_at) // 2 + 1])
-    lines.append(Line("line-t0", "T0", "ostline", spur, 6 * 3600, 22 * 3600, 10 * 60, 12.0, 20))
+    lines.append(Line("line-t0", "T0", rings[0].id, spur, 6 * 3600, 22 * 3600, 10 * 60, 12.0, 20))
+
+    # ---- the metro: its own alignment, its own platforms -------------------
+    #
+    # **A station, not a stop.** Every metro Site holds two platforms a stated
+    # distance apart, which is the one structure in this generator that makes
+    # `A-granularity` worth declaring: an operator publishing at Site
+    # granularity collapses them onto one point, and a player has to work out
+    # that "the station" and "the platform a train leaves from" are different
+    # things (`DATA-MODEL.md` §2).
+    #
+    # It is reached *on foot* from the bus kerb and sits in its own Site, so the
+    # interchange is real and undeclared — the same construction the ring
+    # operator's stops use, on the other side of the street so the two do not
+    # crowd each other.
+    if metros:
+        mid_r = spec.sites_per_arm // 2
+        metro_hub_quays: list[str] = []
+        hub_site = "site-m-hub"
+        hub_place = names_mod.PlaceNames(
+            official=f"{hub_names.official} Underground",
+            colloquial=hub_names.colloquial,
+            abbreviated=f"{hub_names.abbreviated} U",
+        )
+        naming[hub_site] = hub_place
+        # **Its own corner of the interchange.** The bus stands sit just
+        # north-east of the centre and the regional platforms just south-west,
+        # so the underground takes the south-east — far enough that no metro
+        # platform lands inside `min_quay_separation_m` of a bus stand, which
+        # is the invariant the lazy integrator's matching tolerance is derived
+        # from. Placed at 40 m it produced a 22 m pair and the generator said so.
+        corner = spec.near_transfer_m + 40.0
+        mlat, mlon = _offset(hub_lat, hub_lon, -corner, corner)
+        sites.append(Site(hub_site, hub_place.official, round(mlat, 6), round(mlon, 6)))
+        for k in range(2):
+            step = spec.min_quay_separation_m + 15.0
+            qlat, qlon = _offset(mlat, mlon, step * k, 0.0)
+            qid = f"m-hub-{k + 1}"
+            naming[qid] = names_mod.PlaceNames(
+                official=f"{hub_place.official}, platform {k + 1}",
+                colloquial=hub_place.colloquial,
+                abbreviated=f"{hub_place.abbreviated}{k + 1}",
+            )
+            quays.append(Quay(qid, hub_site, naming[qid].official, qlat, qlon))
+            metro_hub_quays.append(qid)
+
+        def metro_station(arm: int, j: int) -> str:
+            """A two-platform station beside the bus quay on this arm."""
+            sid = f"site-m-{names[arm]}{j + 1}"
+            first = f"m-{names[arm]}{j + 1}-1"
+            if any(x.id == sid for x in sites):
+                return first
+            base = next(q for q in quays if q.id == f"q-{names[arm]}{j + 1}")
+            north, east = directions[arm]
+            # The other side of the road from the tram stops, which sit at
+            # `-east, +north`. Two structures a short walk from one kerb must
+            # not be a short walk from each other as well.
+            reach = spec.near_transfer_m + 20.0
+            slat, slon = _offset(base.lat, base.lon, east * reach, -north * reach)
+            near = naming[base.id]
+            station = names_mod.PlaceNames(
+                official=f"{near.official} Underground",
+                colloquial=near.colloquial,
+                abbreviated=f"{near.abbreviated} U",
+                former=near.former,
+            )
+            naming[sid] = station
+            _cl, _co = _offset(slat, slon, *_quay_offset(rng))
+            sites.append(Site(sid, station.official, _cl, _co))
+            for k in range(2):
+                # **Platforms run along the track, not across it.** Stepping
+                # them due north put the second platform of a westward arm
+                # back beside the bus quay the station was displaced away
+                # from — 35 m, under the separation minimum, and the
+                # generator refused the world. Along the arm the distance to
+                # the kerb is `sqrt(reach^2 + step^2)`, which is at least the
+                # reach whichever way the arm points.
+                step = spec.min_quay_separation_m + 15.0
+                qlat, qlon = _offset(slat, slon, north * step * k, east * step * k)
+                qid = f"m-{names[arm]}{j + 1}-{k + 1}"
+                naming[qid] = names_mod.PlaceNames(
+                    official=f"{station.official}, platform {k + 1}",
+                    colloquial=station.colloquial,
+                    abbreviated=f"{station.abbreviated}{k + 1}",
+                )
+                quays.append(Quay(qid, sid, naming[qid].official, qlat, qlon))
+            return first
+
+        for m in range(spec.metro_lines):
+            a = (m * 2) % half
+            opposite = a + half
+            inner = [j for j in range(min(mid_r + 1, spec.sites_per_arm))]
+            route = [metro_station(a, j) for j in reversed(inner)]
+            route.append(metro_hub_quays[m % len(metro_hub_quays)])
+            route.extend(metro_station(opposite, j) for j in inner)
+            if len(route) < 3:
+                continue
+            lines.append(
+                Line(
+                    f"line-m{m + 1}",
+                    f"M{m + 1}",
+                    metros[m % len(metros)].id,
+                    tuple(route),
+                    5 * 3600 + 1800,
+                    23 * 3600,
+                    # Every four minutes: missing one costs a passenger very
+                    # little, which is exactly what makes a metro worth
+                    # modelling separately from a bus that comes twice an hour.
+                    4 * 60,
+                    14.0,
+                    25,
+                )
+            )
 
     # ---- operator C: regional, fast, infrequent, low reach ----------------
-    for r in range(spec.regional_lines):
+    for r in range(spec.regional_lines if regionals else 0):
         a = r % half
         opposite = a + half
         far = spec.sites_per_arm
@@ -515,7 +815,7 @@ def generate_network(
             Line(
                 f"line-r{r + 1}",
                 f"R{r + 1}",
-                "sudbahn",
+                regionals[r % len(regionals)].id,
                 (ends[0], rq, ends[1]),
                 6 * 3600,
                 22 * 3600,
@@ -532,9 +832,18 @@ def generate_network(
             colloquial=line.name,
             abbreviated=line.name,
         )
-    naming.update(names_mod.OPERATOR_NAMES)
+    # An operator is a place a passenger names too, so it carries the same
+    # three forms as anything else. Generated with the roster rather than looked
+    # up: `OPERATOR_NAMES` knows the hand-authored city's three companies and
+    # nothing about a generated one's (`KNOWN-ISSUES.md` #39, in a new place).
+    for op in operators:
+        naming[op.id] = names_mod.PlaceNames(
+            official=op.name,
+            colloquial=op.name.split(" ")[0],
+            abbreviated=op.short,
+        )
 
-    net = Network(tuple(sites), tuple(quays), tuple(lines), naming)
+    net = Network(tuple(sites), tuple(quays), tuple(lines), naming, operators)
 
     # **Checked, not assumed.** This one number decides whether the lazy
     # integrator can match anything at all, and a spec that violates it produces
