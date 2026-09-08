@@ -23,6 +23,8 @@
 // reports what a solution achieved; deciding whether that clears a tier is a
 // separate judgement needing separate evidence.
 
+import { LADDER, type Rung } from "./ladder.ts";
+
 /** A tier's bar, as a position between two reference solutions. */
 export interface ClearanceBar {
   readonly tier: number;
@@ -50,50 +52,17 @@ export interface ClearanceBar {
  * lazily, `competent` does the job. They are ordered and they move with any
  * change of scale, which is the whole point.
  */
-export const CLEARANCE_LADDER: readonly ClearanceBar[] = [
-  {
-    tier: 0,
-    from: "null",
-    to: "blind",
-    at: 0,
-    because: "turn up — answer at all, rather than decline every obligation",
-  },
-  {
-    tier: 1,
-    from: "null",
-    to: "blind",
-    at: 1,
-    because: "match a solution that reconciles nothing and ignores realtime",
-  },
-  {
-    tier: 2,
-    from: "blind",
-    to: "naive",
-    at: 1,
-    because: "beat a lazy integrator: reconcile the feeds, however crudely",
-  },
-  {
-    tier: 3,
-    from: "naive",
-    to: "competent",
-    at: 0.5,
-    because: "get halfway from a lazy integration to one that does the job",
-  },
-  {
-    tier: 4,
-    from: "naive",
-    to: "competent",
-    at: 1,
-    because: "match a solution written by people who had seen the world",
-  },
-  {
-    tier: 5,
-    from: "naive",
-    to: "competent",
-    at: 1.25,
-    because: "beat it — the top of the ladder must sit above our own answer key",
-  },
-];
+/**
+ * The bars of a ladder, in order.
+ *
+ * A function of *a* ladder rather than of *the* ladder, so a test can insert a
+ * rung into a copy and require the bars to follow — which is the whole of what
+ * P1M5 claims (`ROADMAP.md`).
+ */
+export const clearanceLadderOf = (ladder: readonly Rung[]): readonly ClearanceBar[] =>
+  ladder.map((rung, tier) => ({ tier, ...rung.clearance }));
+
+export const CLEARANCE_LADDER: readonly ClearanceBar[] = clearanceLadderOf(LADDER);
 
 /**
  * Does this headline clear that bar?

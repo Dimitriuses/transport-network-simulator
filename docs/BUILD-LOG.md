@@ -1822,3 +1822,28 @@ The walk phase relaxed only from quays the ride phase had just improved, so a tw
 An issue open across five milestones, a `todo` test standing as a monument to it, a warning in `CLAUDE.md`, a risk in the roadmap, and a sentence in every summary of the project's standing saying *headroom is understated*. All of it from one plausible sentence nobody measured.
 
 This project's recurring failure has a name — *a right number compared against the wrong thing* — and #19 and #28 were its previous form: **tests that could not fail**. This is the opposite and it is worth naming separately: **a test that could not pass**, asserting a property the world does not have. The tell is the same in both directions: an assertion whose truth was argued rather than measured, in an area where the arguing is easy and the measuring is cheap.
+
+
+---
+
+## P1M5 — The ladder becomes data
+
+**Six tables, one list.** `TIER_SECTIONS`, `TIER_QUOTA` and `TIER_COSMETIC_ONLY` in the schema, `CLEARANCE_LADDER` next door, `TIER_DENSITY` in Python, and four `range(6)` loops in the tests — each keyed by the literals 0-5, each edited by hand, and between them they decided what a tier *was*.
+
+They are now views over `LADDER`, an ordered list of rungs, and the contract emits the list rather than the tables derived from it. The claim that this was worth doing is testable, so it is tested: a rung is inserted into a copy of the ladder and every view has to follow.
+
+**The view most likely to be left behind is the one that reports indices rather than being keyed by them.** `cosmeticOnlyTiers` returns `[1]`, and an insertion *below* tier 1 must make it return `[2]`. A test that only ever inserts above the interesting rung would pass on a table that had been forgotten, so there is a second test that inserts below it.
+
+### An id is what travels; a number is what moves
+
+The numbering is expected to change — six rungs may become nine when intermediate ones are wanted — and a scorecard recorded against "tier 4" is uninterpretable afterwards if tier 4 has become tier 6. So every rung carries a stable id, and every bundle records `rung_id` and `ladder_version` beside the numeric tier.
+
+Without it this would be `KNOWN-ISSUES.md` #20 in a third place. The project has already shipped two numbers that outlived the scale they were ratified against: the clearance table when `capture`'s denominator moved, and Gate 3's threshold when its metric changed. Both were found late, by someone noticing the number no longer meant anything.
+
+### The proof a refactor owes
+
+A change of form must not be a change of content, and "I only moved the tables" is exactly the claim that turns out to be false. So it was measured: every tier's generated operator manifests, at four seeds, dumped from this branch and from a clean `git worktree` of `HEAD`. **Byte-identical, 24 combinations.**
+
+The committed world's content hash *did* change — `86bf3d8cb4e0a7a5` → `7753357f4980b584` — because two rows were added to the `manifest` table, which is hashed. That is the intended change and the only one; `--verify` passes on the rebuilt bundle.
+
+**The rung ids name the worlds they intend**, not the conflicts they currently draw: `clean`, `small-town`, `metro-town`, `metro-city`, `towns-and-rail`, `region`. `P1M6` gives them those structures, so it fills the rungs in rather than renaming them — which would defeat the point of an id on its first outing.

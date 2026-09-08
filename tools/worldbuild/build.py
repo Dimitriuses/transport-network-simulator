@@ -255,6 +255,16 @@ def queries_for(
     return network.generate_queries(net, scored_ids=scored_ids)
 
 
+def _rung_id(tier: int) -> str:
+    """The stable id of the rung at this tier.
+
+    Empty when the tier is off the ladder, rather than invented: a world
+    declaring a rung nobody defined should say so in its own manifest.
+    """
+    rung = catalogue.load().rung_at(tier)
+    return rung.id if rung else ""
+
+
 def _declared_conflicts(operators: tuple[dict, ...]) -> list[str]:
     """Every way an operator departs from the default, as catalogue names."""
     found: set[str] = set()
@@ -359,6 +369,16 @@ def build(
                 # conflicts were sampled for Tier 5. Nothing compared the two
                 # numbers, which is the shape of `KNOWN-ISSUES.md` #19 again.
                 ("tier", str(tier if tier is not None else 2)),
+                # **The rung's id and the ladder it came from, beside the
+                # number.** A tier is an index, the numbering is expected to
+                # move — six rungs may become nine when intermediate ones are
+                # wanted — and a scorecard recorded against "tier 4" means
+                # nothing afterwards if tier 4 has become tier 6. The id does
+                # not move, so a result stays interpretable across a
+                # renumbering (`ROADMAP.md` P1M5, `KNOWN-ISSUES.md` #20 for the
+                # mistake this avoids).
+                ("rung_id", _rung_id(tier if tier is not None else 2)),
+                ("ladder_version", str(catalogue.load().ladder_version)),
                 ("world_epoch_iso", city.WORLD_EPOCH_ISO),
                 ("timezone", city.WORLD_TIMEZONE),
                 ("utc_offset_s", str(city.WORLD_UTC_OFFSET_S)),

@@ -30,6 +30,13 @@
 // Emitted to `contract/catalogue.json` by `npm run contract:generate`, which CI
 // checks for drift.
 
+import {
+  LADDER,
+  sectionsByTier,
+  quotaByTier,
+  cosmeticOnlyTiers,
+} from "./ladder.ts";
+
 /** Which section of `CORECONCEPT.md` §2.1 a setting belongs to. */
 export type CatalogueSection = "A" | "B" | "C" | "D";
 
@@ -381,18 +388,13 @@ export const CATALOGUE: readonly CatalogueSetting[] = [
 /**
  * Which catalogue sections each tier activates (`CORECONCEPT.md` §7).
  *
- * Sections E and F — protocol behaviour and documentation — arrive in Phase 3
- * with something able to measure them, and are absent here rather than
- * declared and unimplemented.
+ * **A view over `LADDER`, not a table of its own.** These three were keyed by
+ * the literals 0-5 until P1M5, alongside a density table in Python and a
+ * clearance table next door, and adding a rung meant editing all of them.
+ * `ladder.ts` holds the rungs; this is `sections` read off them.
  */
-export const TIER_SECTIONS: Record<number, readonly CatalogueSection[]> = {
-  0: [],
-  1: ["A"], // cosmetic only; see TIER_COSMETIC_ONLY
-  2: ["A", "B", "C"],
-  3: ["A", "B", "C", "D"],
-  4: ["A", "B", "C", "D"],
-  5: ["A", "B", "C", "D"],
-};
+export const TIER_SECTIONS: Record<number, readonly CatalogueSection[]> =
+  sectionsByTier(LADDER);
 
 /**
  * How many settings from each section a dirty operator departs on, per tier.
@@ -416,17 +418,11 @@ export const TIER_SECTIONS: Record<number, readonly CatalogueSection[]> = {
  *
  * Sections E and F arrive in Phase 3 and are absent rather than declared.
  */
-export const TIER_QUOTA: Record<number, Readonly<Record<CatalogueSection, number>>> = {
-  0: { A: 0, B: 0, C: 0, D: 0 },
-  1: { A: 2, B: 0, C: 0, D: 0 },
-  2: { A: 3, B: 1, C: 1, D: 0 },
-  3: { A: 3, B: 1, C: 1, D: 2 },
-  4: { A: 4, B: 1, C: 2, D: 2 },
-  5: { A: 4, B: 1, C: 2, D: 3 },
-};
+export const TIER_QUOTA: Record<number, Readonly<Record<CatalogueSection, number>>> =
+  quotaByTier(LADDER);
 
 /** Tiers where section A appears as texture and nothing else. */
-export const TIER_COSMETIC_ONLY: readonly number[] = [1];
+export const TIER_COSMETIC_ONLY: readonly number[] = cosmeticOnlyTiers(LADDER);
 
 /** A conflict-free manifest: every setting at its `off` value. */
 /**

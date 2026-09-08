@@ -29,9 +29,8 @@ import {
   Health,
   Identity,
   Problem,
-  TIER_COSMETIC_ONLY,
-  TIER_QUOTA,
-  TIER_SECTIONS,
+  LADDER,
+  LADDER_VERSION,
 } from "../src/index.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -190,9 +189,11 @@ for (const [name, doc] of DOCUMENTS) {
           "Regenerate: npm run contract:generate",
         contract_version: CONTRACT_VERSION,
         settings: CATALOGUE,
-        tier_sections: TIER_SECTIONS,
-        tier_quota: TIER_QUOTA,
-        tier_cosmetic_only: TIER_COSMETIC_ONLY,
+        // **The ladder, and not the five views over it.** Python derives the
+        // same views from this list, so a rung inserted here reaches the
+        // generator without a second edit (ROADMAP.md P1M5).
+        ladder_version: LADDER_VERSION,
+        ladder: LADDER,
         // The generator has to hold `D-staleness` against `noticeLeadS`: a lag
         // shorter than the shortest announcement lead conceals nothing, on any
         // operator. Emitted so the comparison happens against one number rather

@@ -73,14 +73,58 @@ class DisruptionPolicy:
 
 
 @dataclass(frozen=True)
+class Rung:
+    """One rung of the ladder, read from the contract.
+
+    **The tier is the index and the id is the identity.** The numbering is
+    expected to move — six rungs may become nine — and a result recorded against
+    "tier 4" is uninterpretable afterwards unless it also says which rung that
+    was. See `src/schema/src/ladder.ts`.
+    """
+
+    id: str
+    name: str
+    sections: tuple[str, ...]
+    cosmetic_only: bool
+    quota: dict[str, int]
+    density: float
+
+
+@dataclass(frozen=True)
 class Catalogue:
     settings: tuple[Setting, ...]
-    tier_sections: dict[int, tuple[str, ...]]
-    tier_cosmetic_only: tuple[int, ...]
     policy: DisruptionPolicy
-    #: How many settings from each section a dirty operator departs on, by tier.
-    #: A tier is a *composition*, not a density (`KNOWN-ISSUES.md` #42).
-    tier_quota: dict[int, dict[str, int]]
+    #: The ladder, in order. Every tier-keyed view below is derived from it, so
+    #: inserting a rung is one entry in `ladder.ts` and nothing here
+    #: (`ROADMAP.md` P1M5).
+    rungs: tuple[Rung, ...]
+    #: Bumped when the ladder changes in a way that makes recorded results
+    #: incomparable. Written into every bundle beside the numeric tier.
+    ladder_version: int
+
+    @property
+    def tier_sections(self) -> dict[int, tuple[str, ...]]:
+        return {i: r.sections for i, r in enumerate(self.rungs)}
+
+    @property
+    def tier_cosmetic_only(self) -> tuple[int, ...]:
+        return tuple(i for i, r in enumerate(self.rungs) if r.cosmetic_only)
+
+    @property
+    def tier_quota(self) -> dict[int, dict[str, int]]:
+        """How many settings from each section a dirty operator departs on.
+
+        A tier is a *composition*, not a density (`KNOWN-ISSUES.md` #42).
+        """
+        return {i: r.quota for i, r in enumerate(self.rungs)}
+
+    @property
+    def tier_density(self) -> dict[int, float]:
+        return {i: r.density for i, r in enumerate(self.rungs)}
+
+    def rung_at(self, tier: int) -> Rung | None:
+        """The rung at a tier, or `None` — never a default, which hides a typo."""
+        return self.rungs[tier] if 0 <= tier < len(self.rungs) else None
 
     def defaults(self) -> dict[str, dict[str, object]]:
         """A conflict-free manifest: every setting at its `off` value."""
@@ -126,14 +170,21 @@ def load() -> Catalogue:
         for s in raw["settings"]
     )
     pol = raw["disruption_policy"]
+    rungs = tuple(
+        Rung(
+            id=r["id"],
+            name=r["name"],
+            sections=tuple(r["sections"]),
+            cosmetic_only=bool(r.get("cosmeticOnly", False)),
+            quota={sec: int(n) for sec, n in r["quota"].items()},
+            density=float(r["density"]),
+        )
+        for r in raw["ladder"]
+    )
     return Catalogue(
         settings=settings,
-        tier_sections={int(k): tuple(v) for k, v in raw["tier_sections"].items()},
-        tier_cosmetic_only=tuple(raw["tier_cosmetic_only"]),
-        tier_quota={
-            int(k): {sec: int(n) for sec, n in v.items()}
-            for k, v in raw.get("tier_quota", {}).items()
-        },
+        rungs=rungs,
+        ladder_version=int(raw["ladder_version"]),
         policy=DisruptionPolicy(
             delay_rate=pol["delayRate"],
             cancellation_rate=pol["cancellationRate"],

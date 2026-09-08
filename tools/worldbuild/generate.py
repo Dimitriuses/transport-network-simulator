@@ -172,10 +172,12 @@ def _expressible(setting: catalogue.Setting, value: object, cat: catalogue.Catal
     return True
 
 
-#: Roughly how many settings each operator departs on, by tier. A tier is a
-#: claim about how hard a world is, and the count is the crudest lever on that;
-#: `P1M4` replaces these with a measured band.
-TIER_DENSITY: dict[int, float] = {0: 0.0, 1: 1.0, 2: 0.55, 3: 0.6, 4: 0.7, 5: 0.8}
+#: Roughly how many settings each operator departs on, by tier.
+#:
+#: **Read from the ladder, not restated here.** It was a sixth table keyed by
+#: the literals 0-5, in a third file, and a rung inserted anywhere meant editing
+#: it too (`ROADMAP.md` P1M5). A tier is a claim about how hard a world is and
+#: the count is the crudest lever on that.
 
 #: The largest share of a world's conflicts any one operator may carry.
 #:
@@ -309,7 +311,7 @@ def generate_manifests(
     cat = catalogue.load()
     rng = random.Random(seed)
     settings = cat.for_tier(tier)
-    density = TIER_DENSITY.get(tier, 0.0)
+    density = cat.tier_density.get(tier, 0.0)
 
     # The honest one. Chosen as the *least*-reaching operator, because a clean
     # reference that also carries the network wastes the conflicts: they end up

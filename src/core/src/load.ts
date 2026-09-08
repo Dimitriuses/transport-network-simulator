@@ -62,6 +62,10 @@ function readManifest(db: DatabaseSync, operators: readonly OperatorInfo[]): Wor
     engineVersion: need("engine_version"),
     seed: Number(need("seed")),
     tier: Number(need("tier")),
+    // Absent in a bundle built before P1M5, which is a bundle whose tier
+    // number is all it has.
+    rungId: m.get("rung_id"),
+    ladderVersion: m.has("ladder_version") ? Number(m.get("ladder_version")) : undefined,
     worldEpochIso: need("world_epoch_iso"),
     timezone: need("timezone"),
     utcOffsetS: Number(need("utc_offset_s")),

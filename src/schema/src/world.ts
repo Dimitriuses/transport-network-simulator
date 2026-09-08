@@ -100,6 +100,17 @@ export interface WorldManifest {
   readonly engineVersion: string;
   readonly seed: number;
   readonly tier: number;
+  /**
+   * The rung this tier was, when the world was built, and the ladder it came
+   * from.
+   *
+   * **The tier is an index into a list that is expected to grow.** Recording
+   * the id beside it is what keeps a result readable after the ladder is
+   * renumbered — see `ladder.ts`. Optional because bundles built before P1M5
+   * carry neither.
+   */
+  readonly rungId?: string | undefined;
+  readonly ladderVersion?: number | undefined;
   readonly worldEpochIso: string;
   readonly timezone: string;
   readonly utcOffsetS: number;

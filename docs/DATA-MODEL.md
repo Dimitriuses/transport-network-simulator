@@ -188,7 +188,7 @@ Contents:
 
 | | |
 |---|---|
-| `manifest` | seed, engine version, tier, active conflicts, operator manifests, **content hash** |
+| `manifest` | seed, engine version, tier, **rung id and ladder version**, active conflicts, operator manifests, **content hash** |
 | L1 tables | sites, quays, lines, patterns, journeys, calendars, demand |
 | `resolution` | `(operator, published_id) → canonical` — private |
 | distances | precomputed walking distances as **integer metres** |

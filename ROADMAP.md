@@ -67,7 +67,7 @@ The seed jitters quay positions within a Site by a few metres and draws the conf
 
 ---
 
-### P1M5 — The ladder becomes data
+### P1M5 — The ladder becomes data — **delivered**
 
 **A rung is an entry in an ordered list, not a number in six tables.** Today `TIER_SECTIONS`, `TIER_QUOTA`, `TIER_COSMETIC_ONLY`, `TIER_DENSITY` and `CLEARANCE_LADDER` are each keyed by the literals 0–5, and seventeen places in the Python side iterate `range(6)`. Adding a rung means editing all of them and hoping nothing was missed.
 
@@ -77,7 +77,12 @@ The seed jitters quay positions within a Site by a few metres and draws the conf
 
 **Why first:** it is cheap, it is the mechanism the rest of the phase edits, and doing it afterwards means rewriting the structural tables twice.
 
-**Exit:** inserting a rung between two existing ones is a one-entry change, asserted by a test that inserts one and requires no other file to move; every existing rung keeps its id; and **every tier still generates a byte-identical world**, because this milestone changes how the ladder is written down and nothing about what it says.
+**Exit — met.** `src/schema/src/ladder.ts` holds six rungs; `TIER_SECTIONS`, `TIER_QUOTA`, `TIER_COSMETIC_ONLY`, `CLEARANCE_LADDER` and the density table are views over it, and the Python half derives the same views from `contract/catalogue.json`, which now emits the ladder rather than four tables built from it.
+
+* **Inserting a rung is one entry**, asserted rather than claimed: `src/schema/test/ladder.test.ts` inserts one into a copy and requires every view to follow — including `cosmeticOnlyTiers`, which reports indices rather than being keyed by them and is therefore the one a renumbering leaves behind.
+* **A rung's id outlives its number.** Every bundle records `rung_id` and `ladder_version` beside the numeric tier, and `tierOfRung("metro-city")` moves from 3 to 4 under an insertion while the id still resolves.
+* **Behaviour is unchanged, and that was measured rather than assumed.** The generated operator manifests for every tier at four seeds were dumped from this branch and from a clean `git worktree` of `HEAD`: **byte-identical, 24 combinations**. What did change is the committed world's content hash — `86bf3d8cb4e0a7a5` → `7753357f4980b584` — because two rows were added to a hashed table, and `--verify` passes on the rebuilt bundle.
+* The four `range(6)` loops in the Python tests read the ladder's length instead.
 
 ---
 

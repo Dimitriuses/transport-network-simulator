@@ -229,75 +229,138 @@
       ]
     }
   ],
-  "tier_sections": {
-    "0": [],
-    "1": [
-      "A"
-    ],
-    "2": [
-      "A",
-      "B",
-      "C"
-    ],
-    "3": [
-      "A",
-      "B",
-      "C",
-      "D"
-    ],
-    "4": [
-      "A",
-      "B",
-      "C",
-      "D"
-    ],
-    "5": [
-      "A",
-      "B",
-      "C",
-      "D"
-    ]
-  },
-  "tier_quota": {
-    "0": {
-      "A": 0,
-      "B": 0,
-      "C": 0,
-      "D": 0
+  "ladder_version": 1,
+  "ladder": [
+    {
+      "id": "clean",
+      "name": "a world that publishes honestly",
+      "sections": [],
+      "quota": {
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "D": 0
+      },
+      "density": 0,
+      "clearance": {
+        "from": "null",
+        "to": "blind",
+        "at": 0,
+        "because": "turn up — answer at all, rather than decline every obligation"
+      }
     },
-    "1": {
-      "A": 2,
-      "B": 0,
-      "C": 0,
-      "D": 0
+    {
+      "id": "small-town",
+      "name": "texture only: the same facts, spelled differently",
+      "sections": [
+        "A"
+      ],
+      "cosmeticOnly": true,
+      "quota": {
+        "A": 2,
+        "B": 0,
+        "C": 0,
+        "D": 0
+      },
+      "density": 1,
+      "clearance": {
+        "from": "null",
+        "to": "blind",
+        "at": 1,
+        "because": "match a solution that reconciles nothing and ignores realtime"
+      }
     },
-    "2": {
-      "A": 3,
-      "B": 1,
-      "C": 1,
-      "D": 0
+    {
+      "id": "metro-town",
+      "name": "the first conflicts that mean something",
+      "sections": [
+        "A",
+        "B",
+        "C"
+      ],
+      "quota": {
+        "A": 3,
+        "B": 1,
+        "C": 1,
+        "D": 0
+      },
+      "density": 0.55,
+      "clearance": {
+        "from": "blind",
+        "to": "naive",
+        "at": 1,
+        "because": "beat a lazy integrator: reconcile the feeds, however crudely"
+      }
     },
-    "3": {
-      "A": 3,
-      "B": 1,
-      "C": 1,
-      "D": 2
+    {
+      "id": "metro-city",
+      "name": "realtime joins in, and starts lying",
+      "sections": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "quota": {
+        "A": 3,
+        "B": 1,
+        "C": 1,
+        "D": 2
+      },
+      "density": 0.6,
+      "clearance": {
+        "from": "naive",
+        "to": "competent",
+        "at": 0.5,
+        "because": "get halfway from a lazy integration to one that does the job"
+      }
     },
-    "4": {
-      "A": 4,
-      "B": 1,
-      "C": 2,
-      "D": 2
+    {
+      "id": "towns-and-rail",
+      "name": "more of everything, and further to go",
+      "sections": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "quota": {
+        "A": 4,
+        "B": 1,
+        "C": 2,
+        "D": 2
+      },
+      "density": 0.7,
+      "clearance": {
+        "from": "naive",
+        "to": "competent",
+        "at": 1,
+        "because": "match a solution written by people who had seen the world"
+      }
     },
-    "5": {
-      "A": 4,
-      "B": 1,
-      "C": 2,
-      "D": 3
+    {
+      "id": "region",
+      "name": "the whole catalogue, at strength",
+      "sections": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "quota": {
+        "A": 4,
+        "B": 1,
+        "C": 2,
+        "D": 3
+      },
+      "density": 0.8,
+      "clearance": {
+        "from": "naive",
+        "to": "competent",
+        "at": 1.25,
+        "because": "beat it — the top of the ladder must sit above our own answer key"
+      }
     }
-  },
-  "tier_cosmetic_only": [
-    1
   ],
   "disruption_policy": {
     "delayRate": 0.18,

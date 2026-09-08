@@ -13,6 +13,16 @@ import collections
 from worldbuild import catalogue, city, generate
 
 
+def _tiers() -> range:
+    """Every tier the ladder declares.
+
+    `range(6)` in four places, until P1M5 made the ladder a list: a rung
+    inserted in `src/schema/src/ladder.ts` reaches these loops without anyone
+    remembering they exist (`ROADMAP.md` P1M5).
+    """
+    return range(len(catalogue.load().rungs))
+
+
 def _specs() -> tuple[generate.OperatorSpec, ...]:
     reach: collections.Counter[str] = collections.Counter()
     for line in city.LINES:
@@ -35,7 +45,7 @@ def test_every_generated_setting_is_plausible() -> None:
     """
     cat = catalogue.load()
     by_key = {(s.group, s.key): s for s in cat.settings}
-    for tier in range(6):
+    for tier in _tiers():
         for seed in (1, 481516, 999_983):
             for manifest in generate.generate_manifests(_specs(), tier, seed):
                 for group, values in manifest.items():
@@ -244,7 +254,7 @@ def test_a_masking_conflict_is_never_generated_beside_what_it_masks() -> None:
     """
     cat = catalogue.load()
     by_conflict = {s.conflict: s for s in cat.settings}
-    for tier in range(6):
+    for tier in _tiers():
         for seed in (1, 7, 481516, 999_983):
             manifests = generate.generate_manifests(_specs(), tier, seed)
             for operator, names in _by_operator(generate.describe(manifests)).items():
@@ -269,7 +279,7 @@ def test_a_conflict_is_never_placed_where_it_cannot_show() -> None:
     specs = _specs()
     incapable = {s.id for s in specs if s.collapsible_sites == 0}
     assert incapable, "no operator in this city would exercise the rule"
-    for tier in range(6):
+    for tier in _tiers():
         for seed in (1, 7, 481516, 999_983):
             for name in generate.describe(generate.generate_manifests(specs, tier, seed)):
                 conflict, operator = name.split(":")
@@ -300,7 +310,7 @@ def test_a_setting_that_cannot_express_itself_is_never_generated() -> None:
     """
     cat = catalogue.load()
     floor = cat.policy.notice_lead_min_s
-    for tier in range(6):
+    for tier in _tiers():
         for seed in (1, 7, 481516, 999_983):
             for manifest in generate.generate_manifests(_specs(), tier, seed):
                 stale = manifest["realtime"]["staleness_s"]
@@ -379,3 +389,57 @@ def test_a_ladder_is_climbed_by_tier_and_a_list_of_kinds_is_not() -> None:
         f"D-staleness reached its strongest value {share_high:.0%} of the time at "
         f"Tier 5 and {share_low:.0%} at Tier 3 — a ladder must be climbed by tier"
     )
+
+
+def test_the_python_side_reads_the_ladder_rather_than_restating_it() -> None:
+    """Every tier-keyed view is derived, and the contract is the only source.
+
+    Six tables held the ladder before P1M5 — three in `catalogue.ts`, one in
+    `clearance.ts`, one in `generate.py`, and the numbering itself scattered
+    through loops. The Python half now reads one list.
+    """
+    cat = catalogue.load()
+
+    assert cat.rungs, "the contract carries no ladder"
+    assert cat.ladder_version >= 1
+
+    ids = [r.id for r in cat.rungs]
+    assert len(set(ids)) == len(ids), f"two rungs share an id: {ids}"
+
+    # The views are derived, so they must agree with the list they come from.
+    for tier, rung in enumerate(cat.rungs):
+        assert cat.tier_sections[tier] == rung.sections
+        assert cat.tier_quota[tier] == rung.quota
+        assert cat.tier_density[tier] == rung.density
+        assert (tier in cat.tier_cosmetic_only) == rung.cosmetic_only
+        assert cat.rung_at(tier) is rung
+
+    # Off the end is nothing, not the nearest rung: a world declaring a tier
+    # the ladder does not have must not be graded against a plausible guess.
+    assert cat.rung_at(len(cat.rungs)) is None
+    assert cat.rung_at(-1) is None
+
+
+def test_a_generated_world_records_which_rung_it_was() -> None:
+    """The id travels with the world, because the number will move.
+
+    A bundle that recorded only `tier: 4` becomes uninterpretable the moment an
+    intermediate rung is inserted below it — `KNOWN-ISSUES.md` #20's mistake,
+    which this project has already made twice with thresholds.
+    """
+    import sqlite3
+    import tempfile
+    from pathlib import Path
+
+    from worldbuild.build import build
+
+    cat = catalogue.load()
+    with tempfile.TemporaryDirectory() as tmp:
+        out = build(Path(tmp) / "w.world.db", seed=4242, tier=3)
+        con = sqlite3.connect(out)
+        rows = dict(con.execute("select key, value from manifest").fetchall())
+        con.close()
+
+    assert rows["tier"] == "3"
+    assert rows["rung_id"] == cat.rungs[3].id
+    assert rows["ladder_version"] == str(cat.ladder_version)
