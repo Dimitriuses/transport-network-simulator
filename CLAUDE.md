@@ -22,6 +22,10 @@ P0M0–P0M6 delivered one hand-built Tier-2 world and were recorded as passing a
 
 **A metro is an operator kind, not a bus company with a different name**: its own alignment, stations 90 m from the kerb in their own Sites, **two platforms each**, a train every four minutes. The platforms are what make `A-granularity` worth declaring — a station and the platform a train leaves from are different things.
 
+**A world is a `(tier, shape)` pair** (P1M7). `npm run world:generate -- <out> --tier 4 --shape polycentric` builds a region: three towns, each with its own bus company and tram, joined by a railway every forty minutes whose station sits in its own Site beside each town's hub. **The shape is not a rung field** — `src/schema/src/shape.ts` says why — and every bundle records it beside `tier` and `rung_id`.
+
+**The invariants are about the world, not a part of it.** `max_reach_share` checked while each town was still being built refused every region: a town of two operators has one serving 58 % of *that town*, and 19 % of the region. `check_reach` runs once, on the finished thing.
+
 **The ladder gains a second dimension**: scale is the ordered axis and is the tier; **shape** — single-centre against polycentric — is declared and unordered, because they are different problems rather than different amounts of one. `P1M5`–`P1M8` in [`ROADMAP.md`](ROADMAP.md), and `P1M5` first makes the ladder *data* so that renumbering it later is one entry rather than six tables.
 
 **Phase 2 pauses behind it** — the closed loop, `realtime`, the monitoring UI and the playtest all build on the ladder, and a playtest run against a world whose tier changes meaning afterwards is spent twice.

@@ -111,6 +111,13 @@ export interface WorldManifest {
    */
   readonly rungId?: string | undefined;
   readonly ladderVersion?: number | undefined;
+  /**
+   * The world's shape — the axis that is *not* the tier (`shape.ts`).
+   *
+   * Optional because a bundle built before P1M7 is a single-centre world that
+   * did not know there was another kind.
+   */
+  readonly shape?: string | undefined;
   readonly worldEpochIso: string;
   readonly timezone: string;
   readonly utcOffsetS: number;

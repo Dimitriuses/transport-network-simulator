@@ -2,6 +2,7 @@
 
     python -m worldbuild [out_path]     build the world bundle
     python -m worldbuild [out] --tier N  generate the projection manifests
+    python -m worldbuild [out] --shape polycentric --network   several towns, joined by rail
     python -m worldbuild [out] --network generate the city as well
     python -m worldbuild [out] --seed N   which world to generate
     python -m worldbuild --verify       rebuild and check the content is unchanged
@@ -59,6 +60,12 @@ def main() -> int:
     # hand-authored ones (ROADMAP.md P1M1). Absent, the committed world is
     # built exactly as Phase 0 measured it.
     tier: int | None = None
+    shape = "single-centre"
+    if "--shape" in args:
+        i = args.index("--shape")
+        shape = args[i + 1]
+        args = args[:i] + args[i + 2 :]
+
     if "--tier" in args:
         i = args.index("--tier")
         tier = int(args[i + 1])
@@ -105,7 +112,8 @@ def main() -> int:
     if unknown:
         print(f"unknown option: {unknown[0]}", file=sys.stderr)
         print(
-            "usage: python -m worldbuild [out_path] [--tier N] [--network] [--seed N] | --verify",
+            "usage: python -m worldbuild [out_path] [--tier N] [--shape S] "
+            "[--network] [--seed N] | --verify",
             file=sys.stderr,
         )
         return 2
@@ -118,6 +126,7 @@ def main() -> int:
         out,
         seed=seed,
         tier=tier,
+        shape=shape,
         generate_network=generate_network,
         scored_ids=scored_ids,
         conflict_seed=conflict_seed,

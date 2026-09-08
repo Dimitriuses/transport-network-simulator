@@ -243,3 +243,52 @@ def test_every_arm_count_makes_a_circle_rather_than_a_fan() -> None:
             onorth, oeast = dirs[a + half]
             assert abs(north + onorth) < 1e-12, f"{arms} arms: {a} and {a + half} are not opposite"
             assert abs(east + oeast) < 1e-12, f"{arms} arms: {a} and {a + half} are not opposite"
+
+
+def test_a_region_is_towns_joined_by_rail() -> None:
+    """The shape axis, asserted where it is built.
+
+    Specification: `src/schema/src/shape.ts`, ROADMAP.md P1M7.
+
+    A polycentric world is not a bigger city: it is several towns, each with its
+    own operators, and a railway between them whose headway is the whole point.
+    """
+    spec = N.NetworkSpec(
+        arms=12,
+        sites_per_arm=4,
+        chords=5,
+        regional_lines=4,
+        roster=("radial", "ring", "radial", "metro", "regional"),
+        centres=3,
+        max_reach_share=0.45,
+    )
+    net = N.generate_network(spec, 20260908)
+
+    # Every town's ids are its own, or three towns all contain `site-hub`.
+    for c in (1, 2, 3):
+        assert any(s.id == f"c{c}-site-hub" for s in net.sites), f"town {c} has no hub"
+
+    # Each town runs its own companies, and nobody runs two towns.
+    roles = {o.id: o.role for o in net.operators}
+    local = [o for o in net.operators if o.role in ("radial", "ring")]
+    assert len(local) == 6, f"expected two local operators per town, got {sorted(roles)}"
+    assert len(set(o.id for o in net.operators)) == len(net.operators), "an id is used twice"
+
+    # **A metro belongs to a city**, so at most one town has one.
+    assert sum(1 for o in net.operators if o.role == "metro") <= 1
+
+    rail = [ln for ln in net.lines if ln.id.startswith("line-rail")]
+    assert rail, "a region with no railway is three worlds in a trench coat"
+    for line in rail:
+        # It calls at every town.
+        assert len(line.quays) == spec.centres
+        # **The headway is the conflict.** A bus every ten minutes forgives a
+        # bad plan; a train every forty does not, which is what puts the
+        # interchange on the critical path.
+        assert line.headway_s >= 30 * 60, f"{line.id} runs every {line.headway_s // 60} min"
+
+    # And the invariant that is about the world rather than a part of it: no
+    # operator serves most of the region, though each serves most of its town.
+    reach = N.operator_reach(net)
+    total = sum(reach.values())
+    assert max(reach.values()) / total <= spec.max_reach_share

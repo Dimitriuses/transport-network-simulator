@@ -1,6 +1,7 @@
 // Build a fully generated world, in the two phases the criterion requires.
 //
 //   npm run world:generate -- worlds/scratch/gen.world.db --tier 3 --seed 481516
+//   npm run world:generate -- worlds/scratch/reg.world.db --tier 4 --shape polycentric
 //
 // Output goes under `worlds/scratch/` by default, which `.gitignore` treats as
 // working material: committed worlds live in `worlds/` and are added
@@ -58,6 +59,11 @@ const seed = flag("--seed", "481516");
 // selected on the network alone, so it is unaffected — which is what makes this
 // the adjustment step a closed-loop calibration would use.
 const conflictSeed = flag("--conflict-seed", null);
+// The second axis: a kind of place, not an amount of difficulty. Passed through
+// to both builds so the candidate set and the scored set describe one world
+// (`src/schema/src/shape.ts`, ROADMAP.md P1M7).
+const shape = flag("--shape", "single-centre");
+const shapeArgs = ["--shape", shape];
 const conflictArgs = conflictSeed === null ? [] : ["--conflict-seed", conflictSeed];
 
 const python = (extra) => {
@@ -74,14 +80,14 @@ const python = (extra) => {
 };
 
 console.log("");
-console.log(`  GENERATING A WORLD — tier ${tier}, seed ${seed}`);
+console.log(`  GENERATING A WORLD — tier ${tier}, ${shape}, seed ${seed}`);
 console.log("");
 
 // ---- phase 1: every candidate ---------------------------------------------
 mkdirSync(join(tmpdir(), "tns"), { recursive: true });
 const candidates = join(tmpdir(), "tns", `candidates-${seed}.world.db`);
 console.log("  1/3  building with every candidate journey");
-python([candidates, "--network", "--seed", seed, "--tier", tier, ...conflictArgs]);
+python([candidates, "--network", "--seed", seed, "--tier", tier, ...shapeArgs, ...conflictArgs]);
 
 // ---- phase 2: classify -----------------------------------------------------
 console.log("  2/3  routing each candidate on both transfer graphs");
@@ -129,7 +135,7 @@ const improvableSelected = scored.filter((id) =>
 
 // ---- phase 3: the real bundle ----------------------------------------------
 console.log("  3/3  rebuilding with the selected journeys");
-const built = python([out, "--network", "--seed", seed, "--tier", tier, "--scored", sidecar, ...conflictArgs]);
+const built = python([out, "--network", "--seed", seed, "--tier", tier, ...shapeArgs, "--scored", sidecar, ...conflictArgs]);
 
 console.log("");
 console.log(`  candidates            ${String(report.total).padStart(5)}`);

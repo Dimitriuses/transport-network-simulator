@@ -450,6 +450,20 @@
       }
     }
   ],
+  "shapes": [
+    {
+      "id": "single-centre",
+      "name": "one city, built around its centre",
+      "centres": 1,
+      "centreSpacingM": 0
+    },
+    {
+      "id": "polycentric",
+      "name": "several towns, joined by rail",
+      "centres": 3,
+      "centreSpacingM": 9000
+    }
+  ],
   "disruption_policy": {
     "delayRate": 0.18,
     "cancellationRate": 0.06,

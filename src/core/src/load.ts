@@ -66,6 +66,7 @@ function readManifest(db: DatabaseSync, operators: readonly OperatorInfo[]): Wor
     // number is all it has.
     rungId: m.get("rung_id"),
     ladderVersion: m.has("ladder_version") ? Number(m.get("ladder_version")) : undefined,
+    shape: m.get("shape"),
     worldEpochIso: need("world_epoch_iso"),
     timezone: need("timezone"),
     utcOffsetS: Number(need("utc_offset_s")),

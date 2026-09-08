@@ -87,6 +87,21 @@ class RungWorld:
 
 
 @dataclass(frozen=True)
+class Shape:
+    """A kind of place, which is the axis that is *not* the tier.
+
+    Scale is ordered and shape is not: one city and three towns joined by rail
+    are different problems rather than different amounts of one
+    (`src/schema/src/shape.ts`).
+    """
+
+    id: str
+    name: str
+    centres: int
+    centre_spacing_m: float
+
+
+@dataclass(frozen=True)
 class Rung:
     """One rung of the ladder, read from the contract.
 
@@ -116,6 +131,12 @@ class Catalogue:
     #: Bumped when the ladder changes in a way that makes recorded results
     #: incomparable. Written into every bundle beside the numeric tier.
     ladder_version: int
+    #: The shapes a world may have, by id.
+    shapes: tuple[Shape, ...] = ()
+
+    def shape(self, shape_id: str) -> Shape | None:
+        """The shape with this id, or `None` — never a default."""
+        return next((s for s in self.shapes if s.id == shape_id), None)
 
     @property
     def tier_sections(self) -> dict[int, tuple[str, ...]]:
@@ -210,6 +231,15 @@ def load() -> Catalogue:
         settings=settings,
         rungs=rungs,
         ladder_version=int(raw["ladder_version"]),
+        shapes=tuple(
+            Shape(
+                id=x["id"],
+                name=x["name"],
+                centres=int(x["centres"]),
+                centre_spacing_m=float(x["centreSpacingM"]),
+            )
+            for x in raw.get("shapes", ())
+        ),
         policy=DisruptionPolicy(
             delay_rate=pol["delayRate"],
             cancellation_rate=pol["cancellationRate"],

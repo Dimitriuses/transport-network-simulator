@@ -31,6 +31,7 @@ import {
   Problem,
   LADDER,
   LADDER_VERSION,
+  SHAPES,
 } from "../src/index.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -194,6 +195,9 @@ for (const [name, doc] of DOCUMENTS) {
         // generator without a second edit (ROADMAP.md P1M5).
         ladder_version: LADDER_VERSION,
         ladder: LADDER,
+        // The second axis. Not part of a rung, deliberately: a shape is a kind
+        // of place rather than an amount of difficulty (`shape.ts`).
+        shapes: SHAPES,
         // The generator has to hold `D-staleness` against `noticeLeadS`: a lag
         // shorter than the shortest announcement lead conceals nothing, on any
         // operator. Emitted so the comparison happens against one number rather

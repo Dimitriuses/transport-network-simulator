@@ -291,7 +291,10 @@ def _declared_conflicts(operators: tuple[dict, ...]) -> list[str]:
     return sorted(found)
 
 
-def spec_for_tier(tier: int | None) -> network.NetworkSpec | None:
+DEFAULT_SHAPE = "single-centre"
+
+
+def spec_for_tier(tier: int | None, shape: str = DEFAULT_SHAPE) -> network.NetworkSpec | None:
     """The city this tier asks for, or `None` for the default shape.
 
     **A tier is a claim about the world, not only about its conflicts** — the
@@ -305,7 +308,17 @@ def spec_for_tier(tier: int | None) -> network.NetworkSpec | None:
     if rung is None:
         return None
     w = rung.world
+    # **The shape is not part of the rung**, deliberately: a tier says how much
+    # there is to integrate and a shape says what kind of place it is
+    # (`src/schema/src/shape.ts`). It arrives here beside the tier, not inside
+    # it, so the two axes cannot quietly become one.
+    form = catalogue.load().shape(shape)
+    if form is None:
+        known = ", ".join(x.id for x in catalogue.load().shapes)
+        raise ValueError(f"unknown shape {shape!r}; known: {known}")
     return network.NetworkSpec(
+        centres=form.centres,
+        centre_spacing_m=form.centre_spacing_m,
         arms=w.arms,
         sites_per_arm=w.sites_per_arm,
         hub_quays=w.hub_quays,
@@ -365,6 +378,7 @@ def build(
     spec: network.NetworkSpec | None = None,
     scored_ids: frozenset[str] | None = None,
     conflict_seed: int | None = None,
+    shape: str = DEFAULT_SHAPE,
 ) -> Path:
     # **The city and its conflicts draw from separate seeds.**
     #
@@ -374,7 +388,7 @@ def build(
     # also the lever a calibration search needs: re-drawing the conflicts
     # while holding the city fixed is the adjustment step, and re-drawing the
     # city would invalidate the scored query set it was selected against.
-    net = network_for(generate_network, seed, spec or spec_for_tier(tier))
+    net = network_for(generate_network, seed, spec or spec_for_tier(tier, shape))
     queries = queries_for(net, scored_ids)
     operators = operators_for(tier, conflict_seed if conflict_seed is not None else seed, net)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -415,6 +429,10 @@ def build(
                 # mistake this avoids).
                 ("rung_id", _rung_id(tier if tier is not None else 2)),
                 ("ladder_version", str(catalogue.load().ladder_version)),
+                # The other axis. A world is a `(tier, shape)` pair and a
+                # scorecard that records only the first cannot say which of two
+                # quite different places it was measured on.
+                ("shape", shape if generate_network else DEFAULT_SHAPE),
                 ("world_epoch_iso", city.WORLD_EPOCH_ISO),
                 ("timezone", city.WORLD_TIMEZONE),
                 ("utc_offset_s", str(city.WORLD_UTC_OFFSET_S)),
