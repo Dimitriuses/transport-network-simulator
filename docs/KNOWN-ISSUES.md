@@ -1923,3 +1923,111 @@ For the default eight arms that is the whole compass. For six it is **N, NE, E, 
 `tools/tests/test_network.py` asserts what the prefix silently broke: every table is as long as its arm count, every vector is a unit vector, and **arm `a` and arm `a + arms/2` point in opposite directions**.
 
 *A default that is never varied is a parameter nobody has tested.* Both of this milestone's first two findings have that shape.
+
+
+---
+
+## 50. The calibration search reports a standard deviation over six draws, and one bad draw owns it — `open, and cheap to fix`
+
+`npm run calibrate:tier` prints a rung's spread beside its median. At the top rungs that number is enormous — 0.967 at tier 4, 0.524 at tier 5 — which reads as "this rung is a lottery". The candidate table says otherwise:
+
+```
+tier 4                                  tier 5
+    conflict seed   screened headline       conflict seed   screened headline
+           513192              -2.334              513192              -1.216
+           497354               0.010              497354               0.051
+           521111               0.019              505273               0.056
+           505273               0.023   <- median  481516               0.074   <- median
+           489435               0.053              521111               0.077
+           481516               0.064              489435               0.080
+```
+
+**Five of six draws span 0.054, and one spans the rest.** The spread is a standard deviation over six samples, so a single outlier at −2.3 sets it; the dispersion a reader cares about — how much two shipped worlds of this rung differ — is the width of the cluster the median sits in.
+
+*The same conflict seed is the outlier at both rungs*, which is worth its own look: 513192 draws `C-cancellation-token` onto **every** dirty operator, so a reader matching one word for "cancelled" misses every cancellation in the world. `MAX_CONFLICT_SHARE` caps how many conflicts one *operator* may carry and nothing caps how many *operators* one conflict may land on.
+
+**The fix for the report is an interquartile range or the spread of the middle four**, which is a line of code. The fix for the draw is a decision about whether a conflict on every operator is one conflict or several.
+
+---
+
+## 51. The ladder inverts at the top, and the reason is that the quota is per operator — `open; the levers are known`
+
+Every rung calibrated and profiled at three seeds, `competent`:
+
+```
+rung 1  0.573      rung 3  0.443      rung 5  0.352
+rung 2  0.589      rung 4  0.277
+```
+
+**Monotone from 2 to 4, and rung 5 is 0.075 easier than rung 4** against noise of ±0.03 — two and a half sigma, on both `competent` and `naive`. A tier that is easier than the tier below it is not a rung.
+
+Rung 5 has more of everything: six operators against five, 39 declared conflicts against 33, a larger network — and `maxReachShare` 0.4 against 0.45, because more operators means no one of them carries as much.
+
+**That is the cause.** The quota is *per operator*: each dirty operator departs on the same number of settings whatever the roster size. Spreading that over six operators instead of five leaves each feed about as bad while making each feed matter less, and a larger network offers more ways around any one of them. **Difficulty is roughly how bad a typical feed is, times how much of the network it carries** — and rung 5 raises the first while lowering the second.
+
+Rungs 1 and 2 are also indistinguishable (0.573 against 0.589, inside noise), which is by construction rather than a defect: rung 1 is texture only and texture measures exactly zero.
+
+**Options, none chosen:** raise the quota with the roster so a bigger world is a worse one; let `maxReachShare` stay high at the top so one operator still dominates; or accept that the ladder tops out at rung 4 and re-cut the rungs. The levers are all in `LADDER` now, which is what P1M5 was for.
+
+
+---
+
+## 52. Two of the three gates are undefined on a texture-only rung — `open; the gates and the ladder were designed apart`
+
+`npm run gates` on the calibrated rung 1:
+
+```
+  1a  reachable headroom 7.52m of 9.37m; ambiguity 0%      PASS
+  1b  a lazy integrator captures 0.796 of reachable headroom  FAIL
+  2   four distinct headline scores                          PASS
+  3   caused by conflicts  0.00m (0% of 9.37m headroom)    CANNOT BE DECIDED
+```
+
+**Both results are correct, and neither is a defect in the world.** Rung 1 is cosmetic-only by definition — `TIER_COSMETIC_ONLY`, and `CORECONCEPT.md` §2.1 establishes that cosmetic settings measure exactly zero. A world with no semantic conflict *should* let a lazy integrator do well, and its conflicts *should* cost nothing.
+
+The gates were written for Phase 0's single hand-built Tier-2 world and they encode that world's premise: *this world carries difficulty, and the declared conflicts are where it comes from.* A ladder whose bottom two rungs deliberately carry none asks them a question they were not built to answer.
+
+**Gate 1b's intent survives and its threshold does not.** "Doing the obvious thing badly must not already win" is a claim about a world that has something to get right; at rung 1 the obvious thing *is* right, which is what the rung is for — it exists so a world is recognisable as the real problem before it is hard.
+
+**Options, none chosen:** state the gates as applying from the first rung that declares a semantic section (rung 2 up), which is honest and cheap; give each rung its own bar the way `CLEARANCE_LADDER` does, which is more work and says more; or drop rungs 0 and 1 from the ladder and let a tutorial world sit outside it.
+
+Whichever, **the gates are per-rung claims now and were written as a per-project one.** That is the same shape as `#20` and `#24`: a threshold ratified against one world, reused across a range the world did not cover.
+
+
+---
+
+## 53. Gate 3 goes negative wherever the lazy baseline is already broken — `open, and it is the finding P1M8 exists to have produced`
+
+Every calibrated rung, gated:
+
+| rung | headroom | lazy integrator captures | conflicts cost | verdict |
+|---|---|---|---|---|
+| 1 `small-town` | 9.37m | 0.796 | 0.00m (0 %) | Gate 3 undecidable |
+| 2 `metro-town` | 11.16m | 0.732 | **−0.50m (−4 %)** | fails |
+| 3 `metro-city` | 13.06m | −3.494 | 13.07m (100 %) | **all pass** |
+| 4 `towns-and-rail` | 10.89m | −5.672 | **−11.78m (−108 %)** | fails |
+| 5 `region` | 12.65m | −6.633 | **−2.82m (−22 %)** | fails |
+| tier 4, polycentric | 6.34m | −2.028 | −4.13m (−65 %) | fails |
+
+**One rung of six passes, and the failures are of two kinds.**
+
+### The bottom: nothing to measure
+
+Rungs 1 and 2 are the `#52` case. A lazy integrator captures 0.796 and 0.732 because there is little or nothing semantic to trip on, and Gate 1b's "doing the obvious thing badly must not already win" is a claim about a world that has something to get right.
+
+### The top: a conflict that makes the world *better* for a lazy reader
+
+Gate 3 measures the naive player against this world and against the same world publishing **honest values**, entity set held fixed. At rungs 4 and 5 and in the region that difference is **negative** — the conflicted world is up to 11.78m *better* for a lazy integrator than the honest one.
+
+That is not a broken measurement; it is `KNOWN-ISSUES.md` #14 and #26 in a regime nobody had reached. **Honest data gives a lazy reader more rope.** With coordinates that agree it matches stops across operators, plans ambitious multi-operator journeys with tight transfers, and reality then takes them apart; with coordinates that disagree it fails to match, falls back to single-operator plans, and those survive. The conflicts are not helping the player — they are *preventing an over-reach that would have hurt more*.
+
+**So Gate 3 is only meaningful while the lazy baseline is in a sane range.** At rungs 4 and 5 that baseline captures −5.7 and −6.6: differencing two catastrophes measures the difference between two catastrophes. The gate's own preamble already says the comparison must hold the opportunity set fixed — it holds the *entity* set fixed, which is not the same thing once the player's matching ability collapses.
+
+### What this says about Phase 1's exit
+
+**It is not met, and the reason is not a bug in a generator.** Two things have to be decided first, and both are `LADDER` entries rather than code:
+
+* **`#51`** — the rungs are not ordered at the top, because the quota is per operator.
+* **`#52` and this** — the gates were ratified against one hand-built Tier-2 world and are applied to six structurally different ones. Their *intent* survives at every rung; their thresholds and, for Gate 3, their measurement, do not.
+
+**The one rung that passes is `metro-city`** — 13.06m of headroom, ambiguity 1 %, conflicts at 100 % of headroom, four distinct scores. That is the rung nearest the world Phase 0 built and the gates were written for, which is the point rather than a coincidence.

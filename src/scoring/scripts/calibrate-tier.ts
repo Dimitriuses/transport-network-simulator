@@ -1,7 +1,7 @@
 // Generate a world whose difficulty is typical of its tier, not a draw from it.
 //
 //   npm run calibrate:tier <out.world.db> --tier N --seed S
-//                          [--candidates K] [--seeds M] [--verify]
+//                          [--shape S] [--candidates K] [--seeds M] [--verify]
 //
 // Specification: KNOWN-ISSUES.md #42, ROADMAP.md P1M4.
 //
@@ -88,6 +88,10 @@ const tier = flag("--tier", "3");
 const seed = Number(flag("--seed", "481516"));
 const candidates = Number(flag("--candidates", "6"));
 const seedsPerCandidate = Number(flag("--seeds", "2"));
+// The other axis (`src/schema/src/shape.ts`). A calibration is per `(tier,
+// shape)`: a region and a city of one rung are different places, and the median
+// of one says nothing about the middle of the other.
+const shape = flag("--shape", "single-centre");
 const verify = argv.includes("--verify");
 
 const PORTS = { operator: 9000, control: 9030, player: 9040 };
@@ -109,6 +113,8 @@ function build(conflictSeed: number, target: string): void {
       tier,
       "--seed",
       String(seed),
+      "--shape",
+      shape,
       "--conflict-seed",
       String(conflictSeed),
     ],
@@ -121,7 +127,7 @@ function build(conflictSeed: number, target: string): void {
 }
 
 console.log("");
-console.log(`  TIER CALIBRATION — tier ${tier}, city seed ${seed}`);
+console.log(`  TIER CALIBRATION — tier ${tier}, ${shape}, city seed ${seed}`);
 console.log("");
 console.log(`  ${candidates} candidate conflict draws over one fixed city, screened on`);
 console.log(`  \`${SCREENING_MODE}\` at ${seedsPerCandidate} disruption seeds each.`);

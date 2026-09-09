@@ -178,7 +178,7 @@ Three references of four agree. **`competent` finds the region easier**, which i
 
 ---
 
-### P1M8 — Re-measure, and re-establish the exit
+### P1M8 — Re-measure, and re-establish the exit — **in progress**
 
 Everything recorded against the old ladder describes a generator that no longer exists — the same debt `P2M0` paid off, at a larger scale.
 
@@ -189,6 +189,66 @@ Everything recorded against the old ladder describes a generator that no longer 
 * Close `#47` and `#48` against measurements, or restate what remains of them.
 
 **Exit — this is Phase 1's exit, on the new ladder:** two independently generated worlds at the same declared tier produce matching difficulty profiles, a solution that reasons carries between them, and one that memorised either collapses on the other — **at more than one rung**, which is the coverage the first closing of this phase did not have.
+
+### Measured so far
+
+Every rung calibrated over six conflict draws of one city, then profiled at three seeds:
+
+| rung | `null` | `blind` | `naive` | `competent` |
+|---|---|---|---|---|
+| 1 `small-town` | −0.600 | 0.079 | 0.359 | **0.573** ±0.039 |
+| 2 `metro-town` | −0.600 | 0.060 | 0.347 | **0.589** ±0.018 |
+| 3 `metro-city` | −0.600 | 0.111 | 0.218 | **0.443** ±0.028 |
+| 4 `towns-and-rail` | −0.600 | −0.122 | 0.005 | **0.277** ±0.031 |
+| 5 `region` | −0.600 | −0.014 | 0.095 | **0.352** ±0.032 |
+| tier 4, polycentric | −0.600 | −0.456 | −0.365 | **0.129** ±0.082 |
+
+**The ladder is monotone from rung 2 to rung 4 and inverts at 5.** `competent` reads 0.589 → 0.443 → 0.277 and then **0.352**, which is 0.075 easier against noise of ±0.03 — about two and a half sigma, so not a draw. `naive` inverts in the same place and by a similar margin. Rungs 1 and 2 are also indistinguishable (0.573 against 0.589, inside noise), which is expected: rung 1 is texture only, and texture measures zero.
+
+**Why rung 5 is easier than rung 4, and it is a lesson about the levers.** Rung 5 has *more* of everything — six operators against five, 39 declared conflicts against 33, a bigger network — and a **lower** `maxReachShare` (0.4 against 0.45). The quota is per operator, so spreading the same kind of quota over more operators dilutes it: each feed is about as bad, no feed carries as much of the city, and a bigger network offers more ways around any one of them. **Difficulty is roughly "how bad is a typical feed" times "how much of the network does it carry"**, and rung 5 raises the first while lowering the second.
+
+That is a fixable thing — the levers are all in one list now — but it is a decision about what the top of the ladder should be, not an adjustment to make quietly.
+
+### The shape axis does not hold, and calibration reversed the sign
+
+At tier 4, city against region:
+
+| reference | city | region | verdict |
+|---|---|---|---|
+| `blind` | −0.122 | **−0.456** | region much harder |
+| `naive` | 0.005 | **−0.365** | region much harder |
+| `competent` | 0.277 | **0.129** | region harder |
+
+**The region is harder on every reference**, and a lazy integrator strands nearly half its travellers there — 55 % arrive against 90 % for `competent`, because a missed train is forty minutes and a plan built on the wrong interchange has nowhere to go.
+
+**Uncalibrated, the same comparison said the opposite** — `competent` scored 0.364 on the region against 0.201 on the city, and the region looked *easier*. One calibration is a draw from a distribution, and this is the sharpest demonstration this project has produced: the sign of a difference reversed.
+
+So `P1M7`'s exit clause fails on evidence rather than for want of it: **shape is currently a difficulty lever, not a neutral axis.** The options are unchanged — make the region easier (denser rail, shorter headways, fewer towns) until it agrees, or stop calling it an axis and make it a rung.
+
+### The gates, per rung
+
+| rung | headroom | lazy captures | conflicts cost | verdict |
+|---|---|---|---|---|
+| 1 `small-town` | 9.37m | 0.796 | 0.00m (0 %) | Gate 3 undecidable |
+| 2 `metro-town` | 11.16m | 0.732 | −0.50m (−4 %) | fails |
+| 3 `metro-city` | 13.06m | −3.494 | 13.07m (100 %) | **all pass** |
+| 4 `towns-and-rail` | 10.89m | −5.672 | −11.78m (−108 %) | fails |
+| 5 `region` | 12.65m | −6.633 | −2.82m (−22 %) | fails |
+| tier 4, polycentric | 6.34m | −2.028 | −4.13m (−65 %) | fails |
+
+**One rung of six passes, and it is the one nearest the world the gates were written for.** The failures split in two, and neither is a defect in a generator (`KNOWN-ISSUES.md` #52, #53):
+
+* **At the bottom there is nothing to measure.** A texture-only rung lets a lazy integrator capture 0.796, which is what a rung with no semantic conflict is *for*.
+* **At the top, Gate 3 goes negative** — the conflicted world is up to 11.78m *better* for a lazy reader than an honest one, because honest data lets it match stops, plan ambitious multi-operator journeys and be taken apart by reality, while conflicted data forces robust single-operator fallbacks. Differencing two catastrophes measures the difference between two catastrophes.
+
+### Where that leaves the phase exit
+
+**Not met, and the remaining work is decisions rather than code.** The clearance ladder needed no re-derivation at all — bars stated as positions between reference solutions adapted to the new worlds by themselves, which is P1M4's design paying off years ahead of when it was written. What is left:
+
+1. **Re-cut the rungs** so the ladder is ordered at the top (`#51`), which means deciding whether the quota rises with the roster.
+2. **State the gates per rung** (`#52`, `#53`), or accept that they apply from the first rung carrying semantic conflict.
+3. **Decide the shape axis** — tune the region until it agrees, or make it a rung.
+4. Then, and only then, the transfer runs: a memorised solution is worth testing against a ladder whose rungs mean something.
 
 ---
 
