@@ -273,10 +273,27 @@ So `P1M7`'s exit clause fails on evidence rather than for want of it: **shape is
 
    **The merged rung turned out to be the old rung 4 exactly** — same median, same spread, same selected draw — because the quota it inherited was undeliverable (`#54`). The merge is a deletion of a rung rather than a blend of two, and the record says so now.
 4. **Decide the shape axis.** The region is harder on every reference, so it is currently a difficulty lever rather than a neutral axis — and there are now three links to choose between, which is a lever for making it agree.
-5. **Attribute the broken lazy baseline — blocked on `#55`.** Gate 3 declining to decide is honest and does not excuse the world, and the instrument it points at cannot currently answer: `npm run fallback` reports the cosmetic `A-naming` costing the same 9.22 minutes and 91 extra fallbacks as `D-staleness`, with seventeen unrelated conflicts landing on one figure. A cosmetic setting measures zero everywhere else, so the tool is not isolating what it claims to.
+5. ~~**Attribute the broken lazy baseline**~~ — done, and it answers in one word: **`B-dst-offset`**. With `#55` fixed, each conflict switched on alone over an honest world:
 
-   What the run does establish: **45 of 200 journeys already fall back on a world with no conflicts at all**, where `P1 − P2` is a healthy +6.51m. Whatever breaks the lazy integrator at this rung starts from there.
-6. Then, and only then, the transfer runs: a memorised solution is worth testing against a ladder whose rungs mean something.
+   ```
+   conflict                          fell back    over clean    P1-P2
+   no conflicts                         56/200                   6.03m
+   B-dst-offset:universytetline        129/200          +73      2.02m
+   B-dst-offset:soliankaline            75/200          +19     -2.50m
+   B-dst-offset:kameniariv              74/200          +18    -10.03m
+   B-time-encoding:akademichnaline      69/200          +13      5.01m
+   ...  every remaining row between +5 and -3
+   as declared                         139/200          +83     -9.16m
+   ```
+
+   Three rows carry the collapse and nothing else exceeds +5. **The sign of the offset decides how bad it is**: `universytetline` publishes `-3600` and the other two `+3600`, and an hour *early* puts departures in the past so no plan exists at all, while an hour *late* leaves a plannable itinerary that is merely wrong. Same setting, same magnitude, opposite sign, one of them destroys the query set.
+
+   Every cosmetic row reads exactly `+0` and exactly `6.03m` — the control group working, and the direct refutation of the broken run where `A-naming` read −9.22m.
+
+6. **Decide what stops a rung becoming a wall (`#56`).** The world above passes all three gates while `competent` misses its own clearance bar. Gate 3 has a floor and no ceiling, and its percentage divides two differently-selected populations. `#51` asked what makes one rung harder than another; this asks what makes one too hard to be a rung, and the clearance bar is the candidate that already exists.
+
+7. **Re-sweep the ladder.** Every gate and calibration figure in P1M8 was measured against the broken floor and none of it stands.
+8. Then, and only then, the transfer runs: a memorised solution is worth testing against a ladder whose rungs mean something.
 
 ---
 

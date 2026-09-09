@@ -16,7 +16,7 @@
 //   P1 − P2   whether integrating lazily even beats not integrating
 
 import type { Journey, Line, Pattern, PatternStop, Quay, Site, World } from "@tns/schema";
-import { parseSimTime, parseEpoch, publishedEpochSeconds } from "@tns/schema";
+import { parseSimTime, parseEpoch, publishedEpochSeconds, CATALOGUE } from "@tns/schema";
 import {
   buildIndex,
   route,
@@ -928,22 +928,43 @@ export function calibrate(world: World, options: CalibrateOptions = {}): Calibra
 
 /**
  * Conflict names to the manifest setting that produces them, and the value
- * that would switch it off. Mirrors `tools/worldbuild/build.py`.
+ * that would switch it off.
+ *
+ * **Derived, because a copy of the catalogue is a copy of the catalogue**
+ * whatever it is called. This was a hand-written map of twelve entries and the
+ * catalogue had grown to sixteen, so the four settings added since — the route
+ * label, the headsign, the DST offset and the cancellation token — were unknown
+ * here. `withNoConflicts` wrote `?? out` and kept every one of them, which made
+ * "clean plus one conflict" mean "four conflicts plus one" and put seventeen
+ * unrelated conflicts on a single figure to two decimal places
+ * (`KNOWN-ISSUES.md` #55).
+ *
+ * `CLAUDE.md` names the rule this broke — *the catalogue is one source of truth
+ * for three consumers; add a setting there, never in the probe or the builder*.
+ * A fourth consumer had quietly taken its own copy, and the tell was an
+ * evidence line that stopped changing: a **cosmetic** conflict reporting the
+ * same 9.22 minutes as a realtime one.
  */
-const CONFLICT_SETTINGS: Record<string, [string, string, unknown]> = {
-  "A-granularity": ["identity", "granularity", "quay"],
-  "A-id-scheme": ["identity", "id_scheme", "prefixed"],
-  "A-naming": ["naming", "variant", "official"],
-  "A-coordinate-precision": ["geometry", "precision", 6],
-  "A-coordinate-source": ["geometry", "source", "quay"],
-  "C-coordinate-offset": ["geometry", "offset_m", 0],
-  "C-latlon-order": ["geometry", "latlon_order", "lat_lon"],
-  "B-time-encoding": ["time", "encoding", "iso_offset"],
-  "D-staleness": ["realtime", "staleness_s", 0],
-  "D-silent-cancellation": ["realtime", "cancellations", "explicit"],
-  "C-delay-unit": ["realtime", "delay_unit", "seconds"],
-  "D-no-delays": ["realtime", "publishes_delays", true],
-};
+const CONFLICT_SETTINGS: ReadonlyMap<string, readonly [string, string, unknown]> = new Map(
+  CATALOGUE.map((s) => [s.conflict, [s.group, s.key, s.off] as const]),
+);
+
+/**
+ * Conflicts that are a *consequence* of catalogue settings rather than one of
+ * them, and so have no switch of their own.
+ *
+ * `A-id-collision` is two operators both publishing bare integer ids that
+ * denote different places. Neither operator's manifest says "collide"; the
+ * collision is what `A-id-scheme: bare_int` on two of them produces together,
+ * and switching that setting off on either ends it. So these need no handling
+ * when everything goes off — but they must be **named**, because the
+ * alternative is the silent skip that #55 was.
+ *
+ * They get no ablation row: a leave-one-in world cannot hold a conflict that
+ * takes two operators to make, and pretending otherwise would attribute the
+ * pair's cost to one of them.
+ */
+const DERIVED_CONFLICTS: ReadonlySet<string> = new Set(["A-id-collision"]);
 
 /** A copy of the world with *every* declared conflict switched off. */
 /**
@@ -964,29 +985,89 @@ const CONFLICT_SETTINGS: Record<string, [string, string, unknown]> = {
  */
 export const STRUCTURAL_CONFLICTS: ReadonlySet<string> = new Set(["A-granularity"]);
 
-function withNoConflicts(world: World): World {
+/**
+ * The world with every value-level conflict switched off.
+ *
+ * **Throws rather than skipping.** A conflict this cannot switch off is one the
+ * caller believes is absent from the returned world and which is still in it,
+ * and every measurement taken against that world is then a comparison between
+ * two things that differ by something nobody named. Silence here is what #55
+ * was; the throw is the fix, and reading the catalogue above is what makes the
+ * throw rare.
+ */
+export function withNoConflicts(world: World): World {
   let out = world;
   for (const c of world.manifest.activeConflicts) {
-    if (STRUCTURAL_CONFLICTS.has(c.split(":")[0] ?? "")) continue;
-    out = without(out, c) ?? out;
+    const name = c.split(":")[0] ?? "";
+    if (STRUCTURAL_CONFLICTS.has(name)) continue;
+    if (DERIVED_CONFLICTS.has(name)) continue;
+    const next = without(out, c);
+    if (next === null) {
+      const why = CONFLICT_SETTINGS.has(name)
+        ? `no operator "${c.split(":")[1] ?? ""}" carries "${name}" in this world`
+        : `"${name}" is not a catalogue setting, and is not declared derived`;
+      throw new Error(
+        `cannot switch off "${c}": ${why}. The world returned would still carry it, ` +
+          `and every comparison against it would differ by something nobody named ` +
+          `(KNOWN-ISSUES.md #55).`,
+      );
+    }
+    out = next;
   }
   return out;
+}
+
+/**
+ * Every way an operator departs from the catalogue's defaults, as conflict
+ * names — the TypeScript reading of what `_declared_conflicts` writes into a
+ * bundle in `tools/worldbuild/build.py`.
+ *
+ * Two things that must agree, in different places. The test compares them on a
+ * real bundle, which is the half this project keeps leaving out.
+ */
+export function declaredConflicts(world: World): string[] {
+  const found: string[] = [];
+  for (const op of world.manifest.operators) {
+    const bag = op.manifest as Record<string, Record<string, unknown>>;
+    for (const setting of CATALOGUE) {
+      const value = bag[setting.group]?.[setting.key];
+      if (value !== undefined && value !== setting.off) {
+        found.push(`${setting.conflict}:${op.id}`);
+      }
+    }
+  }
+  const bare = world.manifest.operators
+    .filter(
+      (o) =>
+        (o.manifest as Record<string, Record<string, unknown>>)["identity"]?.["id_scheme"] ===
+        "bare_int",
+    )
+    .map((o) => o.id)
+    .sort();
+  if (bare.length > 1) found.push(`A-id-collision:${bare.join("+")}`);
+  return found.sort();
 }
 
 /** A copy of the world with one declared conflict switched off. */
 function without(world: World, conflict: string): World | null {
   const [name, operatorId] = conflict.split(":");
-  const setting = CONFLICT_SETTINGS[name ?? ""];
+  const setting = CONFLICT_SETTINGS.get(name ?? "");
   if (!setting || !operatorId) return null;
   const [group, key, def] = setting;
 
+  let applied = false;
   const operators = world.manifest.operators.map((o) => {
     if (o.id !== operatorId) return o;
     const m = structuredClone(o.manifest) as Record<string, Record<string, unknown>>;
+    // A group the manifest does not carry is a manifest that predates the
+    // setting, not a conflict that is already off. Returning the operator
+    // unchanged here is the same silence #55 was made of.
     if (!m[group]) return o;
     m[group]![key] = def;
+    applied = true;
     return { ...o, manifest: m };
   });
+  if (!applied) return null;
 
   return { ...world, manifest: { ...world.manifest, operators } };
 }
@@ -1046,8 +1127,19 @@ export function conflictVariants(world: World): { conflict: string; world: World
   const out: { conflict: string; world: World }[] = [];
 
   for (const conflict of world.manifest.activeConflicts) {
-    const setting = CONFLICT_SETTINGS[(conflict.split(":")[0] ?? "")];
-    if (!setting) continue; // cross-operator conflicts have no single setting
+    const name = conflict.split(":")[0] ?? "";
+    // A conflict made by two operators together gets no row, for the reason
+    // `DERIVED_CONFLICTS` gives. Anything else missing is a stale catalogue,
+    // which `withNoConflicts` has already thrown on above.
+    if (DERIVED_CONFLICTS.has(name)) continue;
+    // Nor does a structural one. `clean` holds granularity exactly as declared,
+    // so a variant "switching it on" is the base again and its row reads zero
+    // by construction — an attribution line whose value cannot change, which is
+    // the shape `CLAUDE.md` warns about. Held constant is not the same as free,
+    // and a row saying `0.0` beside it claims it is.
+    if (STRUCTURAL_CONFLICTS.has(name)) continue;
+    const setting = CONFLICT_SETTINGS.get(name);
+    if (!setting) continue;
 
     const [group, key] = setting;
     const [, operatorId] = conflict.split(":");

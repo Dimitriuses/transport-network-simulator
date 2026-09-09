@@ -17,12 +17,21 @@
 // fallbacks are counted. `conflictVariants` builds those worlds; the comparison
 // is against the same clean baseline for every row, so the numbers are
 // differences from one thing rather than from each other.
+//
+// **"The same clean baseline" was not the same baseline** (`KNOWN-ISSUES.md`
+// #55). The rows were built over `withNoConflicts`, which holds the entity set
+// as declared, and the baseline row was `cleanWorld`, which switches granularity
+// off as well and so publishes a different number of stops. `cleanWorld`'s own
+// comment says it is not a valid floor for attribution, and this read every
+// row's "over clean" against it: a constant offset, present in all of them, and
+// nothing to do with any conflict.
 
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadWorld } from "@tns/core";
-import { calibrate, conflictVariants, cleanWorld } from "@tns/scoring";
+import { calibrate, conflictVariants, withNoConflicts } from "@tns/scoring";
+import { CATALOGUE } from "@tns/schema";
 import { progress } from "./progress.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -56,13 +65,31 @@ const measure = (label: string, w: Parameters<typeof calibrate>[0]): Row => {
   };
 };
 
-const clean = measure("no conflicts", cleanWorld(world));
+const clean = measure("no conflicts", withNoConflicts(world));
 const rows = variants.map((v) => measure(v.conflict, v.world));
 const declared = measure("as declared", world);
 bar.done();
 
 const queries = world.queries.length;
 const m = (s: number) => `${(s / 60).toFixed(2)}m`;
+
+/**
+ * Settings this instrument cannot move, whatever their value.
+ *
+ * `P2` plans once on its merged static model and is then charged for what
+ * actually happened. It never opens a realtime feed — that is `P2rt`, and the
+ * difference between them is the whole point of both existing. So every
+ * `realtime` setting reads exactly `+0` here **by construction**, and a reader
+ * who takes that as a measurement concludes catalogue D is decorative.
+ *
+ * Which is `KNOWN-ISSUES.md` #19, and it cost most of Phase 0: an evidence line
+ * whose value never changes is not evidence. Marked rather than hidden, because
+ * the rows are still worth seeing beside the ones that do move.
+ */
+const UNMEASURABLE = new Set(
+  CATALOGUE.filter((c) => c.group === "realtime").map((c) => c.conflict),
+);
+const unmeasurable = (label: string) => UNMEASURABLE.has(label.split(":")[0] ?? "");
 
 console.log("");
 console.log(`  WHY THE LAZY INTEGRATOR GIVES UP — ${queries} scored journeys`);
@@ -72,11 +99,16 @@ console.log("  fallback means P2 produced no workable plan and the traveller too
 console.log("  the reference policy instead, which costs exactly what not");
 console.log("  integrating costs.");
 console.log("");
+console.log("  Clean holds the entity set as declared: granularity stays on in every");
+console.log("  row including this one, so no row's delta is the cost of publishing a");
+console.log("  different number of stops. It therefore gets no row of its own.");
+console.log("");
 console.log("    conflict                          fell back    over clean    P1-P2");
 
 const line = (r: Row, delta: number | null) =>
   console.log(
-    `    ${r.label.padEnd(32)}  ${`${r.fellBack}/${queries}`.padStart(9)}   ` +
+    `    ${`${r.label}${unmeasurable(r.label) ? " †" : ""}`.padEnd(34)}  ` +
+      `${`${r.fellBack}/${queries}`.padStart(9)}   ` +
       `${(delta === null ? "" : `${delta >= 0 ? "+" : ""}${delta}`).padStart(10)}   ` +
       `${m(r.gapP1P2).padStart(8)}`,
   );
@@ -87,6 +119,17 @@ for (const r of [...rows].sort((a, b) => b.fellBack - a.fellBack)) {
 }
 line(declared, declared.fellBack - clean.fellBack);
 
+console.log("");
+if (rows.some((r) => unmeasurable(r.label))) {
+  console.log("  † P2 plans once on its merged static model and never opens a realtime");
+  console.log("    feed — that is P2rt. These rows therefore read +0 by construction,");
+  console.log("    not by measurement, and say nothing about whether the setting");
+  console.log("    matters. Read them off the P2rt ablation in `npm run gates`.");
+  console.log("");
+}
+console.log("  A cosmetic setting reading exactly +0 is the control group working:");
+console.log("  CORECONCEPT.md 2.1 says texture must measure zero, and a row that");
+console.log("  drifts off zero means the isolation has broken again (#55).");
 console.log("");
 console.log("  A conflict adding a few fallbacks is doing its job: a lazy");
 console.log("  integrator is supposed to lose something. One that adds most of the");

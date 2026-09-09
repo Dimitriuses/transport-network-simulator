@@ -11,9 +11,17 @@
 //
 // Sweeping the planning lead separates the two. At lead 0 everything
 // announceable has been announced, so what remains is not an information gap.
+//
+// **The clean column is the value-clean world, not the everything-off one**
+// (`KNOWN-ISSUES.md` #55). This subtracted `cleanWorld`, which switches
+// granularity off too and so publishes a different number of stops — and a
+// lazy solver given more stops finds more apparent interchanges to get wrong,
+// so the difference varied the size of the problem and the quality of the data
+// at once and could attribute to neither (`#14`). `valueCleanWorld` publishes
+// the same stops, honestly.
 
 import { loadWorld } from "@tns/core";
-import { calibrate, cleanWorld } from "@tns/scoring";
+import { calibrate, valueCleanWorld } from "@tns/scoring";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,7 +43,7 @@ if (!existsSync(worldPath)) {
 }
 
 const world = loadWorld(worldPath);
-const clean = cleanWorld(world);
+const clean = valueCleanWorld(world);
 const m = (s: number) => `${(s / 60).toFixed(2)}m`;
 
 console.log("");
@@ -46,7 +54,7 @@ console.log("  P0a   announced optimum    — perfect integration, P2rt's horizo
 console.log("  P2rt  lazy integrator      — reads feeds, reconciles badly");
 console.log("");
 console.log("  lead    P0->P0a    P0a->P2rt          conflict     P0a plans");
-console.log("          foresight  declared   clean   cost         that failed");
+console.log("          foresight  declared   honest  cost         that failed");
 console.log("  -----   ---------  --------  ------   ----------   -----------");
 for (const lead of [1800, 900, 300, 0]) {
   const d = calibrate(world, { planLeadS: lead });

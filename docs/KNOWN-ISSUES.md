@@ -1996,7 +1996,44 @@ Whichever, **the gates are per-rung claims now and were written as a per-project
 
 ---
 
-## 53. Gate 3 goes negative wherever the lazy baseline is already broken — `fixed at P1M8: the gate states its precondition`
+## 53. Gate 3 goes negative wherever the lazy baseline is already broken — `withdrawn: the negative numbers were #55`
+
+> **Corrected 2026-09-09, after `#55` was fixed.** The negative conflict costs in
+> the table below were measured against a world that was not honest. `ablate`
+> built its floor with `withNoConflicts`, which silently kept every conflict its
+> stale catalogue copy did not recognise — on `towns-and-rail` that was
+> `B-dst-offset` on three of four dirty operators, publishing every departure an
+> hour out. So "the same world with the conflicts off" was the same world with
+> most of the damage still in it, and subtracting it left a number near zero
+> that fell either side of it by chance.
+>
+> Re-measured on the same world with the floor corrected:
+>
+> | | broken floor | corrected |
+> |---|---|---|
+> | lazy shortfall vs a matched optimum | 54.02m | 54.02m |
+> | the same, conflicts off | ~65.8m | **2.16m** |
+> | caused by conflicts | **−11.78m (−108 %)** | **+51.86m (476 %)** |
+>
+> **The explanation recorded for the negative sign was therefore an explanation
+> of nothing.** *Honest data gives a lazy reader more rope — it matches stops,
+> over-reaches, and reality takes the plan apart* is a coherent story, it is
+> consistent with `#14` and `#26`, and it was wrong. It is kept here rather than
+> deleted because inventing a mechanism for an artefact is the failure worth
+> being able to recognise: the number was surprising, the story made it
+> unsurprising, and nobody asked the instrument whether it was measuring what it
+> claimed. `#20` again, in the shape it takes when you are being clever.
+>
+> **What survives.** The `stillIntegrating` guard stands on its own evidence: a
+> lazy integrator that has given up on half the scored set is not being compared
+> like with like, whatever the sign of the difference. The `premiseHolds` guard
+> — decline when the cost is negative — was written for a number that did not
+> exist; it is harmless and now never fires, and `#56` is the check this rung
+> actually needed.
+>
+> **Every row of the table below taken on a world declaring `A-route-label`,
+> `A-headsign`, `B-dst-offset` or `C-cancellation-token` is invalid**, which is
+> rungs 3 upwards and the polycentric world. The sweep is owed again.
 
 Every calibrated rung, gated:
 
@@ -2164,7 +2201,7 @@ Section B gained `B-dst-offset` at P2M0 and had room from then on. **Section D g
 
 ---
 
-## 55. `npm run fallback` attributes the same cost to a cosmetic conflict as to a realtime one — `open, and it blocks the attribution Gate 3 points at`
+## 55. `npm run fallback` attributed the same cost to a cosmetic conflict as to a realtime one — `fixed at P1M8`
 
 Run on the calibrated top rung, each conflict switched on alone over an otherwise clean world:
 
@@ -2187,8 +2224,87 @@ Run on the calibrated top rung, each conflict switched on alone over an otherwis
 
 **Not the same as `#14`.** That was about a *clean* world being denser than a conflicted one, which is real and is why the entity set is held fixed. This is every single-conflict world landing on one number.
 
-**A hypothesis, not a diagnosis:** the tool builds "a clean world plus one conflict" by generating manifests with that setting alone, and something else about the world it builds differs from the declared one — so the 45 → 136 jump is the difference between two *worlds* rather than the cost of a conflict. The three rows that do differ (`A-coordinate-precision` at 134 and 135, `C-coordinate-offset` at 135) suggest the isolation works for geometry and not otherwise, which would be a place to start.
+**Why it mattered.** `#53` made Gate 3 decline to decide when the lazy baseline is broken by something other than the declared conflicts, and pointed at this tool to say by what. The tool it pointed at could not answer, so P1M8's attribution clause was blocked on this rather than on compute.
 
-**Why it matters now.** `#53` made Gate 3 decline to decide when the lazy baseline is broken by something other than the declared conflicts, and pointed at this tool to say by what. **The tool it points at cannot currently answer**, so P1M8's attribution clause is blocked on this rather than on compute.
+### Two causes, and the hypothesis named neither
 
-The clean-world row is worth keeping in view while this is fixed: **45 of 200 journeys fall back with no conflicts at all**, and `P1 − P2` is a healthy +6.51m there. Whatever breaks the lazy integrator at this rung, it starts from a world where a fifth of the scored set already has no workable lazy plan.
+**One: a fourth copy of the catalogue.** `src/scoring/src/baselines.ts` held `CONFLICT_SETTINGS`, a hand-written map of conflict name to the manifest key that produces it — *"Mirrors `tools/worldbuild/build.py`"*, and it had stopped mirroring anything. Twelve entries against the catalogue's sixteen. The four added since P1M6 were unknown to it:
+
+```
+A-route-label          naming.route_label          cosmetic
+A-headsign             naming.headsign             cosmetic
+B-dst-offset           time.offset_shift_s         semantic, strong
+C-cancellation-token   realtime.cancelled_token    semantic, strong
+```
+
+`without()` returns `null` for a conflict it has no entry for, and `withNoConflicts` wrote `out = without(out, c) ?? out` — *keep the world as it is*. So on the world above, every "clean" base still carried:
+
+```
+B-dst-offset:kameniariv        +3600s      B-dst-offset:soliankaline      +3600s
+B-dst-offset:universytetline   -3600s      C-cancellation-token:soliankaline   "C"
+C-cancellation-token:akademichnaline  "3"  C-cancellation-token:kameniariv     "3"
+```
+
+Three of the four dirty operators publishing every departure an hour out, and three publishing a cancellation token no reader knows. That is what "clean plus one conflict" meant, on every row, which is why the rows agreed to two decimal places: the conflict each row *named* was not what any of them were measuring.
+
+**`CLAUDE.md` states the rule this broke** — *the catalogue is one source of truth for three consumers; add a setting there, never in the probe or the builder.* There was a fourth, and it was not in the list. `src/scoring/src/probe.ts` derives `SWEEPS` from `CATALOGUE` and was correct throughout, which is exactly why the honest-values world Gate 3 uses was sound while this was not.
+
+**Two: the baseline row was measured against a different world from the rows.** `fallback.ts` built its variants with `withNoConflicts` (entity set held as declared) and its `no conflicts` row with `cleanWorld` — which switches granularity off as well and so publishes a different number of stops. `cleanWorld`'s own doc-comment begins **"Not a valid floor for attribution"**, and this was using it as one. Part of the constant `+91` in every row is that offset, present in all of them and caused by no conflict at all. `#14` is the reason that floor is invalid; this is `#14` walked into from the other side.
+
+### Fixed
+
+* `CONFLICT_SETTINGS` is now derived from `CATALOGUE`. A setting added tomorrow is switchable the moment it is added.
+* `withNoConflicts` **throws** rather than shrugging. A conflict it cannot switch off is one the caller is about to assume is gone.
+* Conflicts with no switch of their own are **named**: `DERIVED_CONFLICTS` holds `A-id-collision`, which two operators make together and which ends when either one's `A-id-scheme` goes off. Silence about it was indistinguishable from silence about a stale entry, which is how this hid.
+* `conflictVariants` no longer emits a row for a **structural** conflict. `clean` holds granularity as declared, so that row was the base again and read zero by construction — an attribution line whose value cannot change, which is `CLAUDE.md`'s own tell for a test that cannot fail. *Held constant is not the same as free, and a row saying `0.0` beside it claims it is.*
+* `fallback.ts` uses `withNoConflicts` for its baseline, so every row's delta is a difference from the world the rows were built on. `horizon.ts` subtracted `cleanWorld` for the same reason and now subtracts `valueCleanWorld`, which is the floor `#14` says attribution is measured from.
+
+**Three instruments, not one.** `npm run symptoms` compares an honest-values baseline against each variant and shares `conflictVariants` with the ablation *precisely so the two cannot drift* (`PHASES.md`, P0M10). They had drifted anyway, in the one place that comparison does not reach: the baseline was catalogue-derived and the variants were not, so the symptom check had been asking whether a world with four leaked conflicts looks different from a world with none. It answers a real question again without a line of its own being touched — which is the argument for the shared builder, arriving four milestones late.
+
+A test now holds the two definitions of "conflicts off" together directly: `withNoConflicts` (switch off what the manifest declares) and `valueCleanWorld` (switch off every catalogue setting on every operator) must produce the same world. Gate 3 subtracts one from the other.
+
+### What nothing noticed, and why
+
+`src/scoring/test/isolation.test.ts` now asserts, driven from `CATALOGUE` rather than from a bundle: every setting can be switched off; an unswitchable conflict throws; each variant differs from the base by exactly the conflict it names; and the bundle's own `activeConflicts` matches what its operator manifests hold — the cross-language pair with `_declared_conflicts` in `build.py`, which until now were **two things that must agree, in different places, compared by nothing.**
+
+Reintroducing the defect fails three of the four.
+
+The reason no existing test caught it is worth recording: **every committed bundle predates the four settings.** `worlds/m1.world.db` is the hand-built Tier-2 world and `worlds/gen-t1..t5` were generated before P1M5, so a test that read one and checked the switch would have passed on all of them. A test that reads the catalogue is the only kind that could have failed.
+
+The clean-world row from the broken run is *not* carried forward: **45 of 200** was measured on the invalid floor. The corrected figures are in P1M8's record.
+
+
+---
+
+## 56. Gate 3 has a floor and no ceiling, so a wall passes it — `open`
+
+The calibrated top-rung world, gated after `#55` was fixed:
+
+```
+  GATE 1 — buildable        (rung towns-and-rail)
+    1b  a lazy integrator captures  -5.672 of reachable headroom
+        ...and gave up entirely on   52/200 journeys (26%)
+        PASS
+
+  GATE 3
+      lazy shortfall vs a matched optimum        54.02m
+      the same, conflicts off                     2.16m
+      caused by conflicts                        51.86m (476% of 10.89m headroom)
+      PASS — the declared conflicts must cost at least 20% of the headroom
+
+  VERDICT: all three gates pass
+```
+
+**Every gate passes and the world is unplayable.** `null` scores −1.000, the lazy integrator −5.672, and `competent` — our own answer key, written by people who built the place — captures **0.099** against the 0.277 bar `npm run clearance` computes for this rung. A world our best solution cannot clear is not a rung; it is a wall, and the gates said PASS.
+
+**Gate 3 asks for at least 20 % and never asks for at most anything.** That was defensible while the failure mode was conflicts too weak to matter, which is the direction every pressure in this project pushes (`CLAUDE.md`: *every route to a passing gate that runs through "make the conflict bigger" is closed*). The route was closed at the **realism** end — each setting has a plausibility ceiling and `npm run realism` enforces the composed consequence. Nothing checks the *composed measurable* consequence. `B-dst-offset` at ±3600 s is entirely plausible on its own: real agencies really do publish a correct local time under the wrong zone. Three of them doing it at once, one of them backwards, is a world where a lazy reader cannot plan at all.
+
+`npm run fallback`'s own prose already draws the line the gate does not:
+
+> A conflict adding a few fallbacks is doing its job. **One that adds most of the query set has stopped being a conflict and become a wall**, and the world is harder than the tier it declares.
+
+**And the percentage is not a share of anything at this magnitude.** `captureCost / headroomS` divides `gapP0aP2rt` — averaged over the journeys where `P2rt` produced a plan — by `gapP0P1`, averaged over every comparable journey. While almost everything is plannable those populations nearly coincide. At 26 % fallback they do not, and the numerator is additionally selected: the surviving journeys are the ones the conflicts did *not* destroy. 476 % is a ratio of two different things, and no bar placed on it means anything.
+
+*What it needs.* A ceiling stated in the same currency as the floor, and a denominator whose population matches the numerator's. Both are decisions rather than code, and both are `#51`'s question again in a different instrument: **what distinguishes a hard rung from a broken one, in a number?** The candidate that already exists is the clearance bar — `competent` must clear its own rung — which is a position between named references and needs no percentage at all.
+
+**Not `#53`.** That said Gate 3 cannot decide when the lazy baseline has collapsed, and its evidence turned out to be `#55`'s artefact. This is the opposite: the gate decides, confidently, and says PASS to a world nothing can play.

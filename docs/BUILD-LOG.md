@@ -1878,20 +1878,34 @@ The cause is that **the quota is per operator**. The old top rung had six operat
 
 The rungs merged. What the top one was *for* — a region of towns rather than one city — was never a step of difficulty; it was a **kind of place**, and it became a shape with three ways of joining the towns up.
 
-### Gate 3 was measuring something else
+### Gate 3 was measuring something else — and so was I
 
 Four of six worlds failed a gate, and at the top the conflict cost came out **negative** — the conflicted world 11.8 minutes *better* for a lazy integrator than an honest one.
 
-That is real. Honest data gives a lazy reader more rope: it matches stops, plans ambitious multi-operator journeys with tight transfers, and reality takes them apart; conflicted data forces fewer legs, and those survive. `CLAUDE.md` already carried the rule — *varying data quality also varies how much data there is, and a comparison that changes both cannot attribute to either* — and the gate held the **entity** set fixed, which is not the same thing once the player's ability to use it collapses.
+I wrote at the time: *that is real.* Honest data gives a lazy reader more rope, it matches stops, plans ambitious multi-operator journeys with tight transfers, and reality takes them apart; conflicted data forces fewer legs, and those survive. It is consistent with `#14` and `#26`, it explains the sign, and **it was an explanation of an artefact.**
 
-So Gate 3 now declines to decide, in two cases: when the lazy integrator has stopped integrating, and when the cost is negative. **A gate that cannot be decided is not a gate that fails**, and saying FAIL on a negative cost would assert the conflicts are decorative, which is not what a negative number means.
+The "honest values" world Gate 3 subtracted was not honest. `ablate` built it with `withNoConflicts`, which kept every conflict its stale copy of the catalogue did not recognise — on this rung, `B-dst-offset` on three of four dirty operators, every departure published an hour out (`KNOWN-ISSUES.md` #55). Corrected, the same world reads:
 
-### And the guard was written against the wrong number
+```
+  lazy shortfall vs a matched optimum   54.02m       (unchanged)
+  the same, conflicts off              ~65.8m -> 2.16m
+  caused by conflicts                 -11.78m -> +51.86m
+```
 
-Gate 3 prints two conflict costs. The whole-score one is positive at every rung; the journey-time one — the criterion ratified after P1M0 — goes negative. **The first version of the guard tested the whole-score figure and would never have fired.**
+**The sign was never in the world.** What made the story easy to believe is that it was a good story: a surprising number, a mechanism that made it unsurprising, and no one asking the instrument what it had actually compared. The rule this project already had — *when you add a measurement, check both sides for matched information and a matched opportunity set* — was applied to the entity set and not to the thing being subtracted.
 
-At `towns-and-rail` the two disagree in sign: the conflicts cost 0.164 of the whole score at 23 sigma *and* save the lazy baseline 11.8 minutes. Both true, and about different things. This is `#20`'s mistake — a number ratified for one purpose read for another — caught this time before it shipped rather than four milestones later.
+### The guard was written against the wrong number, twice over
+
+Gate 3 prints two conflict costs. The whole-score one is positive at every rung; the journey-time one — the criterion ratified after P1M0 — went negative. The first version of the guard tested the whole-score figure and would never have fired, which I caught in review and recorded as `#20`'s mistake avoided.
+
+**The correction was right and the diagnosis was not.** I recorded the two figures as *both true, and about different things*. They were one correct number and one wrong one: the whole-score figure is computed from `valueCleanWorld`, which is catalogue-derived and was sound throughout, and the journey-time figure from `withNoConflicts`, which was not. **The disagreement in sign was the symptom, and I read it as a finding.** Two instruments differing about the same world is a defect until proven otherwise.
+
+### What the corrected numbers say instead
+
+`towns-and-rail` passes all three gates and is unplayable: `competent` captures 0.099 against its own 0.277 clearance bar, the lazy integrator −5.672, and the conflicts cost 476 % of the headroom. Gate 3 asks for *at least* 20 % and asks for at most nothing, so a wall passes it — `#56`, open.
+
+Every gate figure in this milestone was measured with the broken floor and is owed again on the merged ladder.
 
 ### What it cost to find out
 
-Six calibrations, seventy-two profile runs and six gate sweeps, most of an afternoon of compute. The alternative was shipping a ladder whose top rung was easier than its fourth and whose gate reported −108 % without anybody being able to say what that meant.
+Six calibrations, seventy-two profile runs and six gate sweeps, most of an afternoon of compute — and then most of them invalidated by a defect in an instrument they all shared. The compute was not the expensive part. **A measurement nobody can cross-check is worth what the story told about it is worth**, and this milestone spent a day on a mechanism for a number that was not there.
