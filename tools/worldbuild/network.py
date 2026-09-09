@@ -328,6 +328,8 @@ class NetworkSpec:
     centres: int = 1
     #: Metres between neighbouring centres.
     centre_spacing_m: float = 9000.0
+    #: How the towns are joined: "rail", "bus" or "both" (`shape.ts`).
+    link: str = "rail"
     #: Which operators this world has, by role, in order.
     #:
     #: **The roster is a tier parameter** (`ROADMAP.md` P1M6): a small town runs
@@ -571,17 +573,27 @@ def _polycentric(
         naming.update(town.names)
         operators.extend(town.operators)
 
-    # ---- the railway between them -----------------------------------------
+    # ---- what joins them ---------------------------------------------------
     #
-    # One operator, one station per town, and a service every forty minutes.
-    # **The headway is the conflict.** A bus every ten minutes forgives a bad
-    # plan; a train every forty does not, so the interchange between the local
-    # network and the railway is on the critical path rather than beside it.
-    rail = plan_operators(("regional",), seed, stem_offset=rail_offset)[0]
-    operators.append(rail)
-    naming[rail.id] = names_mod.PlaceNames(
-        official=rail.name, colloquial=rail.name.split(" ")[0], abbreviated=rail.short
-    )
+    # **The link is the problem, and its headway is most of it.** A train every
+    # forty minutes puts the interchange on the critical path: miss it and the
+    # journey is forty minutes longer. A coach every twenty forgives more and
+    # asks a different question. Running both asks the hardest one — two ways
+    # between the same two towns, two operators, two pictures of one journey.
+    #
+    # `#51` is why this is a shape rather than a rung: the old top rung was a
+    # region, it measured *easier* than the rung below it, and what it was
+    # actually for was this variation rather than another step of difficulty.
+    modes: tuple[str, ...] = ("rail", "bus") if spec.link == "both" else (spec.link,)
+    links: list[OperatorPlan] = []
+    for i, mode in enumerate(modes):
+        role = "regional" if mode == "rail" else "radial"
+        op = plan_operators((role,), seed, stem_offset=rail_offset + i)[0]
+        links.append(op)
+        operators.append(op)
+        naming[op.id] = names_mod.PlaceNames(
+            official=op.name, colloquial=op.name.split(" ")[0], abbreviated=op.short
+        )
 
     stops: list[str] = []
     for c in range(spec.centres):
@@ -604,20 +616,30 @@ def _polycentric(
         quays.append(Quay(f"rail-{c + 1}", sid, station.official, lat, lon))
         stops.append(f"rail-{c + 1}")
 
-    for r in range(max(1, spec.regional_lines // 2)):
-        lines.append(
-            Line(
-                f"line-rail{r + 1}",
-                f"RX{r + 1}",
-                rail.id,
-                tuple(stops if r % 2 == 0 else list(reversed(stops))),
-                6 * 3600,
-                22 * 3600,
-                40 * 60 + r * 600,
-                25.0,
-                60,
+    #: Per link mode: headway, speed, dwell. A coach is slower, stops longer and
+    #: comes more often; a train is the opposite, which is the whole difference
+    #: between the two shapes.
+    LINK_STYLE = {
+        "rail": (40 * 60, 25.0, 60),
+        "bus": (20 * 60, 15.0, 90),
+    }
+
+    for i, mode in enumerate(modes):
+        headway, speed, dwell = LINK_STYLE[mode]
+        for r in range(max(1, spec.regional_lines // 2)):
+            lines.append(
+                Line(
+                    f"line-{mode}{i}{r + 1}",
+                    f"{'RX' if mode == 'rail' else 'CX'}{r + 1}",
+                    links[i].id,
+                    tuple(stops if r % 2 == 0 else list(reversed(stops))),
+                    6 * 3600,
+                    22 * 3600,
+                    headway + r * 600,
+                    speed,
+                    dwell,
+                )
             )
-        )
 
     region = Network(tuple(sites), tuple(quays), tuple(lines), naming, tuple(operators))
     check_reach(region, spec.max_reach_share)

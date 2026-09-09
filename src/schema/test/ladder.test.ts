@@ -130,13 +130,12 @@ test("the shipped ladder still says what the six tables said", () => {
       { A: 2, B: 0, C: 0, D: 0 },
       { A: 3, B: 1, C: 1, D: 0 },
       { A: 3, B: 1, C: 1, D: 2 },
-      { A: 4, B: 1, C: 2, D: 2 },
       { A: 4, B: 1, C: 2, D: 3 },
     ],
   );
   assert.deepEqual(
     LADDER.map((r) => r.density),
-    [0, 1, 0.55, 0.6, 0.7, 0.8],
+    [0, 1, 0.55, 0.6, 0.8],
   );
   // The scale, which is the ordered axis: every rung is at least as large as
   // the one below it, and the roster never shrinks.
@@ -160,7 +159,6 @@ test("the shipped ladder still says what the six tables said", () => {
       "null->blind@1",
       "blind->naive@1",
       "naive->competent@0.5",
-      "naive->competent@1",
       "naive->competent@1.25",
     ],
   );

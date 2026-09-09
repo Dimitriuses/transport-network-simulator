@@ -372,7 +372,7 @@
     },
     {
       "id": "towns-and-rail",
-      "name": "more of everything, and further to go",
+      "name": "the whole catalogue, at strength, over a region",
       "sections": [
         "A",
         "B",
@@ -399,46 +399,6 @@
         "A": 4,
         "B": 1,
         "C": 2,
-        "D": 2
-      },
-      "density": 0.7,
-      "clearance": {
-        "from": "naive",
-        "to": "competent",
-        "at": 1,
-        "because": "match a solution written by people who had seen the world"
-      }
-    },
-    {
-      "id": "region",
-      "name": "the whole catalogue, at strength",
-      "sections": [
-        "A",
-        "B",
-        "C",
-        "D"
-      ],
-      "world": {
-        "arms": 12,
-        "sitesPerArm": 5,
-        "hubQuays": 3,
-        "chords": 6,
-        "regionalLines": 5,
-        "metroLines": 3,
-        "roster": [
-          "radial",
-          "ring",
-          "radial",
-          "ring",
-          "metro",
-          "regional"
-        ],
-        "maxReachShare": 0.4
-      },
-      "quota": {
-        "A": 4,
-        "B": 1,
-        "C": 2,
         "D": 3
       },
       "density": 0.8,
@@ -455,13 +415,29 @@
       "id": "single-centre",
       "name": "one city, built around its centre",
       "centres": 1,
-      "centreSpacingM": 0
+      "centreSpacingM": 0,
+      "link": "rail"
     },
     {
-      "id": "polycentric",
+      "id": "polycentric-rail",
       "name": "several towns, joined by rail",
       "centres": 3,
-      "centreSpacingM": 9000
+      "centreSpacingM": 9000,
+      "link": "rail"
+    },
+    {
+      "id": "polycentric-bus",
+      "name": "several towns, joined by coach",
+      "centres": 3,
+      "centreSpacingM": 9000,
+      "link": "bus"
+    },
+    {
+      "id": "polycentric-mixed",
+      "name": "several towns, joined by rail and by coach",
+      "centres": 3,
+      "centreSpacingM": 9000,
+      "link": "both"
     }
   ],
   "disruption_policy": {

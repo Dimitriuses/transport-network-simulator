@@ -13,6 +13,29 @@ import collections
 from worldbuild import catalogue, city, generate
 
 
+def _top_tier() -> int:
+    """The top rung's index.
+
+    `5` in four places until the top two rungs merged (`KNOWN-ISSUES.md` #51).
+    A test that names a tier by its number is a test that stops meaning what it
+    meant the moment the ladder is re-cut — which is the whole reason `P1M5`
+    made the ladder a list.
+    """
+    return len(catalogue.load().rungs) - 1
+
+
+def _drawing_tiers() -> tuple[int, ...]:
+    """Every rung that draws at least one setting."""
+    return tuple(i for i, r in enumerate(catalogue.load().rungs) if r.sections)
+
+
+def _semantic_tiers() -> tuple[int, ...]:
+    """Every rung that declares a semantic conflict."""
+    return tuple(
+        i for i, r in enumerate(catalogue.load().rungs) if r.sections and not r.cosmetic_only
+    )
+
+
 def _tiers() -> range:
     """Every tier the ladder declares.
 
@@ -68,7 +91,7 @@ def test_one_operator_publishes_honestly() -> None:
     Phase 0's competent solution picks its coordinate frame by consensus, which
     needs at least one operator worth agreeing with.
     """
-    for tier in (2, 3, 5):
+    for tier in _semantic_tiers():
         declared = generate.describe(generate.generate_manifests(_specs(), tier, 481516))
         dirty = {name.split(":")[1] for name in declared}
         assert len(dirty) < len(_specs()), f"tier {tier} left no honest operator"
@@ -90,7 +113,7 @@ def test_no_operator_carries_most_of_the_conflicts() -> None:
     the behaviour turns out to be wrong.
     """
     specs = _specs()
-    for tier in (2, 3, 5):
+    for tier in _semantic_tiers():
         for seed in (1, 7, 481516, 999_983):
             declared = generate.describe(generate.generate_manifests(specs, tier, seed))
             if not declared:
@@ -160,7 +183,7 @@ def test_realtime_conflicts_wait_for_tier_three() -> None:
 def test_the_same_seed_gives_the_same_world() -> None:
     """The whole project rests on this, and a generator is where it would break."""
     specs = _specs()
-    for tier in (1, 2, 3, 5):
+    for tier in _tiers():
         first = generate.generate_manifests(specs, tier, 4242)
         again = generate.generate_manifests(specs, tier, 4242)
         assert first == again, f"tier {tier} is not reproducible from its seed"
@@ -181,7 +204,10 @@ def test_every_tier_produces_different_worlds_from_different_seeds() -> None:
     variety by making the bottom rung thinner still.
     """
     specs = _specs()
-    for tier in (1, 2, 3, 5):
+    # Every rung that draws anything. The `clean` rung draws nothing by
+    # definition, so two seeds give it the same empty manifest — which is the
+    # rung working rather than a failure of variety.
+    for tier in _drawing_tiers():
         first = generate.generate_manifests(specs, tier, 4242)
         assert first != generate.generate_manifests(specs, tier, 4243), (
             f"tier {tier} produced the same world from two different seeds"
@@ -371,18 +397,18 @@ def test_a_ladder_is_climbed_by_tier_and_a_list_of_kinds_is_not() -> None:
 
     # Categorical: every value must show up at the top of the ladder, where the
     # bias used to collapse the draw onto one of them.
-    encodings = drawn(5, "B-time-encoding")
+    encodings = drawn(_top_tier(), "B-time-encoding")
     assert len(encodings) >= 10, "too few draws to say anything"
     assert len(set(encodings)) == 3, (
-        f"Tier 5 drew {sorted(set(encodings))} for B-time-encoding; a categorical "
+        f"The top rung drew {sorted(set(encodings))} for B-time-encoding; a categorical "
         "setting must not converge on one kind (KNOWN-ISSUES.md #48)"
     )
 
     # Ordinal: the strongest rung must still be reached for more often at the
     # top of the ladder than at the bottom.
     strongest = by_key[("realtime", "staleness_s")].generate[-1]
-    low = drawn(3, "D-staleness")
-    high = drawn(5, "D-staleness")
+    low = drawn(max(1, _top_tier() - 1), "D-staleness")
+    high = drawn(_top_tier(), "D-staleness")
     share_low = sum(1 for v in low if v == strongest) / max(1, len(low))
     share_high = sum(1 for v in high if v == strongest) / max(1, len(high))
     assert share_high > share_low, (

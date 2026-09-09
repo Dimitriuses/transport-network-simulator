@@ -1950,7 +1950,7 @@ tier 4                                  tier 5
 
 ---
 
-## 51. The ladder inverts at the top, and the reason is that the quota is per operator — `open; the levers are known`
+## 51. The ladder inverts at the top, and the reason is that the quota is per operator — `fixed at P1M8: the ladder ends at four`
 
 Every rung calibrated and profiled at three seeds, `competent`:
 
@@ -1972,7 +1972,7 @@ Rungs 1 and 2 are also indistinguishable (0.573 against 0.589, inside noise), wh
 
 ---
 
-## 52. Two of the three gates are undefined on a texture-only rung — `open; the gates and the ladder were designed apart`
+## 52. Two of the three gates are undefined on a texture-only rung — `fixed at P1M8: the gates ask only the rungs that carry conflict`
 
 `npm run gates` on the calibrated rung 1:
 
@@ -1996,7 +1996,7 @@ Whichever, **the gates are per-rung claims now and were written as a per-project
 
 ---
 
-## 53. Gate 3 goes negative wherever the lazy baseline is already broken — `open, and it is the finding P1M8 exists to have produced`
+## 53. Gate 3 goes negative wherever the lazy baseline is already broken — `fixed at P1M8: the gate states its precondition`
 
 Every calibrated rung, gated:
 
@@ -2031,3 +2031,85 @@ That is not a broken measurement; it is `KNOWN-ISSUES.md` #14 and #26 in a regim
 * **`#52` and this** — the gates were ratified against one hand-built Tier-2 world and are applied to six structurally different ones. Their *intent* survives at every rung; their thresholds and, for Gate 3, their measurement, do not.
 
 **The one rung that passes is `metro-city`** — 13.06m of headroom, ambiguity 1 %, conflicts at 100 % of headroom, four distinct scores. That is the rung nearest the world Phase 0 built and the gates were written for, which is the point rather than a coincidence.
+
+
+---
+
+## 51, 52, 53 (continued). Three decisions, taken 2026-09-09
+
+### `#51` — the ladder ends at four, and the region becomes a shape
+
+**Ratified: a tier that is easier than the tier below it is not a rung.** `region` measured 0.075 easier than `towns-and-rail` at about two and a half sigma, so the two merged into one top rung keeping **the harder half of each** — this rung's roster of five and 0.45 reach cap, the old top rung's quota (`A4 B1 C2 D3`), density 0.8 and clearance bar (`naive`→`competent` at 1.25).
+
+**What the old top rung was actually for was a variation, not a step.** A region of towns is a different *kind* of place, and `shape.ts` now offers three of them:
+
+| shape | link | headway | what it asks |
+|---|---|---|---|
+| `polycentric-rail` | one railway | 40 min | a missed connection is forty minutes; the interchange is on the critical path |
+| `polycentric-bus` | one coach service | 20 min | more forgiving, and a different question |
+| `polycentric-mixed` | both | 20 and 40 min | **two ways between the same two towns, two operators, two pictures of one journey** |
+
+The third is the interesting one, and it is the subject of this whole game at the scale of a region rather than a street corner.
+
+### `#52` — the gates ask only the rungs that carry conflict
+
+`npm run gates` reads the world's rung and skips **1b** and **3** where the rung declares no semantic section. On `small-town` it now reports:
+
+```
+  GATE 1 — buildable        (rung small-town)
+    1b — not trivial
+      a lazy integrator captures           0.796 of reachable headroom
+      ...and gave up entirely on            0/200 journeys (0%)
+      n/a — this rung declares no semantic conflict, so a lazy
+      integrator doing well is the rung working
+  VERDICT: the gates that apply to this rung pass
+```
+
+**A lazy integrator doing well on a texture-only rung is the rung working.** The rung exists so a world is recognisable as the real problem before it is hard.
+
+### `#53` — Gate 3 states its precondition, and the precondition is about the opportunity set
+
+The gate compares a lazy integrator on this world against the same integrator on a world publishing honest values. **That comparison is sound only while both runs are doing the same kind of thing.**
+
+When the conflicts are heavy enough that `P2` cannot match stops at all, it stops integrating and falls back to `P1` — and on the honest world it does not. The honest run then plans ambitious multi-operator journeys and reality takes them apart, while the conflicted run makes robust single-operator ones. The difference comes out **negative**, and reads as "the conflicts made the world better".
+
+They did not. This is `CLAUDE.md`'s own rule, broken in a place nobody had looked: *varying data quality also varies how much data there is, and a comparison that changes both cannot attribute to either.* Holding the **entity set** fixed is not enough, because what changed is the player's ability to use it.
+
+**So the gate now reports how often the lazy integrator gave up, and is undecidable past half the scored set:**
+
+```
+    CANNOT BE DECIDED — the lazy integrator gave up on 71% of journeys.
+
+    Past that it is not a lazy integration, it is no integration, and the
+    honest-values run it is compared against still integrates. The two runs
+    no longer have the same opportunity set, so their difference attributes
+    to nothing.
+
+    `npm run fallback` says which conflict is doing it.
+```
+
+### Which number this is about, because there are two and they disagree
+
+Gate 3 prints a **whole-score** conflict cost and a **journey-time** one, and the criterion ratified after P1M0 is journey time against headroom — `materiality`, the one that binds. At `towns-and-rail` the two disagree **in sign**:
+
+```
+    conflicts cost   0.164 of the score  (standard error 0.007, 23.3σ)
+    caused by conflicts   -11.78m (-108% of 10.89m headroom)
+```
+
+**Both are true.** The conflicts cost the lazy baseline 0.164 of its whole score — much of that the Information family, where staleness and silent cancellations land — while *saving* it 11.8 minutes of travel, because what they take away is its ability to plan the ambitious multi-operator journeys reality would have wrecked.
+
+*Picking the wrong one of two numbers that disagree is `#20`'s mistake*, and it was nearly made here: the first version of the guard below tested the whole-score cost, which is positive at every rung and would never have fired.
+
+### And the fallback share alone does not catch it
+
+`towns-and-rail` gave up on only **26 %** of journeys and still produced a journey-time cost of −108 %. Giving up entirely is one way the two opportunity sets diverge; **planning differently is the more common one**, and the direct tell is the sign itself. So the gate also refuses to decide whenever the journey-time cost is negative:
+
+```
+    CANNOT BE DECIDED — the conflicts made this world 11.8m *better*
+    for a lazy integrator, on journey time.
+```
+
+**A gate that cannot be decided is not a gate that fails**, and the distinction is the same one Gate 3 already drew for an effect under two standard errors. Reporting FAIL on a negative cost would say *the conflicts are decorative*, which is not what a negative number means: the premise failed, not the world.
+
+**What it does not do is excuse the world.** A rung whose lazy baseline is broken by something other than its conflicts still has a problem — `npm run fallback` and `npm run horizon` are what say by what, and that attribution is the next piece of work rather than a closed question.

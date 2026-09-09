@@ -1847,3 +1847,51 @@ A change of form must not be a change of content, and "I only moved the tables" 
 The committed world's content hash *did* change — `86bf3d8cb4e0a7a5` → `7753357f4980b584` — because two rows were added to the `manifest` table, which is hashed. That is the intended change and the only one; `--verify` passes on the rebuilt bundle.
 
 **The rung ids name the worlds they intend**, not the conflicts they currently draw: `clean`, `small-town`, `metro-town`, `metro-city`, `towns-and-rail`, `region`. `P1M6` gives them those structures, so it fills the rungs in rather than renaming them — which would defeat the point of an id on its first outing.
+
+
+---
+
+## P1M8 — Re-measure, and what the measurements decided
+
+**The milestone that was supposed to confirm the ladder found three things wrong with it**, which is what a re-measurement is for.
+
+### The clearance ladder needed nothing
+
+Every rung calibrated and profiled, then each bar computed from the references' own scores on its own world:
+
+```
+rung  bar      competent  clears?
+1     0.079     0.573     yes
+2     0.347     0.589     yes
+3     0.331     0.443     yes
+4     0.277     0.277     no     <- an anchor never clears its own rung
+5     0.416     0.352     no     <- the top must sit above our answer key
+```
+
+**No re-derivation, no edit, nothing.** P1M4 stated the bars as positions between named reference solutions precisely so they would survive a change of scale, and they survived worlds that did not exist when they were written. It is the only part of this milestone that needed no work at all.
+
+### The ladder was not ordered at the top
+
+`competent` read 0.573, 0.589, 0.443, 0.277 and then **0.352** — the top rung 0.075 *easier* than the one below it, at about two and a half sigma, on two references independently.
+
+The cause is that **the quota is per operator**. The old top rung had six operators against five and a lower reach cap, so the same quota spread further: each feed about as bad, no feed carrying as much, and a bigger network offering more ways round any of them. *Difficulty is roughly how bad a typical feed is, times how much of the network it carries* — and that rung raised the first while lowering the second.
+
+The rungs merged. What the top one was *for* — a region of towns rather than one city — was never a step of difficulty; it was a **kind of place**, and it became a shape with three ways of joining the towns up.
+
+### Gate 3 was measuring something else
+
+Four of six worlds failed a gate, and at the top the conflict cost came out **negative** — the conflicted world 11.8 minutes *better* for a lazy integrator than an honest one.
+
+That is real. Honest data gives a lazy reader more rope: it matches stops, plans ambitious multi-operator journeys with tight transfers, and reality takes them apart; conflicted data forces fewer legs, and those survive. `CLAUDE.md` already carried the rule — *varying data quality also varies how much data there is, and a comparison that changes both cannot attribute to either* — and the gate held the **entity** set fixed, which is not the same thing once the player's ability to use it collapses.
+
+So Gate 3 now declines to decide, in two cases: when the lazy integrator has stopped integrating, and when the cost is negative. **A gate that cannot be decided is not a gate that fails**, and saying FAIL on a negative cost would assert the conflicts are decorative, which is not what a negative number means.
+
+### And the guard was written against the wrong number
+
+Gate 3 prints two conflict costs. The whole-score one is positive at every rung; the journey-time one — the criterion ratified after P1M0 — goes negative. **The first version of the guard tested the whole-score figure and would never have fired.**
+
+At `towns-and-rail` the two disagree in sign: the conflicts cost 0.164 of the whole score at 23 sigma *and* save the lazy baseline 11.8 minutes. Both true, and about different things. This is `#20`'s mistake — a number ratified for one purpose read for another — caught this time before it shipped rather than four milestones later.
+
+### What it cost to find out
+
+Six calibrations, seventy-two profile runs and six gate sweeps, most of an afternoon of compute. The alternative was shipping a ladder whose top rung was easier than its fourth and whose gate reported −108 % without anybody being able to say what that meant.

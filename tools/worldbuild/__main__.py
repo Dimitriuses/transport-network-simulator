@@ -2,7 +2,8 @@
 
     python -m worldbuild [out_path]     build the world bundle
     python -m worldbuild [out] --tier N  generate the projection manifests
-    python -m worldbuild [out] --shape polycentric --network   several towns, joined by rail
+    python -m worldbuild [out] --shape polycentric-rail --network   towns joined by rail
+                                        (also -bus, and -mixed for both)
     python -m worldbuild [out] --network generate the city as well
     python -m worldbuild [out] --seed N   which world to generate
     python -m worldbuild --verify       rebuild and check the content is unchanged

@@ -22,7 +22,24 @@
 // shape: it is a rung, and the measurement will say so.
 
 /** What kind of place a world is. */
-export type WorldShape = "single-centre" | "polycentric";
+export type WorldShape =
+  | "single-centre"
+  | "polycentric-rail"
+  | "polycentric-bus"
+  | "polycentric-mixed";
+
+/**
+ * How the towns of a region are joined.
+ *
+ * **The link is the problem.** A railway is fast and infrequent, so a missed
+ * connection is forty minutes and the interchange sits on the critical path. A
+ * coach is slower and more frequent, which forgives a bad plan and asks a
+ * different question. **Both at once asks the hardest one**: two ways between
+ * the same two towns, run by two operators, publishing two different pictures
+ * of the same journey — which is the whole subject of this game, at the scale
+ * of a region rather than a street corner.
+ */
+export type RegionLink = "rail" | "bus" | "both";
 
 export interface ShapeSpec {
   readonly id: WorldShape;
@@ -40,6 +57,8 @@ export interface ShapeSpec {
   readonly centres: number;
   /** Metres between neighbouring centres, when there is more than one. */
   readonly centreSpacingM: number;
+  /** How the towns are joined. Meaningless when there is one centre. */
+  readonly link: RegionLink;
 }
 
 export const SHAPES: readonly ShapeSpec[] = [
@@ -48,15 +67,31 @@ export const SHAPES: readonly ShapeSpec[] = [
     name: "one city, built around its centre",
     centres: 1,
     centreSpacingM: 0,
+    link: "rail",
   },
   {
-    id: "polycentric",
+    id: "polycentric-rail",
     name: "several towns, joined by rail",
     centres: 3,
-    // Far enough that walking between towns is never an option and the rail
-    // link is the only way across, which is what puts the interchange on the
-    // critical path rather than beside it.
+    // Far enough that walking between towns is never an option and the link is
+    // the only way across, which is what puts the interchange on the critical
+    // path rather than beside it.
     centreSpacingM: 9000,
+    link: "rail",
+  },
+  {
+    id: "polycentric-bus",
+    name: "several towns, joined by coach",
+    centres: 3,
+    centreSpacingM: 9000,
+    link: "bus",
+  },
+  {
+    id: "polycentric-mixed",
+    name: "several towns, joined by rail and by coach",
+    centres: 3,
+    centreSpacingM: 9000,
+    link: "both",
   },
 ];
 

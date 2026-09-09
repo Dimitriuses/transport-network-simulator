@@ -99,6 +99,8 @@ class Shape:
     name: str
     centres: int
     centre_spacing_m: float
+    #: How the towns are joined: "rail", "bus", or "both".
+    link: str
 
 
 @dataclass(frozen=True)
@@ -237,6 +239,7 @@ def load() -> Catalogue:
                 name=x["name"],
                 centres=int(x["centres"]),
                 centre_spacing_m=float(x["centreSpacingM"]),
+                link=str(x["link"]),
             )
             for x in raw.get("shapes", ())
         ),

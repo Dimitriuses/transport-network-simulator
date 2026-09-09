@@ -1,7 +1,7 @@
 // Build a fully generated world, in the two phases the criterion requires.
 //
 //   npm run world:generate -- worlds/scratch/gen.world.db --tier 3 --seed 481516
-//   npm run world:generate -- worlds/scratch/reg.world.db --tier 4 --shape polycentric
+//   npm run world:generate -- worlds/scratch/reg.world.db --tier 4 --shape polycentric-rail
 //
 // Output goes under `worlds/scratch/` by default, which `.gitignore` treats as
 // working material: committed worlds live in `worlds/` and are added

@@ -189,24 +189,36 @@ export const LADDER: readonly Rung[] = [
     },
   },
   {
+    // **The top of the ladder, and it is one rung because measurement said so.**
+    //
+    // There used to be a `region` above this, with six operators against five
+    // and a 0.4 reach cap against 0.45 — more of everything, and *easier*:
+    // `competent` read 0.352 there against 0.277 here, about two and a half
+    // sigma apart (`KNOWN-ISSUES.md` #51). The quota is per operator, so
+    // spreading it over more operators leaves each feed as bad while making
+    // each feed matter less, and a bigger network offers more ways round any
+    // one of them.
+    //
+    // So the two merged, keeping the harder half of each: this rung's roster
+    // and reach cap, and the old top rung's quota, density and clearance bar.
+    // **A tier that is easier than the tier below it is not a rung.**
+    //
+    // What the old top rung was *for* — a region of towns rather than one city
+    // — is a shape rather than a rung, and `shape.ts` now offers three of them:
+    // towns joined by rail, by bus, or by both.
     id: "towns-and-rail",
-    name: "more of everything, and further to go",
+    name: "the whole catalogue, at strength, over a region",
     sections: ["A", "B", "C", "D"],
-    world: { arms: 12, sitesPerArm: 4, hubQuays: 3, chords: 5, regionalLines: 4, metroLines: 3, roster: ["radial", "ring", "radial", "metro", "regional"], maxReachShare: 0.45 },
-    quota: { A: 4, B: 1, C: 2, D: 2 },
-    density: 0.7,
-    clearance: {
-      from: "naive",
-      to: "competent",
-      at: 1,
-      because: "match a solution written by people who had seen the world",
+    world: {
+      arms: 12,
+      sitesPerArm: 4,
+      hubQuays: 3,
+      chords: 5,
+      regionalLines: 4,
+      metroLines: 3,
+      roster: ["radial", "ring", "radial", "metro", "regional"],
+      maxReachShare: 0.45,
     },
-  },
-  {
-    id: "region",
-    name: "the whole catalogue, at strength",
-    sections: ["A", "B", "C", "D"],
-    world: { arms: 12, sitesPerArm: 5, hubQuays: 3, chords: 6, regionalLines: 5, metroLines: 3, roster: ["radial", "ring", "radial", "ring", "metro", "regional"], maxReachShare: 0.4 },
     quota: { A: 4, B: 1, C: 2, D: 3 },
     density: 0.8,
     clearance: {

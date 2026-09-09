@@ -319,6 +319,7 @@ def spec_for_tier(tier: int | None, shape: str = DEFAULT_SHAPE) -> network.Netwo
     return network.NetworkSpec(
         centres=form.centres,
         centre_spacing_m=form.centre_spacing_m,
+        link=form.link,
         arms=w.arms,
         sites_per_arm=w.sites_per_arm,
         hub_quays=w.hub_quays,

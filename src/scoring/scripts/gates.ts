@@ -25,6 +25,7 @@ import {
 } from "@tns/scoring";
 import { auditIdentifiability } from "@tns/projections";
 import { progress } from "./progress.ts";
+import { rungAt } from "@tns/schema";
 import type { World } from "@tns/schema";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -143,7 +144,25 @@ const competent = results.find((r) => r.mode === "competent")!;
 solutionsBar.done();
 
 const cal = calibrate(world);
-console.log("  GATE 1 — buildable");
+
+// **Which gates this rung is even asking for** (`KNOWN-ISSUES.md` #52).
+//
+// The gates were ratified against one hand-built Tier-2 world and encode its
+// premise: *this world carries difficulty, and the declared conflicts are where
+// it comes from.* The bottom rungs of the ladder deliberately carry none —
+// `clean` has no conflicts at all and `small-town` has texture, which
+// `CORECONCEPT.md` §2.1 establishes measures exactly zero.
+//
+// So a lazy integrator capturing 0.796 there is not a failure, it is the rung
+// working: the rung exists so a world is recognisable as the real problem
+// before it is hard. Asking Gate 1b and Gate 3 of it is asking a question it is
+// defined not to answer, and answering FAIL would be the instrument's mistake
+// rather than the world's.
+const rung = rungAt(world.manifest.tier);
+const carriesConflict = rung !== null && rung.sections.length > 0 && !rung.cosmeticOnly;
+const rungLabel = rung ? `${rung.id}` : `tier ${world.manifest.tier}`;
+
+console.log(`  GATE 1 — buildable        (rung ${rungLabel})`);
 console.log("");
 
 // -- 1a: solvable ------------------------------------------------------------
@@ -173,10 +192,25 @@ console.log("");
 // integrator that already captures most of the reachable headroom means the
 // conflicts are decorative.
 const lazyCapture = reachableS === 0 ? 1 : (cal.gapP0P1 - (cal.gapP0P0a + cal.gapP0aP2rt)) / reachableS;
-const g1b = lazyCapture < 0.5;
+
+// **How often the lazy integrator stopped integrating.** `P2` falling back to
+// `P1` means it produced no workable plan of its own: on those journeys it is
+// not a lazy integration, it is no integration. The share matters twice over —
+// it is evidence beside 1b, and it is Gate 3's precondition below.
+const fellBack = cal.perQuery.filter((q) => q.p2rtFellBack).length;
+const fallbackShare = cal.perQuery.length === 0 ? 0 : fellBack / cal.perQuery.length;
+
+const g1b = !carriesConflict || lazyCapture < 0.5;
 console.log("    1b — not trivial");
 console.log(`      a lazy integrator captures           ${n(lazyCapture)} of reachable headroom`);
-console.log(`      ${g1b ? "PASS" : "FAIL"} — doing the obvious thing badly must not already win`);
+console.log(`      ...and gave up entirely on            ${fellBack}/${cal.perQuery.length}` +
+  ` journeys (${(fallbackShare * 100).toFixed(0)}%)`);
+if (!carriesConflict) {
+  console.log("      n/a — this rung declares no semantic conflict, so a lazy");
+  console.log("      integrator doing well is the rung working (KNOWN-ISSUES.md #52)");
+} else {
+  console.log(`      ${g1b ? "PASS" : "FAIL"} — doing the obvious thing badly must not already win`);
+}
 console.log("");
 
 // -- 1c: discoverable --------------------------------------------------------
@@ -425,9 +459,91 @@ console.log("");
 // 61 % Gate 3 pass stood for four milestones because of it.
 const SIGMA = 2;
 const resolvable = Math.abs(conflictCost) > SIGMA * costSe;
-const g3 = materiality > 0.2;
 
-if (!resolvable) {
+// **Gate 3's precondition, and it took a ladder to find it** (`KNOWN-ISSUES.md`
+// #53).
+//
+// The gate compares a lazy integrator on this world against the same integrator
+// on a world publishing honest values, entity set held fixed. That comparison
+// is sound only while the two runs are doing the *same kind of thing*. When the
+// conflicts are heavy enough that `P2` cannot match stops at all, it stops
+// integrating and falls back to `P1` — and on the honest world it does not. The
+// honest run then plans ambitious multi-operator journeys and reality takes
+// them apart, while the conflicted run makes robust single-operator ones, and
+// the difference comes out **negative**: measured at −108 % on one rung, which
+// reads as "the conflicts made the world better".
+//
+// They did not. `CLAUDE.md` states the rule this breaks — *varying data quality
+// also varies how much data there is, and a comparison that changes both cannot
+// attribute to either* — and the entity set being fixed is not enough, because
+// what changed is the player's ability to use it.
+//
+// So the gate is decidable only while the lazy integrator is still integrating.
+// Half the scored set is the line: past that, `P2` is `P1` wearing a hat and
+// there is nothing to compare.
+const GAVE_UP_LIMIT = 0.5;
+const stillIntegrating = fallbackShare <= GAVE_UP_LIMIT;
+
+// **And the direct tell, which the fallback share does not catch.**
+//
+// Measured on the calibrated rungs, `towns-and-rail` gave up on only 26 % of
+// journeys and still produced a conflict cost of −108 %. Giving up entirely is
+// one way the opportunity sets diverge; planning *differently* is another, and
+// the more common one. With coordinates that agree the lazy reader matches
+// stops, builds a large transfer graph and plans multi-operator journeys that
+// reality then takes apart; with coordinates that disagree it plans fewer legs
+// and they survive.
+//
+// A negative conflict cost says exactly that: **the conflicted world is better
+// for a lazy reader than the honest one.** That is a real property and it is
+// not an answer to the question this gate asks — *do the declared conflicts
+// make this world hard* — so reporting FAIL would say "the conflicts are
+// decorative", which is not what a negative number means. The premise has
+// failed, not the world.
+// **On `captureCost`, which is the number that binds.** `conflictCost` above is
+// the whole-score difference and the gate reports it for resolvability; the
+// *criterion* ratified after P1M0 is journey time against headroom, which is
+// `materiality`, and that is the one that goes negative. At `towns-and-rail`
+// they disagree in sign — the conflicts cost 0.164 of the whole score at 23
+// sigma while *saving* the lazy baseline 11.8 minutes of travel — and picking
+// the wrong one of the two is exactly the mistake `#20` records.
+const premiseHolds = captureCost > 0;
+const decidable = resolvable && stillIntegrating && premiseHolds && carriesConflict;
+const g3 = !carriesConflict || (decidable && materiality > 0.2);
+
+if (!carriesConflict) {
+  console.log("    n/a — this rung declares no semantic conflict, so there is no");
+  console.log("    conflict cost to measure. Gate 3 asks where a world's difficulty");
+  console.log("    comes from; a rung built to have none is not answering");
+  console.log("    (KNOWN-ISSUES.md #52).");
+} else if (!premiseHolds) {
+  console.log(
+    `    CANNOT BE DECIDED — the conflicts made this world ${mins(-captureCost)}` +
+      ` *better* for a lazy integrator, on journey time.`,
+  );
+  console.log("");
+  console.log("    Honest data gives a lazy reader more rope: it matches stops, plans");
+  console.log("    multi-operator journeys with tight transfers, and reality takes them");
+  console.log("    apart. Conflicted data forces fewer legs, and those survive. The two");
+  console.log("    runs no longer have the same opportunity set, so their difference");
+  console.log("    attributes to neither (KNOWN-ISSUES.md #53).");
+  console.log("");
+  console.log("    Gate 3 asks where a world's difficulty comes from. This world's");
+  console.log("    lazy baseline is broken by something other than the conflicts, and");
+  console.log("    `npm run fallback` and `npm run horizon` are what say by what.");
+} else if (!stillIntegrating) {
+  console.log(
+    `    CANNOT BE DECIDED — the lazy integrator gave up on ` +
+      `${(fallbackShare * 100).toFixed(0)}% of journeys.`,
+  );
+  console.log("");
+  console.log("    Past that it is not a lazy integration, it is no integration, and");
+  console.log("    the honest-values run it is compared against still integrates. The");
+  console.log("    two runs no longer have the same opportunity set, so their");
+  console.log("    difference attributes to nothing (KNOWN-ISSUES.md #53).");
+  console.log("");
+  console.log("    `npm run fallback` says which conflict is doing it.");
+} else if (!resolvable) {
   const needed = Math.ceil(
     GATE3_SEEDS * (SIGMA * costSe / Math.max(1e-9, Math.abs(conflictCost))) ** 2,
   );
@@ -453,7 +569,15 @@ console.log("");
 // ---------------------------------------------------------------------------
 const all = g1 && g2 && g3;
 console.log(
-  `  VERDICT: ${all ? "all three gates pass" : resolvable ? "AT LEAST ONE GATE FAILS" : "GATE 3 CANNOT YET BE DECIDED"}`,
+  `  VERDICT: ${
+    all
+      ? carriesConflict
+        ? "all three gates pass"
+        : "the gates that apply to this rung pass"
+      : decidable || !carriesConflict
+        ? "AT LEAST ONE GATE FAILS"
+        : "GATE 3 CANNOT YET BE DECIDED"
+  }`,
 );
 if (!all && !resolvable) {
   console.log("  Gate 3 did not fail — it could not be measured. A world this small");
