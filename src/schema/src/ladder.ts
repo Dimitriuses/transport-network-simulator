@@ -219,7 +219,14 @@ export const LADDER: readonly Rung[] = [
       roster: ["radial", "ring", "radial", "metro", "regional"],
       maxReachShare: 0.45,
     },
-    quota: { A: 4, B: 1, C: 2, D: 3 },
+    // **`D: 2`, not the 3 the merge intended.** Section D holds three settings
+    // and `D-no-delays` excludes `C-delay-unit`, which this rung's `C: 2` draws
+    // on every dirty operator — so D delivers two whatever it declares, every
+    // time (`KNOWN-ISSUES.md` #54, and `#47` for why the section is that thin).
+    // A quota that cannot be met is a declaration that is false, which is `#30`
+    // one level up: *declared and undeliverable* rather than declared and
+    // absent.
+    quota: { A: 4, B: 1, C: 2, D: 2 },
     density: 0.8,
     clearance: {
       from: "naive",

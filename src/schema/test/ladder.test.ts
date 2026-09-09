@@ -130,7 +130,7 @@ test("the shipped ladder still says what the six tables said", () => {
       { A: 2, B: 0, C: 0, D: 0 },
       { A: 3, B: 1, C: 1, D: 0 },
       { A: 3, B: 1, C: 1, D: 2 },
-      { A: 4, B: 1, C: 2, D: 3 },
+      { A: 4, B: 1, C: 2, D: 2 },
     ],
   );
   assert.deepEqual(

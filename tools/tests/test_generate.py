@@ -222,18 +222,22 @@ def test_tier_one_has_more_settings_than_its_quota_asks_for() -> None:
     naming variant alone. This one fails the moment a quota grows to meet its
     section, which is the change that would silently reintroduce the defect.
     """
-    #: Sections known to hold exactly as many settings as some tier asks for,
-    #: with the issue that owns them. **An exemption, not an exception**:
-    #: section D holds three settings and Tier 5 asks for three.
+    #: Sections known to hold exactly as many settings as some tier asks for.
     #:
-    #: Section B was here too, holding one setting against a quota of one, until
-    #: `B-dst-offset` was added at P2M0 — and this assertion is what says so,
-    #: because it fails the moment an exemption stops being true (`#48`).
+    #: **Empty, and it emptied itself twice.** Section B held one setting
+    #: against a quota of one until `B-dst-offset` was added at P2M0. Section D
+    #: held three against a quota of three until `#54` found that quota was
+    #: undeliverable and lowered it to two — so D gained room to choose without
+    #: gaining a setting, which is a fix and an admission at once.
+    #:
+    #: This assertion is what said so both times: it fails the moment an
+    #: exemption stops being true, which is the only thing that keeps a list of
+    #: known exceptions from becoming a list of forgotten ones.
     #:
     #: `#43` is the record of why that is weaker than a choice of settings: the
     #: value is drawn with a tier-scaled bias that lands on the same rung most
     #: of the time, which is how Tier 1 produced one world from every seed.
-    NARROW = {"D": "KNOWN-ISSUES.md #47"}
+    NARROW: dict[str, str] = {}
 
     cat = catalogue.load()
     for tier, quota in cat.tier_quota.items():
@@ -469,3 +473,49 @@ def test_a_generated_world_records_which_rung_it_was() -> None:
     assert rows["tier"] == "3"
     assert rows["rung_id"] == cat.rungs[3].id
     assert rows["ladder_version"] == str(cat.ladder_version)
+
+
+def test_no_rung_declares_a_quota_the_catalogue_cannot_deliver() -> None:
+    """A quota that cannot be met is a declaration that is false.
+
+    `towns-and-rail` declared `D: 3` and delivered 2 on every operator of every
+    draw: section D holds three settings, `D-no-delays` excludes
+    `C-delay-unit`, and that rung's `C: 2` draws the delay unit every time
+    (`KNOWN-ISSUES.md` #54). Nothing noticed, because the tier still *looked*
+    like the harder one in the ladder.
+
+    This is `#30` one level up — *declared and undeliverable* rather than
+    declared and absent — and it is the same failure mode either way: a world
+    quietly easier than the number it advertises.
+
+    **Delivered may exceed declared**, and does: `_cosmetic_floor` gives every
+    dirty operator a texture setting from outside the quota. Only the shortfall
+    is a defect.
+    """
+    cat = catalogue.load()
+    by_key = {(x.group, x.key): x for x in cat.settings}
+
+    for tier, rung in enumerate(cat.rungs):
+        if not rung.sections:
+            continue
+        for seed in (505273, 4242):
+            manifests = generate.generate_manifests(_specs(), tier, seed)
+            for section, declared in rung.quota.items():
+                if declared == 0:
+                    continue
+                # The most-loaded operator: `_quota_for` scales by reach, so a
+                # small operator is *meant* to carry less.
+                delivered = max(
+                    sum(
+                        1
+                        for (group, key), setting in by_key.items()
+                        if setting.section == section
+                        and m.get(group, {}).get(key, setting.off) != setting.off
+                    )
+                    for m in manifests
+                )
+                assert delivered >= declared, (
+                    f"{rung.id} declares {declared} of section {section} and delivers "
+                    f"{delivered} at seed {seed} — the rung advertises a difficulty the "
+                    f"catalogue cannot give it (KNOWN-ISSUES.md #54)"
+                )

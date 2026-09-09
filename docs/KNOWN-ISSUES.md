@@ -1622,7 +1622,7 @@ Semantic content at tiers 2 and 3 is now **about two conflicts per world higher 
 
 ---
 
-## 47. Two more rungs exhaust their section, and only their values save them — `section B fixed at P2M0; section D still open`
+## 47. Two more rungs exhaust their section, and only their values save them — `closed at P1M8; both sections have room`
 
 Written as a structural invariant while fixing `#43`, `tools/tests/test_generate.py` reports that section A was not the only place it holds:
 
@@ -2113,3 +2113,82 @@ Gate 3 prints a **whole-score** conflict cost and a **journey-time** one, and th
 **A gate that cannot be decided is not a gate that fails**, and the distinction is the same one Gate 3 already drew for an effect under two standard errors. Reporting FAIL on a negative cost would say *the conflicts are decorative*, which is not what a negative number means: the premise failed, not the world.
 
 **What it does not do is excuse the world.** A rung whose lazy baseline is broken by something other than its conflicts still has a problem — `npm run fallback` and `npm run horizon` are what say by what, and that attribution is the next piece of work rather than a closed question.
+
+
+---
+
+## 54. A rung declared a quota the catalogue cannot deliver — `fixed at P1M8`
+
+The merge of `#51` kept "the harder half of each" rung, which meant the old top rung's quota: `A4 B1 C2 D3`. Calibrating the merged rung produced **exactly** the pre-merge numbers — same median of 0.023, same spread of 0.967, same selected conflict seed, and a world with the same 33 conflicts.
+
+Because section D delivers **two** settings whatever it declares:
+
+```
+section D settings:  D-staleness, D-silent-cancellation, D-no-delays
+D-no-delays excludes:  C-delay-unit
+this rung's C quota:   2 of 4 settings — and it draws C-delay-unit every time
+
+section D conflicts drawn:  {'D-staleness': 4, 'D-silent-cancellation': 1}
+D-no-delays drawn:          0
+```
+
+**So the rung advertised a difficulty the catalogue could not give it.** That is `#30` one level up — *declared and undeliverable* rather than declared and absent — and it has the same consequence: a world quietly easier than the number beside it.
+
+Measured across the whole ladder, it is the only rung that under-delivers:
+
+| rung | section | declared | delivered |
+|---|---|---|---|
+| `metro-town` | A | 3 | 4 |
+| `metro-city` | D | 2 | 2 |
+| `towns-and-rail` | C | 2 | 2 |
+| `towns-and-rail` | D | **3** | **2** |
+
+Delivered *exceeding* declared is fine and expected — `_cosmetic_floor` hands every dirty operator a texture setting from outside the quota. Only the shortfall is a defect.
+
+**Fixed by declaring what can be delivered**: the rung now says `D: 2`. `tools/tests/test_generate.py` asserts no rung under-delivers, at two seeds, on the most-loaded operator — which is the operator the quota is written for, since `_quota_for` deliberately scales it down by reach.
+
+**And it corrects the record of the merge.** `#51`'s note said the merged rung kept the old top rung's quota; it kept a quota that was already unreachable, so **the merge is in effect the deletion of a rung rather than a blend of two.** The old top rung's extra difficulty — which measured *negative* anyway — came from its larger roster and world, not from its quota.
+
+*The wider point is `#47`'s*: section D holds three settings, one of which is excluded by a section-C setting that a high rung reliably draws. A section that thin cannot support a quota that deep, and widening it is content work with a `competent` competence owed for each new setting.
+
+---
+
+## 47 (continued). Closed, and the second half closed itself
+
+Section B gained `B-dst-offset` at P2M0 and had room from then on. **Section D gained room without gaining a setting**: `#54` found the top rung's `D: 3` was undeliverable and lowered it to 2, so a section of three settings now faces a quota of two and the seed has a choice again.
+
+*A fix and an admission at once.* The section is no wider than it was; what changed is that the ladder stopped asking it for more than it had. Widening D is still the better answer if a rung ever wants three realtime conflicts on one operator — that is content work, and each new setting owes `competent` a competence.
+
+**The invariant test emptied its own exemption list, twice.** It fails the moment an exemption stops being true, which is the only thing that stops a list of known exceptions becoming a list of forgotten ones.
+
+
+---
+
+## 55. `npm run fallback` attributes the same cost to a cosmetic conflict as to a realtime one — `open, and it blocks the attribution Gate 3 points at`
+
+Run on the calibrated top rung, each conflict switched on alone over an otherwise clean world:
+
+```
+    conflict                          fell back    over clean    P1-P2
+    no conflicts                         45/200                   6.51m
+    B-time-encoding:akademichnaline     141/200          +96     -8.62m
+    A-coordinate-precision:universytetline  136/200      +91     -9.22m
+    A-coordinate-source:akademichnaline     136/200      +91     -9.22m
+    A-granularity:kameniariv                136/200      +91     -9.22m
+    A-naming:akademichnaline                136/200      +91     -9.22m
+    C-delay-unit:soliankaline               136/200      +91     -9.22m
+    D-staleness:universytetline             136/200      +91     -9.22m
+    ... seventeen rows, all +91 and all -9.22m
+```
+
+**`A-naming` is cosmetic.** `CORECONCEPT.md` §2.1 classifies it so, and P0M10 established it by measurement: it moves nothing, on every operator, at every setting, because every solver carries published names and none matches on them. Here it reports the same 91 extra fallbacks and the same 9.22 minutes as `D-staleness`, which is a realtime conflict on a different operator.
+
+**Seventeen unrelated conflicts producing an identical figure to two decimal places is not a world property.** The instrument is not isolating what it says it is isolating on this world — a cosmetic setting cannot cost nine minutes, and if it appears to, the comparison is between two things that differ by something other than the conflict.
+
+**Not the same as `#14`.** That was about a *clean* world being denser than a conflicted one, which is real and is why the entity set is held fixed. This is every single-conflict world landing on one number.
+
+**A hypothesis, not a diagnosis:** the tool builds "a clean world plus one conflict" by generating manifests with that setting alone, and something else about the world it builds differs from the declared one — so the 45 → 136 jump is the difference between two *worlds* rather than the cost of a conflict. The three rows that do differ (`A-coordinate-precision` at 134 and 135, `C-coordinate-offset` at 135) suggest the isolation works for geometry and not otherwise, which would be a place to start.
+
+**Why it matters now.** `#53` made Gate 3 decline to decide when the lazy baseline is broken by something other than the declared conflicts, and pointed at this tool to say by what. **The tool it points at cannot currently answer**, so P1M8's attribution clause is blocked on this rather than on compute.
+
+The clean-world row is worth keeping in view while this is fixed: **45 of 200 journeys fall back with no conflicts at all**, and `P1 − P2` is a healthy +6.51m there. Whatever breaks the lazy integrator at this rung, it starts from a world where a fifth of the scored set already has no workable lazy plan.

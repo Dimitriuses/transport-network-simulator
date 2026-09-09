@@ -260,9 +260,22 @@ So `P1M7`'s exit clause fails on evidence rather than for want of it: **shape is
 
 1. ~~**Re-cut the rungs**~~ — done: the ladder ends at four (`#51`).
 2. ~~**State the gates per rung**~~ — done: they ask only the rungs that carry conflict, and Gate 3 says when it cannot decide (`#52`, `#53`).
-3. **Re-measure the merged ladder.** Every profile, calibration and gate figure above was taken on the six-rung ladder; the top rung is new and nothing has been run against it.
+3. ~~**Re-measure the merged ladder**~~ — done for the scale axis, and **it is ordered**. Calibrated and profiled at three seeds:
+
+   | rung | `blind` | `naive` | `competent` |
+   |---|---|---|---|
+   | 1 `small-town` | 0.079 | 0.359 | 0.573 |
+   | 2 `metro-town` | 0.060 | 0.347 | 0.589 |
+   | 3 `metro-city` | 0.111 | 0.218 | 0.443 |
+   | 4 `towns-and-rail` | −0.122 | 0.005 | **0.277** |
+
+   Rungs 3 and 4 separate by **8.6, 4.5 and 5.4 times their own noise** on the three references that measure anything, all in the same direction. Rungs 1 and 2 are indistinguishable, which is by construction rather than a defect: rung 1 is texture-only, and texture measures exactly zero.
+
+   **The merged rung turned out to be the old rung 4 exactly** — same median, same spread, same selected draw — because the quota it inherited was undeliverable (`#54`). The merge is a deletion of a rung rather than a blend of two, and the record says so now.
 4. **Decide the shape axis.** The region is harder on every reference, so it is currently a difficulty lever rather than a neutral axis — and there are now three links to choose between, which is a lever for making it agree.
-5. **Attribute the broken lazy baseline.** Gate 3 declining to decide is honest, and it does not excuse a world whose lazy integrator is destroyed by something other than its conflicts. `npm run fallback` and `npm run horizon` are the instruments.
+5. **Attribute the broken lazy baseline — blocked on `#55`.** Gate 3 declining to decide is honest and does not excuse the world, and the instrument it points at cannot currently answer: `npm run fallback` reports the cosmetic `A-naming` costing the same 9.22 minutes and 91 extra fallbacks as `D-staleness`, with seventeen unrelated conflicts landing on one figure. A cosmetic setting measures zero everywhere else, so the tool is not isolating what it claims to.
+
+   What the run does establish: **45 of 200 journeys already fall back on a world with no conflicts at all**, where `P1 − P2` is a healthy +6.51m. Whatever breaks the lazy integrator at this rung starts from there.
 6. Then, and only then, the transfer runs: a memorised solution is worth testing against a ladder whose rungs mean something.
 
 ---
