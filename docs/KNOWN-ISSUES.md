@@ -2276,7 +2276,7 @@ The clean-world row from the broken run is *not* carried forward: **45 of 200** 
 
 ---
 
-## 56. Gate 3 has a floor and no ceiling, so a wall passes it — `open`
+## 56. Gate 3 has a floor and no ceiling, so a wall passes it — `fixed 2026-09-10: Gate 1b is two-sided`
 
 The calibrated top-rung world, gated after `#55` was fixed:
 
@@ -2295,7 +2295,9 @@ The calibrated top-rung world, gated after `#55` was fixed:
   VERDICT: all three gates pass
 ```
 
-**Every gate passes and the world is unplayable.** `null` scores −1.000, the lazy integrator −5.672, and `competent` — our own answer key, written by people who built the place — captures **0.099** against the 0.277 bar `npm run clearance` computes for this rung. A world our best solution cannot clear is not a rung; it is a wall, and the gates said PASS.
+**Every gate passes and the world is unplayable.** `null` scores −1.000 and the lazy integrator **−5.672** — it loses more than five times the entire reachable headroom by attempting to integrate.
+
+> **One line of the original report was wrong and is corrected here.** It said `competent` captures 0.099 *against the 0.277 bar it must clear*, and offered that as the evidence. It is not evidence. A rung's clearance bar is `from + at × (to − from)` over **that world's own** references, and the top rung's is `naive + 1.25 × (competent − naive)` — *"the top of the ladder must sit above our own answer key"*. `competent` is not supposed to clear the top rung, and because the bar is defined relative to `naive` and `competent` on the world being measured, **it rescales with them**: this world's bar is 0.183, not 0.277. The clearance ladder is scale-free by construction — precisely what P1M4 built it for — and therefore cannot detect a wall. Quoting a bar from a different world's table is `#20` in miniature.
 
 **Gate 3 asks for at least 20 % and never asks for at most anything.** That was defensible while the failure mode was conflicts too weak to matter, which is the direction every pressure in this project pushes (`CLAUDE.md`: *every route to a passing gate that runs through "make the conflict bigger" is closed*). The route was closed at the **realism** end — each setting has a plausibility ceiling and `npm run realism` enforces the composed consequence. Nothing checks the *composed measurable* consequence. `B-dst-offset` at ±3600 s is entirely plausible on its own: real agencies really do publish a correct local time under the wrong zone. Three of them doing it at once, one of them backwards, is a world where a lazy reader cannot plan at all.
 
@@ -2305,6 +2307,54 @@ The calibrated top-rung world, gated after `#55` was fixed:
 
 **And the percentage is not a share of anything at this magnitude.** `captureCost / headroomS` divides `gapP0aP2rt` — averaged over the journeys where `P2rt` produced a plan — by `gapP0P1`, averaged over every comparable journey. While almost everything is plannable those populations nearly coincide. At 26 % fallback they do not, and the numerator is additionally selected: the surviving journeys are the ones the conflicts did *not* destroy. 476 % is a ratio of two different things, and no bar placed on it means anything.
 
-*What it needs.* A ceiling stated in the same currency as the floor, and a denominator whose population matches the numerator's. Both are decisions rather than code, and both are `#51`'s question again in a different instrument: **what distinguishes a hard rung from a broken one, in a number?** The candidate that already exists is the clearance bar — `competent` must clear its own rung — which is a position between named references and needs no percentage at all.
+*Corrected, it reads 488 %.* **The ratio was ill-formed and the number was right anyway** — which is worth stating plainly, because the paragraph above reads as a prediction that fixing it would explain the figure, and it did not. Making a comparison well-formed is not the same as making it come out differently, and only one of those was ever in our gift.
 
 **Not `#53`.** That said Gate 3 cannot decide when the lazy baseline has collapsed, and its evidence turned out to be `#55`'s artefact. This is the opposite: the gate decides, confidently, and says PASS to a world nothing can play.
+
+### Fixed in two parts
+
+**One — the populations, which needed no decision.** `calibrate` already refuses to average in a rescue: when `P2rt` produces no plan it is charged `P1`'s outcome, right for scoring and ruinous for attribution, so the gap is taken over the journeys where it planned for itself. That solves the problem *inside* one world and recreates it *across* two — the conflicted world's survivors are not the honest world's, and `ablate` subtracted one mean from the other. `CLAUDE.md` carries the rule and applies it to the entity set; the population is the same rule one level up.
+
+Both sides are now averaged over the intersection, seed by seed, and `headroomS` and the foresight term come from that same population, so the percentage is a ratio of one thing. The gate prints what it rests on and says so below half.
+
+**It changed almost nothing: 476 % → 488 %, 51.86m → 51.88m, on 139/200 journeys.** Worth recording, because the expectation was that it would explain the number. A correctness defect that turns out not to be the cause is still a correctness defect, and the alternative was leaving it in and never knowing which it was.
+
+**And it does not distort a healthy world**, which is the check that matters for a change to a shared instrument. Phase 0's committed world, re-gated:
+
+```
+  a lazy integrator captures      0.186 of reachable headroom
+  ...and gave up entirely on      10/98 journeys (10%)
+  caused by conflicts             3.10m (38% of 8.12m headroom)
+  measured on                     82/98 journeys (83%, both runs planned)
+```
+
+Against the 35–36 % recorded at P1M2 and P2M0 on the same world. A ratio that moves by two points on a world where the populations nearly coincide, and by twelve on one where they do not, is behaving the way the fix predicts.
+
+**Two — the ceiling, which was a decision.** Gate 1b now has both ends. It asked only whether a lazy integrator does *too well*; it now also asks whether it does so badly that the world has stopped being a puzzle.
+
+**`P2rt` must capture at least −1.** `capture` is `(P1 − player) / (P1 − P0a)`, so −1 is where `P2rt − P1` equals `P1 − P0a`: **integrating lazily loses exactly as much as integrating perfectly would have won.** A position, not a decimal, and it needs no external reference. Negative is not the failure — Phase 0's world ran at −0.232 and passed — losing more than the prize is.
+
+**Where it did not go, and why:**
+
+* *Not a ceiling on Gate 3.* Numerically almost the same test, since both figures are "the lazy integrator loses about five headrooms". But Gate 3 asks where the difficulty comes from and 488 % answers it *correctly*. Reporting FAIL for both "decorative" and "a wall" puts two verdicts on one line, and `#53` is the record of what that costs.
+* *Not the clearance ladder*, for the reason corrected above.
+* *Not `null`'s −1.000*, though it coincides. That is a scorecard from an HTTP run; `lazyCapture` comes from the calibration. On this world they read −0.238 and −5.672 for the same lazy behaviour — a factor of 24, where P0M10's solver seam was a factor of 3.5.
+
+### What the bar says about the ladder
+
+Applied to P1M8's recorded `lazy integrator captures` column — which is a property of the declared world alone and so was **not** contaminated by `#55`:
+
+| rung | lazy captures | 1b floor | 1b ceiling |
+|---|---|---|---|
+| 1 `small-town` | 0.796 | n/a (no semantic conflict) | n/a |
+| 2 `metro-town` | 0.732 | n/a | n/a |
+| 3 `metro-city` | −3.494 | pass | **fail** |
+| 4 `towns-and-rail` | −5.672 | pass | **fail** |
+| 5 `region` | −6.633 | pass | **fail** |
+| — Phase 0's hand-built world | **+0.186** | pass | pass |
+| — P1M4's generated tier-3 | **+0.393** | pass | pass |
+
+**Every rung that carries conflict is a wall**, including the one P1M8 recorded as passing everything. Against the worlds that were *not* built by this ladder — Phase 0's hand-built world at **+0.186** and P1M4's generated tier-3 at **+0.393** — the failing rungs miss by three to seven, not by a little. The bar is generous relative to what a working world has historically scored, and the rungs fail it by a wide margin, which is evidence that the ladder's conflict density is wrong rather than that −1 is misplaced.
+
+`B-dst-offset` is the mechanism, and `#55`'s attribution already named it: three operators publishing every departure an hour out, one of them backwards. **`excludes` stops one conflict masking another within a world and nothing stops three of the same setting compounding across operators.** That is the open work, and it is `#47`'s shape rather than a gate's.
+

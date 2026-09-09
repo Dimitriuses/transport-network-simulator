@@ -200,16 +200,54 @@ const lazyCapture = reachableS === 0 ? 1 : (cal.gapP0P1 - (cal.gapP0P0a + cal.ga
 const fellBack = cal.perQuery.filter((q) => q.p2rtFellBack).length;
 const fallbackShare = cal.perQuery.length === 0 ? 0 : fellBack / cal.perQuery.length;
 
-const g1b = !carriesConflict || lazyCapture < 0.5;
-console.log("    1b — not trivial");
+// **And the other end of the same axis** (`KNOWN-ISSUES.md` #56).
+//
+// 1b asked only whether a lazy integrator does *too well*. Nothing asked
+// whether it does so badly that the world has stopped being a puzzle, and a
+// world where the conflicts cost it five times the entire headroom passed every
+// gate: Gate 3 said PASS at 488 %, which is a true answer to Gate 3's question
+// — *are the conflicts doing the work* — and the wrong verdict on the world.
+//
+// **The bar is a position, not a decimal.** `capture` is
+// `(P1 − player) / (P1 − P0a)`, so −1 is the point where `P2rt − P1` equals
+// `P1 − P0a`: **integrating lazily loses exactly as much as integrating
+// perfectly would have won.** Below that the damage from trying exceeds the
+// whole prize, and the world teaches "do not attempt this" rather than "do this
+// carefully" — which inverts `CORECONCEPT.md` §2.1's premise.
+//
+// Negative is expected and is not the failure: Phase 0's own world ran its
+// reference players at −0.232 and passed. Losing *more than the prize* is.
+//
+// **Anchored inside the calibration on purpose.** `null` scores −1.000 as a
+// scorecard and it is tempting to read the bar off it, but that is a different
+// instrument: on the merged top rung this calibration reads −5.672 for the same
+// lazy behaviour the HTTP naive player reads −0.238 for, a factor of 24.
+// P0M10 measured a factor of 3.5 between two solvers and `#20` is what comes of
+// carrying a number across that seam. The coincidence with `null` is worth
+// noticing and is not the definition.
+const LAZY_LOSS_LIMIT = -1;
+const notTrivial = lazyCapture < 0.5;
+const notAWall = lazyCapture >= LAZY_LOSS_LIMIT;
+const g1b = !carriesConflict || (notTrivial && notAWall);
+console.log("    1b — not trivial, and not a wall");
 console.log(`      a lazy integrator captures           ${n(lazyCapture)} of reachable headroom`);
 console.log(`      ...and gave up entirely on            ${fellBack}/${cal.perQuery.length}` +
   ` journeys (${(fallbackShare * 100).toFixed(0)}%)`);
 if (!carriesConflict) {
   console.log("      n/a — this rung declares no semantic conflict, so a lazy");
   console.log("      integrator doing well is the rung working (KNOWN-ISSUES.md #52)");
+} else if (!notTrivial) {
+  console.log("      FAIL — doing the obvious thing badly must not already win");
+} else if (!notAWall) {
+  console.log(`      FAIL — a lazy integrator loses ${n(-lazyCapture)} times the reachable`);
+  console.log("      headroom by trying. Below -1 the damage from integrating badly");
+  console.log("      exceeds everything integrating perfectly could have won, so the");
+  console.log("      world teaches 'do not attempt this'. That is a wall rather than");
+  console.log("      a rung, and Gate 3 cannot see it — the conflicts are doing the");
+  console.log("      work, and far too much of it (KNOWN-ISSUES.md #56).");
 } else {
-  console.log(`      ${g1b ? "PASS" : "FAIL"} — doing the obvious thing badly must not already win`);
+  console.log("      PASS — doing the obvious thing badly must not already win,");
+  console.log("      and must not cost more than doing it perfectly could gain");
 }
 console.log("");
 
@@ -401,6 +439,22 @@ console.log(`      lazy shortfall vs a matched optimum        ${mins(ab.baseline
 console.log(`      the same, conflicts off                    ${mins(ab.cleanGapS)}`);
 console.log(`      caused by conflicts                        ${mins(captureCost)}` +
   ` (${((captureCost / ab.headroomS) * 100).toFixed(0)}% of ${mins(ab.headroomS)} headroom)`);
+// **How much of the query set this rests on.** Both sides are averaged over the
+// journeys where the declared and the honest lazy integrator each planned for
+// themselves — a matched opportunity set, which the subtraction needs and did
+// not have (`KNOWN-ISSUES.md` #56). Where the conflicts destroy most of the set
+// the remainder is what survived them, and a reader should see how thin it is
+// before reading the number above it.
+const matchedShare = ab.scoredQueries === 0 ? 0 : ab.matchedQueries / ab.scoredQueries;
+console.log(
+  `      measured on                                ` +
+    `${ab.matchedQueries.toFixed(0)}/${ab.scoredQueries} journeys ` +
+    `(${(matchedShare * 100).toFixed(0)}%, both runs planned)`,
+);
+if (matchedShare < 0.5) {
+  console.log("      — under half the set. The conflicts destroyed the rest, so what");
+  console.log("        is left is what survived them and is not a sample of the world.");
+}
 console.log("");
 
 if (ab.entries.some((e) => Math.abs(e.costS) > 1)) {

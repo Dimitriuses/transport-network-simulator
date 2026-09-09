@@ -290,7 +290,9 @@ So `P1M7`'s exit clause fails on evidence rather than for want of it: **shape is
 
    Every cosmetic row reads exactly `+0` and exactly `6.03m` — the control group working, and the direct refutation of the broken run where `A-naming` read −9.22m.
 
-6. **Decide what stops a rung becoming a wall (`#56`).** The world above passes all three gates while `competent` misses its own clearance bar. Gate 3 has a floor and no ceiling, and its percentage divides two differently-selected populations. `#51` asked what makes one rung harder than another; this asks what makes one too hard to be a rung, and the clearance bar is the candidate that already exists.
+6. ~~**Decide what stops a rung becoming a wall**~~ — done (`#56`). **Gate 1b is two-sided**: a lazy integrator must capture at least −1, the point where integrating badly loses as much as integrating perfectly would have won. It went on 1b rather than Gate 3 because 488 % is a *correct* answer to Gate 3's question, and not on the clearance ladder because a rung's bar rescales with that world's own references and so cannot see a wall. `ablate` also compares on a matched population now, which moved the figure 12 points and not the verdict.
+
+   **What it exposes: every rung that carries conflict fails the new end.** `metro-city` −3.494, `towns-and-rail` −5.672, `region` −6.633, against +0.186 on Phase 0's hand-built world and +0.393 on P1M4's generated tier-3. The mechanism is named — `B-dst-offset` on three operators, one of them backwards — and the gap is that **`excludes` stops one conflict masking another within a world, and nothing stops three of the same setting compounding across operators.** That is the next piece of content work, and it is `#47`'s shape rather than a gate's.
 
 7. **Re-sweep the ladder.** Every gate and calibration figure in P1M8 was measured against the broken floor and none of it stands.
 8. Then, and only then, the transfer runs: a memorised solution is worth testing against a ladder whose rungs mean something.

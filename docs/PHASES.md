@@ -68,12 +68,26 @@ The gate previously read: *a competent developer, given only the brief and the o
 > | | question | property of | computable per world? |
 > |---|---|---|---|
 > | **1a. Solvable** | does a good solution exist? | world + scoring | **yes** |
-> | **1b. Not trivial** | does a lazy approach already max out? | world + lazy strategy | **yes, today** |
+> | **1b. Not trivial** | does a lazy approach already max out — or lose more than the whole prize? | world + lazy strategy | **yes, today** |
 > | **1c. Discoverable** | can an engineer *find* one from the artefacts, in an afternoon? | world + documentation + person | **no, ever** |
 >
 > #### 1b — Not trivial. Already measurable.
 >
 > `P2rt` must capture well below the achievable ceiling. Nothing new is needed: the calibration already reports it, and the committed world is nowhere near trivial.
+>
+> ### Amended 2026-09-10 — 1b is two-sided (`KNOWN-ISSUES.md` #56)
+>
+> **`P2rt` must also capture at least −1.** Only one end of this axis was ever checked, and a world whose conflicts cost a lazy integrator **five times the entire reachable headroom** passed every gate — Gate 3 reporting PASS at 488 %, which is a *correct* answer to the question Gate 3 asks and the wrong verdict on the world.
+>
+> **Why −1, and why it is a position rather than a decimal.** `capture` is `(P1 − player) / (P1 − P0a)`, so −1 is exactly where `P2rt − P1` equals `P1 − P0a`: **integrating lazily loses as much as integrating perfectly would have won.** Below it, the damage from trying exceeds the whole prize and the world teaches *do not attempt this*, which inverts `CORECONCEPT.md` §2.1.
+>
+> Negative is not the failure and must not be read as one — Phase 0's own world ran its reference players at −0.232 and passed, and a world where lazy integration is mildly harmful is a good hard world. Losing more than the prize is the failure.
+>
+> **Anchored inside the calibration, deliberately.** `null` scores −1.000 as a scorecard and the coincidence is tempting, but it is a different instrument: on the merged top rung the calibration reads **−5.672** for the same lazy behaviour the HTTP naive player reads **−0.238** for. P0M10 measured a factor of 3.5 between two solvers and `#20` is what comes of carrying a number across that seam; here the factor is 24.
+>
+> **Why not a ceiling on Gate 3.** Numerically almost the same test — but Gate 3 asks *where does this world's difficulty come from*, and 488 % answers it correctly. A gate that reports FAIL for both "the conflicts are decorative" and "the conflicts are a wall" has two verdicts on one line, and `#53` is the record of what that costs.
+>
+> **Why not the clearance ladder.** A rung's bar is `from + at × (to − from)` over that world's own references, so it rescales with them: a wall gets a proportionally lower bar and clears it. Scale-freedom is exactly what P1M4 wanted from clearance and is exactly why it cannot detect this.
 >
 > #### 1a — Solvable. Two parts, both computable without writing a solver.
 >

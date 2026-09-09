@@ -1092,10 +1092,30 @@ export interface AblationReport {
   readonly entries: readonly AblationEntry[];
   readonly attributedS: number;
   readonly residualS: number;
-  /** Total headroom, P0-P1 — what conflict cost should be judged against. */
+  /**
+   * Total headroom, P0-P1 — what conflict cost should be judged against.
+   *
+   * **Measured over the same journeys as the cost above it.** It was measured
+   * over every comparable journey while the cost was measured over the ones
+   * where the lazy integrator planned for itself, and a ratio of two
+   * differently-selected populations is not a share of anything
+   * (`KNOWN-ISSUES.md` #56).
+   */
   readonly headroomS: number;
   /** P0's unreachable foresight advantage, excluded from the measurement. */
   readonly clairvoyanceS: number;
+  /**
+   * How many journeys the attribution actually rests on, averaged over seeds:
+   * those where the declared world's lazy integrator **and** the honest
+   * world's each produced a plan of their own.
+   *
+   * Worth printing beside the cost. A world whose conflicts destroy most of the
+   * query set leaves the difference resting on whatever survived, and how much
+   * survived is the reader's cue for how much to trust it.
+   */
+  readonly matchedQueries: number;
+  /** Journeys scored per run, for reading `matchedQueries` against. */
+  readonly scoredQueries: number;
 }
 
 /**
@@ -1158,6 +1178,118 @@ export function conflictVariants(world: World): { conflict: string; world: World
   return out;
 }
 
+/** The journeys where this run's lazy integrator produced a plan of its own. */
+function ownIds(c: Calibration): Set<string> {
+  const out = new Set<string>();
+  for (const g of c.perQuery) {
+    const usable =
+      g.p0 !== null && g.p1 !== null && g.p2 !== null && g.p2rt !== null && g.p0a !== null;
+    if (usable && !g.p2rtFellBack) out.add(g.queryId);
+  }
+  return out;
+}
+
+/** Mean of `pick` over exactly the journeys in `ids`. */
+function meanOver(
+  c: Calibration,
+  ids: ReadonlySet<string>,
+  pick: (g: QueryGaps) => number | null,
+): number {
+  let sum = 0;
+  let n = 0;
+  for (const g of c.perQuery) {
+    if (!ids.has(g.queryId)) continue;
+    const v = pick(g);
+    if (v === null) continue;
+    sum += v;
+    n += 1;
+  }
+  return n === 0 ? 0 : sum / n;
+}
+
+export interface PairedCost {
+  /** What the conflicts cost, on the journeys both runs planned for themselves. */
+  readonly costS: number;
+  /** The lazy shortfall with the conflicts, on that population. */
+  readonly withS: number;
+  /** The same without them, on that same population. */
+  readonly withoutS: number;
+  /** Headroom on that same population — the denominator a share needs. */
+  readonly headroomS: number;
+  /** P0's foresight on that same population, excluded from the cost. */
+  readonly clairvoyanceS: number;
+  /** How many journeys it rests on, averaged over seeds. */
+  readonly matched: number;
+}
+
+/**
+ * What the conflicts cost, compared on a **matched opportunity set**.
+ *
+ * `calibrate` already refuses to average in a rescue: when `P2rt` produces no
+ * plan it is charged `P1`'s outcome, which is right for scoring and ruinous for
+ * attribution, so the gap is taken over the journeys where it planned for
+ * itself. That fixes the problem *within* one world and re-creates it across
+ * two, because the conflicted world's surviving journeys are not the honest
+ * world's (`KNOWN-ISSUES.md` #56).
+ *
+ * At the top rung the declared world's lazy integrator gave up on a quarter of
+ * the set and the honest one on almost none — so the two means were over
+ * different journeys, and specifically the conflicted mean was over whatever
+ * the conflicts had *not* destroyed. `CLAUDE.md` carries the rule this breaks
+ * and applies it to the entity set: *varying data quality also varies how much
+ * data there is, and a comparison that changes both cannot attribute to either.*
+ * The population is the same rule one level up.
+ *
+ * So both sides are averaged over the intersection, seed by seed — the paired
+ * design the whole-score figure already uses, extended to the journeys as well
+ * as to the day. **The rescues are still counted rather than averaged in**: how
+ * many journeys fell out is `matched`, and it is reported, because a cost
+ * resting on a third of the query set is a different claim from one resting on
+ * all of it.
+ */
+export function pairedCost(
+  withCals: readonly Calibration[],
+  withoutCals: readonly Calibration[],
+): PairedCost {
+  const n = Math.min(withCals.length, withoutCals.length);
+  let cost = 0;
+  let withS = 0;
+  let withoutS = 0;
+  let headroom = 0;
+  let clairvoyance = 0;
+  let matched = 0;
+
+  for (let i = 0; i < n; i += 1) {
+    const a = withCals[i]!;
+    const b = withoutCals[i]!;
+    const bOwn = ownIds(b);
+    const ids = new Set([...ownIds(a)].filter((id) => bOwn.has(id)));
+
+    const gapWith = meanOver(a, ids, (g) => g.p2rt) - meanOver(a, ids, (g) => g.p0a);
+    const gapWithout = meanOver(b, ids, (g) => g.p2rt) - meanOver(b, ids, (g) => g.p0a);
+
+    cost += gapWith - gapWithout;
+    withS += gapWith;
+    withoutS += gapWithout;
+    // The denominator, on the same journeys as the numerator. Taken from the
+    // declared run: `P0` and `P1` are properties of the world and the day, not
+    // of what any integrator managed, so either run gives the same answer.
+    headroom += meanOver(a, ids, (g) => g.p1) - meanOver(a, ids, (g) => g.p0);
+    clairvoyance += meanOver(a, ids, (g) => g.p0a) - meanOver(a, ids, (g) => g.p0);
+    matched += ids.size;
+  }
+
+  const d = Math.max(1, n);
+  return {
+    costS: cost / d,
+    withS: withS / d,
+    withoutS: withoutS / d,
+    headroomS: headroom / d,
+    clairvoyanceS: clairvoyance / d,
+    matched: matched / d,
+  };
+}
+
 export function ablate(
   world: World,
   seeds = 1,
@@ -1169,14 +1301,13 @@ export function ablate(
   // cost varies by 36 % of its own mean, which is larger than the differences
   // between most of the conflicts being attributed.
   const seedList = Array.from({ length: Math.max(1, seeds) }, (_, i) => world.manifest.seed + i * 7919);
-  const meanGap = (w: World, label = ""): number => {
-    const xs = seedList.map((seed) => {
-      const gap = calibrate({ ...w, manifest: { ...w.manifest, seed } }).gapP0aP2rt;
+  const calibrations = (w: World, label = ""): Calibration[] =>
+    seedList.map((seed) => {
+      const c = calibrate({ ...w, manifest: { ...w.manifest, seed } });
       onStep?.(label);
-      return gap;
+      return c;
     });
-    return xs.reduce((a, b) => a + b, 0) / xs.length;
-  };
+
   // Measured on the realtime-aware lazy integrator against an optimum held to
   // the *same* announcement horizon (`gapP0aP2rt`), so what is left when the
   // conflicts are switched off is reconciliation cost and nothing else.
@@ -1190,9 +1321,10 @@ export function ablate(
   // granularity off as well changes how many stops exist, and a lazy solver
   // given more stops finds more apparent interchanges to get wrong — which
   // varies the opportunity set and the difficulty together (KNOWN-ISSUES.md #14).
-  const baseGap = meanGap(world, "declared world");
   const clean = withNoConflicts(world);
-  const cleanGap = meanGap(clean, "honest values");
+  const cleanCals = calibrations(clean, "honest values");
+  const declaredCals = calibrations(world, "declared world");
+  const declaredPair = pairedCost(declaredCals, cleanCals);
 
   // **Leave-one-in, not leave-one-out.** Removing a single conflict attributes
   // almost nothing here, and that is a true fact about the world rather than a
@@ -1208,19 +1340,21 @@ export function ablate(
   // the redundancy itself, and it is worth seeing rather than hiding.
   const entries: AblationEntry[] = [];
   for (const { conflict, world: only } of conflictVariants(world)) {
-    entries.push({ conflict, costS: meanGap(only, conflict) - cleanGap });
+    entries.push({ conflict, costS: pairedCost(calibrations(only, conflict), cleanCals).costS });
   }
 
   entries.sort((a, b) => b.costS - a.costS);
   const attributed = entries.reduce((a, e) => a + Math.max(0, e.costS), 0);
 
   return {
-    baselineGapS: baseGap,
-    cleanGapS: cleanGap,
-    headroomS: base.gapP0P1,
-    clairvoyanceS: base.gapP0P0a,
+    baselineGapS: declaredPair.withS,
+    cleanGapS: declaredPair.withoutS,
+    headroomS: declaredPair.headroomS,
+    clairvoyanceS: declaredPair.clairvoyanceS,
     entries,
     attributedS: attributed,
     residualS: base.gapP0P2 - attributed,
+    matchedQueries: declaredPair.matched,
+    scoredQueries: world.queries.length,
   };
 }

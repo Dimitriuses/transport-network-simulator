@@ -1909,3 +1909,45 @@ Every gate figure in this milestone was measured with the broken floor and is ow
 ### What it cost to find out
 
 Six calibrations, seventy-two profile runs and six gate sweeps, most of an afternoon of compute — and then most of them invalidated by a defect in an instrument they all shared. The compute was not the expensive part. **A measurement nobody can cross-check is worth what the story told about it is worth**, and this milestone spent a day on a mechanism for a number that was not there.
+
+---
+
+## P1M8, continued — what the corrected instruments then said
+
+*Two defects, `#55` and `#56`, found by following the first one's consequences.*
+
+### The catalogue had a fourth consumer
+
+`CLAUDE.md` had carried the rule since P1M1 — *one source of truth for three consumers; add a setting there, never in the probe or the builder.* The ablation instruments were a fourth, holding a hand-written map of twelve conflicts against the catalogue's sixteen, and switching off a conflict it had never heard of was written `?? out`: **keep the world as it is.**
+
+So "a clean world plus one conflict" meant "four conflicts plus one", every row of `npm run fallback` landed on one figure to two decimal places, and a **cosmetic** setting appeared to cost nine minutes. The tell was `A-naming` — established by measurement at P0M10 as costing exactly zero — reporting the same 9.22m as a realtime conflict on a different operator. **An evidence line whose value never changes**, which is the same tell as P1M1's two dead audit checks and is now the third time it has been the tell.
+
+Corrected, the instrument answers in one word: **`B-dst-offset`**. Three rows carry the whole collapse, nothing else exceeds five fallbacks in two hundred, and **the sign of the offset decides how bad it is** — an hour early puts departures in the past and no plan exists; an hour late leaves a plannable itinerary that is merely wrong. Every cosmetic row reads exactly zero, which is the control group working.
+
+Nothing caught it because **every committed bundle predates the four settings**. A test that read one would have passed on all of them; the tests written for it are driven from `CATALOGUE` instead.
+
+### A wall passed every gate
+
+With the floor corrected, `towns-and-rail` passes 1a, 1b, 2 and 3 — and a lazy integrator on it captures **−5.672**, losing more than five times the entire reachable headroom by attempting to integrate. Gate 3 asked the conflicts to cost *at least* 20 % of the headroom and asked for at most nothing; these cost 488 %.
+
+**Gate 1b is now two-sided.** `P2rt` must capture at least −1: the point where `P2rt − P1` equals `P1 − P0a`, so *integrating lazily loses exactly as much as integrating perfectly would have won*. A position rather than a decimal, which is the form P1M4 argued for and the form that survives a change of scale.
+
+Three places it deliberately did not go, and the reasons are the useful part:
+
+* **Not a ceiling on Gate 3**, though numerically almost the same test. 488 % is a *correct* answer to the question Gate 3 asks. A gate reporting FAIL for both "the conflicts are decorative" and "the conflicts are a wall" carries two verdicts on one line, and `#53` is the record of what that costs.
+* **Not the clearance ladder**, which was the first candidate and is the one that reads best in a sentence — *our own answer key cannot clear its own rung*. A rung's bar is `from + at × (to − from)` over **that world's own** references, so it rescales with them: a wall gets a proportionally lower bar and clears it. Scale-freedom is exactly what P1M4 built clearance for, and it is exactly why clearance cannot see this. **The first draft of `#56` offered a bar quoted from a different world's table as evidence** — `#20` in miniature, in the issue written to complain about a measurement.
+* **Not `null`'s −1.000**, which the bar coincides with. That is a scorecard from an HTTP run; `lazyCapture` comes from the calibration, and on this world the two read −0.238 and −5.672 for the same lazy behaviour. P0M10 measured a solver seam of ×3.5 and `#20` is what comes of carrying a number across one. This seam is ×24.
+
+### And a matched entity set is not a matched population
+
+`calibrate` refuses to average in a rescue: a `P2rt` with no plan is charged `P1`'s outcome, right for scoring and ruinous for attribution, so the gap is taken over the journeys where it planned for itself. **That solves the problem inside one world and recreates it across two** — the conflicted world's survivors are not the honest world's, and `ablate` subtracted one mean from the other.
+
+Both sides now average over the intersection, seed by seed, and the headroom divided by comes from that same population. It moved the top rung by twelve points (476 % → 488 %) and Phase 0's world by two (36 % → 38 %) — **larger where the populations diverge, negligible where they nearly coincide**, which is the behaviour the fix predicts and the reason to believe it rather than the reason to have made it.
+
+**It was not the cause, and was worth fixing anyway.** The expectation going in was that it would explain the 476 %. A correctness defect that turns out not to be the culprit is still a correctness defect; leaving it in would have meant never learning which it was.
+
+### What the corrected ladder now says
+
+Every rung that carries semantic conflict fails the new end of 1b — `metro-city` −3.494, `towns-and-rail` −5.672, `region` −6.633 — against **+0.186** on Phase 0's hand-built world and **+0.393** on P1M4's generated tier-3. Those figures are properties of the declared world alone and so were never touched by `#55`.
+
+They miss by three to seven rather than by a little, which is evidence about the ladder rather than about the bar. The mechanism is named and the gap it exposes is specific: **`excludes` stops one conflict masking another within a world, and nothing stops three operators drawing the same setting and compounding it.** Per-setting realism ceilings held correctly throughout — a wrong-zone offset is something real agencies publish — and per-*world* measurable consequence has no equivalent.
