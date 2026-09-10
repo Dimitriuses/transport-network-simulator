@@ -26,6 +26,7 @@
     "realism": "node --disable-warning=ExperimentalWarning src/projections/scripts/realism.ts",
     "docs": "node --disable-warning=ExperimentalWarning src/projections/scripts/docs.ts",
     "gates": "node --disable-warning=ExperimentalWarning src/scoring/scripts/gates.ts",
+    "wall": "node --disable-warning=ExperimentalWarning src/scoring/scripts/wall.ts",
     "clearance": "node --disable-warning=ExperimentalWarning src/scoring/scripts/clearance.ts",
     "tune": "node --disable-warning=ExperimentalWarning src/refplayer/scripts/tune.ts",
     "transfer": "node --disable-warning=ExperimentalWarning src/scoring/scripts/transfer.ts",

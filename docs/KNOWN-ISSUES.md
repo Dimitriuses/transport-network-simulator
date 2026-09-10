@@ -2356,5 +2356,137 @@ Applied to P1M8's recorded `lazy integrator captures` column — which is a prop
 
 **Every rung that carries conflict is a wall**, including the one P1M8 recorded as passing everything. Against the worlds that were *not* built by this ladder — Phase 0's hand-built world at **+0.186** and P1M4's generated tier-3 at **+0.393** — the failing rungs miss by three to seven, not by a little. The bar is generous relative to what a working world has historically scored, and the rungs fail it by a wide margin, which is evidence that the ladder's conflict density is wrong rather than that −1 is misplaced.
 
-`B-dst-offset` is the mechanism, and `#55`'s attribution already named it: three operators publishing every departure an hour out, one of them backwards. **`excludes` stops one conflict masking another within a world and nothing stops three of the same setting compounding across operators.** That is the open work, and it is `#47`'s shape rather than a gate's.
+**`B-dst-offset` is a cliff rather than a dial, and one operator's is already too much.** The compounding reading was wrong: acting *alone*, `kameniariv` at `+3600` costs **44.83m** against 10.62m of headroom — four times the whole prize from one setting on one operator. A cap of one per world would not have saved it. The two signs also fail in different metrics, which is why each looks mild in the other's table: `−3600` puts departures in the past so no plan exists (**+73 fallbacks of 200**, 1.37m of journey time), `+3600` leaves a plannable itinerary that arrives an hour late (**44.83m**, +18 fallbacks). Every other semantic setting is a dial — `C-coordinate-offset` runs `[30, 60, 130]` — and this one has no weaker realistic value, because a wrong-zone claim *is* an hour.
 
+
+---
+
+## 57. The catalogue has nothing between 18 % and 502 % — `open`
+
+The calibrated top rung, measured twice: as generated, and with `B-dst-offset` switched off on all three operators that drew it and **nothing else changed**.
+
+| | as generated | minus `B-dst-offset` |
+|---|---|---|
+| lazy integrator captures | **−5.672** | **+0.468** |
+| gave up entirely on | 52/200 | 23/200 |
+| lazy shortfall, declared | 54.56m | 4.23m |
+| the same, conflicts off | 2.35m | 2.22m |
+| **caused by conflicts** | **52.21m — 502 %** | **2.01m — 18 %** |
+| measured on | 136/200 | 167/200 |
+
+*`npm run wall`, three seeds. Confirmed with the full five-seed `npm run gates` on both worlds: 488 % and **18 %**, the right column failing Gate 3 and passing the new Gate 1b at 0.468.*
+
+**Gate 3's own `#14` guard states it better than the table does.** On the right-hand world it fires:
+
+> WARNING: a lazy integrator loses more to its own polling cadence (2.09m) than to every declared conflict (1.98m). Attribution still subtracts correctly, but the conflicts are not what makes this world hard.
+
+**And the gap has a number.** With `B-dst-offset` gone, the full per-conflict ablation tops out at `B-time-encoding` **1.45m**, then `C-coordinate-offset` 0.80m, then nothing above 0.34m. The strongest setting in the catalogue is **44.83m**. A factor of thirty-one, with nothing in between.
+
+**This is a `P2rt` phenomenon and `#58` is the other half of it** — on the whole-score instrument the two worlds are indistinguishable, so "no working middle" is a statement about the ratified criterion's solver and not about every reader.
+
+**Reproducing the right column.** The comparison world lives in `worlds/scratch/`, which is not committed, so the recipe is the artefact: copy the bundle, set `time.offset_shift_s` to `0` in every row of `operators`, and drop every `B-dst-offset:` entry from `manifest.active_conflicts`. Nothing else changes — same city, same query set, same seed, same thirty remaining conflicts. `loadWorld` does not verify `content_hash`, so the copy loads; it is a diagnostic and must not be scored against anything recorded.
+
+**One setting is the entire collapse.** Removing it leaves a world healthier than either reference point we trust — P1M4's generated tier-3 at +0.393 and Phase 0's hand-built world at +0.186.
+
+**And the other end is the finding.** Without it the remaining **thirty** declared conflicts produce 18 % of the headroom, which is *below Gate 3's 20 % floor*. Phase 0's world manages 38 % with fifteen. So the top rung has no working middle: its difficulty is one enormous trap or nothing, and both ends fail a gate.
+
+```
+   0%          20%                          100%                     502%
+   |------------|-----------------------------|------------------------|
+                ^ Gate 3 floor                ^ Gate 1b ceiling
+        18% ----'                                                 '---- 502%
+     everything except B-dst-offset                          with it
+```
+
+### Why the obvious bounds do not work
+
+* **Not a cap of one per world.** Acting *alone*, `kameniariv` at `+3600` costs **44.83m** against 10.40m of headroom — four times the whole prize from one setting on one operator.
+* **Not a reach bound.** The three that drew it cover 28.6 %, 21.4 % and 15.9 % of the quays. The *smallest* of them is the 44.83m one. Bounding by reach would need an operator under about 4 %, which is not an operator.
+* **Not a weaker value.** A wrong-zone claim *is* an hour. `plausible.max` is 3600 with the right reason attached — beyond it nobody would keep publishing — and there is no realistic 600.
+* **Not a partial day.** The catalogue names the cause as a stale timezone table or a DST step applied backwards. Real transitions happen at 02:00–03:00, when nothing runs, so "only after the transition" is the whole service day. The realistic causes are all uniform.
+
+### What is actually wrong: proportion, not plausibility
+
+Every setting's ceiling is checked against **what a real operator would do**. Nothing checks it against **the scale of the thing it perturbs**:
+
+| setting | error introduced | scale it perturbs | ratio |
+|---|---|---|---|
+| `C-coordinate-offset` | 130 m | walk radius, a few hundred m | a fraction |
+| `D-staleness` | 900 s | announcement lead | a fraction |
+| `B-dst-offset` | **3600 s** | a scored journey, ~2400 s | **over 100 %** |
+
+`npm run realism` exists for exactly this in the geometry domain — *"realism is a property of the combination"* — and there is no equivalent for time. `#30`'s three-geometry-conflicts case is this one in the other domain, and it was caught because someone measured the composed consequence.
+
+### The asymmetry underneath it, which is worth keeping
+
+The three time settings do not rank by the size of the error they introduce:
+
+| setting | error | cost to a lazy integrator |
+|---|---|---|
+| `B-time-encoding: local_naive` | **3 hours** (assumed UTC against a +03:00 world) | **1.45m** |
+| `B-dst-offset: +3600` | 1 hour | **44.83m** |
+| `B-dst-offset: −3600` | 1 hour | 1.37m, and **+73 fallbacks of 200** |
+
+**An error too large to believe is cheaper than one just large enough.** Three hours makes an operator unusable, so a lazy planner routes around it and loses one operator. An hour late leaves a plan that looks entirely reasonable and delivers the traveller an hour after they needed to be there. An hour early puts departures in the past, so no plan exists at all and the traveller falls back — which costs the journey but not the hour.
+
+So the two signs of one setting fail in **different metrics**, which is why each looks mild in the other's table, and why `#55`'s two attributions disagreed about which operator mattered. Neither was wrong.
+
+### What it needs
+
+Settings that live between 18 % and 502 %, which is `#47` — *"a section that thin cannot support a quota that deep, and widening it is content work with a `competent` competence owed for each new setting."* Stated in numbers now rather than as a worry.
+
+**P2M0 added two settings at the strong end and neither is in that range.** `B-dst-offset` is 502 %; `C-cancellation-token` does not appear in the top eight of the journey-time ablation at all, so it is under 0.21m — its damage, if any, is in arrival and Information rather than journey time, and nothing has measured it there.
+
+**Whether `B-dst-offset` should stay in the generated pool is a decision, not a defect**, and it is genuinely open: it is realistic, it is answerable, `competent` answers it, and the lesson it teaches — check one published fact against another — is the one the game is about. It is simply too big to be one item among many. A rung *built around* it, with everything else mild, is a coherent thing to want.
+
+
+---
+
+## 58. Two lazy integrators, and one of them cannot see `B-dst-offset` at all — `open`
+
+The same world with `B-dst-offset` switched off on three operators, and with it left on. Every reference solution, both runs:
+
+```
+  mode        capture   information   headline   arrived      mode        capture   information   headline   arrived
+  null         -1.000         0.000     -0.600   174/200      null         -1.000         0.000     -0.600   174/200
+  blind        -0.238         0.000     -0.143   171/200      blind        -0.238         0.000     -0.143   171/200
+  naive        -0.238         0.326     -0.013   171/200      naive        -0.238         0.326     -0.013   171/200
+  competent     0.099         0.467      0.246   163/200      competent     0.099         0.467      0.246   163/200
+
+  conflicts cost 0.164 (se 0.007, 23.3σ)                      conflicts cost 0.164 (se 0.007, 23.3σ)
+```
+
+**Identical to three decimal places, across two worlds that differ by three strong conflicts** — including Gate 3's whole-score diagnostic and its significance. That is an evidence line whose value never changes, which is this project's own tell for a check that cannot fail (`CLAUDE.md`, and P1M1's two dead audit checks).
+
+Meanwhile the same setting costs `P2rt` **44.83m** acting alone, and takes the world from a lazy capture of +0.468 to −5.672 (`#57`).
+
+### Why
+
+`src/refplayer/src/player.ts` never reads an offset suffix:
+
+```ts
+const t = /T(\d{2}):(\d{2}):(\d{2})/.exec(value);
+const d = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+return Number(d[3]) * 86400 + Number(t[1]) * 3600 + ...
+```
+
+It takes the day of the month and the wall-clock reading and works modulo a day, never forming an instant. `B-dst-offset` changes **only** the suffix, so it is invisible. The one place an inferred offset is applied — `normaliseOffset` — feeds `wallClockSeconds` for *numeric* encodings alone, and this world publishes `local_naive` and `iso_offset` only, so it does nothing here either.
+
+`src/scoring/src/baselines.ts` does the opposite: `naiveDecodeTime` sends any string carrying an offset to `parseSimTime`, which believes it.
+
+### Which of them is right
+
+**Both, and that is the problem.** `CLAUDE.md` says of this conflict that the two encodings *"decode identically for any reader that ignores a false claim — which is what a correct reader does."* By that standard the HTTP player is **accidentally competent** at the trap, and `P2rt` is doing the lazy thing the trap is for. Neither implementation is wrong; they are different solvers, and only one of them is the baseline the criterion names.
+
+### What follows
+
+* **The binding criterion is unaffected.** Gate 3 decides on `P2rt` journey time precisely because *"a gate measured through a solution we wrote is a gate about that solution"* (2026-09-03). That decision is doing exactly the work it was made for.
+* **The whole-score diagnostic is blind to catalogue B's offset trap** and must not be read as evidence about it. It reported 0.164 at 23.3σ on both worlds — confident, stable, and about something else.
+* **`competent` costs nothing either way**, which is the competence working: 0.099 in both runs. The setting perfectly separates a reader that checks the brief from one that trusts the feed — which is what it was added for, and is why it is *too* sharp rather than broken (`#57`).
+* **Gate 2's ordering, the clearance bar and every profile figure** come from the four HTTP solutions and therefore cannot see this conflict at all. A rung whose difficulty rests on it will look identical to one without it on every one of those instruments.
+
+### The decision it needs
+
+**What does a lazy integrator do with a stated offset?** One answer per instrument is one answer too many. Either the HTTP player forms instants and believes the feed, or `P2rt` works in wall-clock terms and does not — and whichever is chosen, the other should follow, for the reason `published-time.ts` already exists: *"a rule two consumers apply independently is a rule they will eventually disagree about."* They have.
+
+This is the same seam P0M10 measured at ×3.5 between solvers and `#20` records the cost of crossing. Here it is total: 44.83m against zero.
