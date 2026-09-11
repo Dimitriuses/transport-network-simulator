@@ -29,6 +29,7 @@ const OFFSET = 3 * 3600;
 /** Three stops on a line, one trip calling at all three, published local-naive. */
 const timetable = {
   operator: "nordline",
+  operator_name: "Nordline Transit",
   stops: [
     { stop_id: "a", stop_name: "A", lat: 50.45, lon: 30.52 },
     { stop_id: "b", stop_name: "B", lat: 50.45, lon: 30.53 },
@@ -51,7 +52,7 @@ const timetable = {
 
 const key = (encoding: Tuning["operators"][string]["encoding"]): Tuning => ({
   world: "test",
-  operators: { nordline: { dLat: 0, dLon: 0, encoding } },
+  operators: { "Transit#0": { dLat: 0, dLon: 0, encoding } },
 });
 
 const planAtoC = (tuning?: Tuning): { legs: unknown[] } | null =>
@@ -61,6 +62,22 @@ const planAtoC = (tuning?: Tuning): { legs: unknown[] } | null =>
     { lat: 50.45, lon: 30.54 },
     7 * 3600,
   );
+
+test("a key finds its operator under another name", () => {
+  // `KNOWN-ISSUES.md` #59. Filed by id, a renamed operator was one the answer
+  // key had never heard of: `tuned` skipped its feed and planned nothing, on a
+  // world where the right answer was in the key all along. Filed by kind and
+  // rank it finds the operator whatever the seed called it.
+  const renamed = { ...timetable, operator: "verbovaline", operator_name: "Verbovaline Transit" };
+  const plan = planCompetently(
+    buildCompetentModel([renamed], OFFSET, key("local_naive")),
+    { lat: 50.45, lon: 30.52 },
+    { lat: 50.45, lon: 30.54 },
+    7 * 3600,
+  );
+  assert.ok(plan, "the same kind and service under a new name must still resolve");
+  assert.equal(plan.legs.length, 1);
+});
 
 test("the right key plans the journey", () => {
   const right = planAtoC(key("local_naive"));

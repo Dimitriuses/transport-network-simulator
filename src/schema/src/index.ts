@@ -25,6 +25,7 @@ export * from "./shape.ts";
 export * from "./catalogue.ts";
 export * from "./policy.ts";
 export * from "./published-time.ts";
+export * from "./operator-key.ts";
 export * from "./clearance.ts";
 export type * from "./world.ts";
 export type * from "./runlog.ts";

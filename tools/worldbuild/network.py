@@ -338,6 +338,16 @@ class NetworkSpec:
     #: identity — which is what stops a memorised answer key resolving
     #: (`KNOWN-ISSUES.md` #48).
     roster: tuple[str, ...] = ("radial", "ring", "regional")
+    #: Each radial line's headway in seconds, cycled over the radials in order,
+    #: or `None` to draw it from the seed as the generator used to.
+    #:
+    #: **A rung always declares it** (`src/schema/src/ladder.ts`,
+    #: `KNOWN-ISSUES.md` #61). How often the buses run decides how well a
+    #: traveller does without integration, which sizes the prize every score
+    #: divides by, and drawn from the city seed it set a rung's difficulty more
+    #: than the rung's conflicts did. `None` is for tests, and for measuring
+    #: exactly that.
+    radial_headways_s: tuple[int, ...] | None = None
     #: The closest two distinct quays may be.
     #:
     #: **Not cosmetic.** `naiveMatchThresholdM` derives the lazy integrator's
@@ -369,6 +379,10 @@ class NetworkSpec:
             )
         if self.sites_per_arm < 3:
             raise ValueError("an arm needs a middle for the orbital and the chords to use")
+        if self.radial_headways_s is not None and (
+            not self.radial_headways_s or any(h <= 0 for h in self.radial_headways_s)
+        ):
+            raise ValueError("radial headways must be a non-empty list of positive seconds")
 
 
 @dataclass(frozen=True)
@@ -789,7 +803,17 @@ def generate_network(
         # the Site/Quay distinction stops being worth modelling.
         stand = stands[a % spec.hub_quays]
         route = (*reversed(outward(a)), f"q-hub-{stand}", *outward(opposite))
-        headway = 15 * 60 + int(rng.random() * 4) * 300
+        # **Declared by the rung, and the draw still spent** (`KNOWN-ISSUES.md`
+        # #61). The city seed used to choose this, and the choice moved a rung's
+        # difficulty more than its conflicts did. Spending the draw anyway keeps
+        # every position, name and later draw in the city what it was, so the
+        # declaration changes the timetable and nothing else.
+        drawn = 15 * 60 + int(rng.random() * 4) * 300
+        headway = (
+            spec.radial_headways_s[a % len(spec.radial_headways_s)]
+            if spec.radial_headways_s
+            else drawn
+        )
         # **Dealt round, not split down the middle.** Two bus companies in one
         # town do not each take a contiguous half of the compass; they
         # interleave, which is also what keeps either from owning a whole

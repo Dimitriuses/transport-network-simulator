@@ -22,6 +22,9 @@ import {
   scoreRun,
   auditInformationSets,
   valueCleanWorld,
+  isMaterial,
+  isNotAWall,
+  isNotTrivial,
 } from "@tns/scoring";
 import { auditIdentifiability } from "@tns/projections";
 import { progress } from "./progress.ts";
@@ -225,9 +228,10 @@ const fallbackShare = cal.perQuery.length === 0 ? 0 : fellBack / cal.perQuery.le
 // P0M10 measured a factor of 3.5 between two solvers and `#20` is what comes of
 // carrying a number across that seam. The coincidence with `null` is worth
 // noticing and is not the definition.
-const LAZY_LOSS_LIMIT = -1;
-const notTrivial = lazyCapture < 0.5;
-const notAWall = lazyCapture >= LAZY_LOSS_LIMIT;
+// The bars, and which side of each passes, live in rung-verdict.ts, shared with
+// npm run wall, which kept its own copy and disagreed at the Gate 3 bar.
+const notTrivial = isNotTrivial(lazyCapture);
+const notAWall = isNotAWall(lazyCapture);
 const g1b = !carriesConflict || (notTrivial && notAWall);
 console.log("    1b — not trivial, and not a wall");
 console.log(`      a lazy integrator captures           ${n(lazyCapture)} of reachable headroom`);
@@ -563,7 +567,9 @@ const stillIntegrating = fallbackShare <= GAVE_UP_LIMIT;
 // the wrong one of the two is exactly the mistake `#20` records.
 const premiseHolds = captureCost > 0;
 const decidable = resolvable && stillIntegrating && premiseHolds && carriesConflict;
-const g3 = !carriesConflict || (decidable && materiality > 0.2);
+// At least 20 %, as ratified: exactly 20 % passes, which the strict comparison
+// this replaced did not allow.
+const g3 = !carriesConflict || (decidable && isMaterial(materiality));
 
 if (!carriesConflict) {
   console.log("    n/a — this rung declares no semantic conflict, so there is no");

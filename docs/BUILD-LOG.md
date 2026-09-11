@@ -1951,3 +1951,70 @@ Both sides now average over the intersection, seed by seed, and the headroom div
 Every rung that carries semantic conflict fails the new end of 1b — `metro-city` −3.494, `towns-and-rail` −5.672, `region` −6.633 — against **+0.186** on Phase 0's hand-built world and **+0.393** on P1M4's generated tier-3. Those figures are properties of the declared world alone and so were never touched by `#55`.
 
 They miss by three to seven rather than by a little, which is evidence about the ladder rather than about the bar. The mechanism is named and the gap it exposes is specific: **`excludes` stops one conflict masking another within a world, and nothing stops three operators drawing the same setting and compounding it.** Per-setting realism ceilings held correctly throughout — a wrong-zone offset is something real agencies publish — and per-*world* measurable consequence has no equivalent.
+
+---
+
+## P1M8, continued — four decisions, and what implementing them found
+
+*2026-09-11. Taken with the evidence on the table and implemented the same day; the exit measurements are running.*
+
+### The instrument that would have certified the exit could not fail
+
+Before deciding anything, the transfer test was pointed at the committed world and at a copy identical except for its operators' ids. It reported *both halves hold*. The memoriser filed its answers by id, ids have been seeded since P1M6, and so on any other world it read no feed and scored like `null` — −0.600, to three places. **Every genuine same-rung pair on the ladder shares zero ids**, so every run the exit would have rested on was affected; P1M4's result survived only because its pair shared theirs (`#59`). A guard came first — `npm run transfer` refuses a verdict when its key resolves nothing — and the fix after.
+
+And the same pairs turned out to be one city apiece: one graph, one roster, one share per operator, two thirds of the sites in place. The renamed ids had been hiding it (`#48`). *Not one timetable, it turned out: the seed drew each radial line's headway, and that set difficulty more than the conflicts did (`KNOWN-ISSUES.md` #61).*
+
+### What was decided
+
+`B-dst-offset` leaves the draw. Every lazy reader believes a stated offset. The memoriser files its answers by operator kind and rank, and the exit says plainly that a rung's city is shared. The shape is tuned with its link modes. The roadmap carries the evidence beside each.
+
+### How each was built so that it could be checked
+
+* **The draw.** A `drawn: false` flag, skipped after each section's shuffle. The obvious place — filtering the pool — would have spent less randomness and quietly re-drawn every world in the project. `test_drawn.py` asserts that switching the flag back on changes each world by exactly one substitution, and fails if the substitution never happens.
+* **The offset.** One reading of the suffix, in `@tns/schema`, and a test holding the player to the baseline's own function rather than to a number, so the two cannot drift apart a third time.
+* **The key.** One function used by both `tune` and `tuned`, computed from published timetables on both sides, with ties unkeyed. Stops were ruled out before it was written, because `A-granularity` changes them — a key built on a conflict draw would mis-resolve for exactly the reasons the transfer test exists to tell apart from memorisation.
+* **The version.** `LADDER_VERSION` 2, owed since `#51`. The committed world's hash moved from `592fb664` to `125b606a`, and nothing else in it did.
+
+### Validated where it broke
+
+The same pair, renamed now in ids *and* names: the key resolves 3 of 3, `competent` and `tuned` both unchanged, **too alike**. And the committed world's references read 0.223 and 0.294 before and after the offset change — the check that the change moved nothing it should not have.
+
+### A fifth decision, and what forced it
+
+The first calibrations on the new generator produced a top-rung world that was neither wall nor rung but **thin** — a lazy integrator at 0.618, the conflicts at 9 % of the headroom. Screening all six of that city's draws on `P2rt` showed why, and the reason had been predicted before the screen ran: the thin draws are the ones with at most one operator publishing an offsetless timestamp. `P2rt` reads those as UTC and pays three hours for them; the HTTP player read them correctly; the calibration screen runs on the HTTP player; so it had shipped the thinnest draw of the six.
+
+It was the stated-offset seam, one case over, and it was decided the same way: both readers now read an offsetless timestamp as UTC, and every world calibrated before that was rebuilt.
+
+**Two mistakes were made on the way, and both were caught.** A diagnostic read `worlds/scratch/candidate.world.db` after a running calibration had overwritten it, and reported that `#57` cited a world from another city; the copy made before the run showed the record had been right. And a screen had already been launched that would have read the same shared file mid-calibration; it was stopped by command line before it reached it. **Concurrent runs had been checked for ports and not for files** (`#60`, fixed).
+
+### A sixth decision: the count, and two instruments that did not agree
+
+On the UTC player every world was recalibrated, and the pairs' two-seed verification runs looked close. `npm run profile` — which holds every reference to a world's own seed-to-seed noise — said otherwise, at both rungs, by 2.4 to 3.1 times that noise. `npm run transfer` had passed both pairs, because it lets `competent` move by a quarter of its home score. **The exit's two halves are measured by two instruments with two different bars**, and only one of them was strict enough to fail.
+
+The cause was the same count that had decided which draws were thin. Screened across all six `metro-city` draws as well as the top rung's, zero or one operator publishing `local_naive` gave an easy world and two or three a rung, with no exceptions in twelve, and each pair disagreed in the direction of its counts. `B-time-encoding` had been made categorical on the premise that its values are equal traps; for a lazy reader they are not. So each rung now declares the count, and the generator adjusts a draw to it rather than re-drawing — the `drawn` flag's principle again, *change as little of the world as possible*, so a draw already at its count is unchanged and its measurements carry over.
+
+**Along the way, three smaller things were wrong and are fixed.** The wall screen checked only one end of Gate 1b and kept its own copy of the bars, disagreeing with the gates at exactly 20 %; both now read one module. The calibration report's spread was a standard deviation owned by outliers; it now leads with the middle span. And two `metro-city` draws that looked like one world turned out to be different conflicts that `P2rt` cannot tell apart — a cancellation token it does not know against cancellations dropped silently — which is a finding about the catalogue rather than a bug in the tool.
+
+**Shape resolved without a decision**: rail, bus and mixed regions all agree with the city within about 0.04 on every reference, once `B-dst-offset` was out of the draw.
+
+### A seventh decision: the timetable, which no instrument had been pointed at
+
+On the fixed counts the calibration spreads collapsed as intended — the middle four draws of one city within 0.008 to 0.080 of each other — and the exit still failed. `towns-and-rail` missed only on `competent`, by 1.2 times noise at five seeds and 1.4 at ten; `metro-city` missed on `blind` by 3.2 and `naive` by 1.8, and one of its two worlds screened easy. Transfer held both halves at both rungs, with the key resolving every operator.
+
+**The two `metro-city` worlds were not one city.** Every draw of one sat between −0.374 and −0.253 on `naive`, every draw of the other between −0.571 and −0.545. The first suspect — how much of the network the `local_naive` operators carry — correlated at −0.27 and was dropped. The second was in the generator: each radial line's headway, drawn from the city seed. A prediction from it was written down before four more cities were calibrated, and held broadly — six cities spanned 0.335, in roughly the order of how often their buses ran.
+
+**Then it was tested rather than correlated.** One world's four radial headways replaced and nothing else — a control rebuilt the same way reproduced its hash byte for byte — moved `naive` from −0.253 to −0.648. On the same 200 journeys the timetable alone was worth −0.676, and re-selecting journeys gave some of it back. `P0` did not move and neither did the lazy integrator's failures; `P1` did, and so did the headroom every score divides by. The calibration search holds the city fixed, which was exactly the thing varying.
+
+**The experiment nearly reported nothing.** The replacement ran through a module loaded ahead of the generator, and through `npm run world:generate` it silently never loaded. The "treated" world hashed identical to its control, and only the control made that visible.
+
+**Decided**: every rung declares its radial headways, per line, at the old draw's expected value, with the draw still spent so a city changes only its timetable (`KNOWN-ISSUES.md` #61). The record had said throughout that two worlds of a rung share their city — true of the graph, the roster and the shares, and not of the one part that mattered most.
+
+### What declared headways measured, and the exit at two rungs
+
+**The fix did what it was for, and not everything it was hoped to.** Six `metro-city` cities went from spanning 0.335 on `naive` to 0.175, and the pair's headroom from moving 28 % on one headway change to sitting 3 % apart. But the two cities swapped sides — the easier of the pair became the hardest of six and the harder the easiest — because the journeys each city scores still depend on its geometry. The obvious proxy for how the conflicts meet those journeys did not explain it, and no second proxy was fitted to a single pair.
+
+**Every world screened as a rung, and both profiles matched at ten seeds.** Then the three-seed transfers split: `towns-and-rail` held, and `metro-city` read *not the same tier* on `competent` moving 0.117 — while the profile, running the same solution on the same pair at ten seeds, read 0.028. **One quantity, two rules, two samples** (`KNOWN-ISSUES.md` #62). Decided: resolution, not a new rule. Both transfers were re-run at ten seeds, with each verdict to stand whichever way it went, written down before either ran.
+
+**Both held.** `metro-city`: `competent` +0.028, `tuned` −0.218. `towns-and-rail`: +0.039 and −0.370. The key resolved every operator, and at ten seeds `competent`'s transfer figures equal the profile's to three places.
+
+**So Phase 1's exit clause is met at two rungs** — two worlds per rung from different cities, matching profiles, a reasoning solution that carries between them, a memorised one that collapses. What it rests on is recorded beside it: two cities per rung, the widest-apart pair of six at `metro-city`, matched inside a noise of about ±0.08; a transfer instrument whose default can fail matched worlds; single-centre rungs only. **And the full gates pass on one world per rung** — Gate 3 at 58 % and 62 % of headroom, measured on 146 and 142 of 200 journeys, with `B-time-encoding` the largest single conflict in each ablation. The audit column reads `LEAK` for `blind` and `naive` on the `metro-city` world and `clean` for all four on the other. That is `#40`'s diagnostic bound rather than a gate: the scorecard verdict is `scored`, no traveller beat `P0`, the one finding is 0.0m, and the blind-hit statistic is **0 where an optimal planner with the same information would have taken 4**. Closing the phase again is left as a decision.

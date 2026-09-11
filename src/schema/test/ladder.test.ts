@@ -40,6 +40,7 @@ const INTERMEDIATE: Rung = {
     metroLines: 0,
     roster: ["radial", "ring"],
     maxReachShare: 0.62,
+    radialHeadwaysS: [900],
   },
   quota: { A: 1, B: 1, C: 0, D: 0 },
   density: 0.42,
@@ -152,6 +153,12 @@ test("the shipped ladder still says what the six tables said", () => {
       `rung ${i} has fewer operators than ${i - 1}`,
     );
   }
+  // Every rung runs the old draw's expected headway rather than whatever a city
+  // seed picked (`KNOWN-ISSUES.md` #61, decided 2026-09-11).
+  assert.deepEqual(
+    LADDER.map((r) => r.world.radialHeadwaysS),
+    LADDER.map(() => [1200, 1500]),
+  );
   assert.deepEqual(
     CLEARANCE_LADDER.map((b) => `${b.from}->${b.to}@${b.at}`),
     [

@@ -156,7 +156,9 @@ Two seeds per rung, one uncalibrated draw each:
 ### P1M7 — Shape: the second axis, and the transfer verdict at the top — **in progress**
 
 * **`polycentric`** — several towns joined by rail, against today's single centre. Inter-town lines are infrequent, so a missed connection is expensive, which is exactly the headroom the scoring rewards; the query set must span centres, and `npm run headroom`'s criterion needs re-checking against journeys of that shape rather than assumed to carry over.
-* **`P2M0`'s third clause lands here.** With operator identities and counts differing across worlds of a rung, a memorised key has nothing to resolve against — which is `#48`'s root rather than another widening of the catalogue.
+* **`P2M0`'s third clause lands here.** ~~With operator identities and counts differing across worlds of a rung, a memorised key has nothing to resolve against — which is `#48`'s root rather than another widening of the catalogue.~~
+
+  **Corrected 2026-09-11 (`KNOWN-ISSUES.md` #59).** The counts do not differ — two worlds of a rung from different seeds share their graph, their roster and every operator's share of it — and a key with nothing to resolve against does not make a world non-memorisable, it makes the memoriser read nothing. `npm run transfer` certified the exit on two identical worlds that way, and now refuses a verdict when its key resolves no operator.
 
 **Exit:** two worlds of the same tier and *different shapes* have difficulty profiles that agree within noise — **the claim that makes shape an axis rather than a difficulty lever in disguise**; the transfer verdict holds at the top rung and at one other; and a polycentric world's scored set still rewards integration on the same criterion, measured rather than assumed.
 
@@ -183,7 +185,7 @@ Three references of four agree. **`competent` finds the region easier**, which i
 
 ---
 
-### P1M8 — Re-measure, and re-establish the exit — **in progress**
+### P1M8 — Re-measure, and re-establish the exit — **in progress; the exit clause is met at two rungs**
 
 Everything recorded against the old ladder describes a generator that no longer exists — the same debt `P2M0` paid off, at a larger scale.
 
@@ -230,33 +232,55 @@ At tier 4, city against region:
 
 So `P1M7`'s exit clause fails on evidence rather than for want of it: **shape is currently a difficulty lever, not a neutral axis.** The options are unchanged — make the region easier (denser rail, shorter headways, fewer towns) until it agrees, or stop calling it an axis and make it a rung.
 
-### The gates, per rung
+### The gates, per rung — withdrawn, and screened again
 
-| rung | headroom | lazy captures | conflicts cost | verdict |
-|---|---|---|---|---|
-| 1 `small-town` | 9.37m | 0.796 | 0.00m (0 %) | Gate 3 undecidable |
-| 2 `metro-town` | 11.16m | 0.732 | −0.50m (−4 %) | fails |
-| 3 `metro-city` | 13.06m | −3.494 | 13.07m (100 %) | **all pass** |
-| 4 `towns-and-rail` | 10.89m | −5.672 | −11.78m (−108 %) | fails |
-| 5 `region` | 12.65m | −6.633 | −2.82m (−22 %) | fails |
-| tier 4, polycentric | 6.34m | −2.028 | −4.13m (−65 %) | fails |
+> **The table this section carried is withdrawn.** Its conflict costs were measured against a floor that still carried four conflicts (`KNOWN-ISSUES.md` #55), and its account of the top rung — honest data giving a lazy reader more rope — explained an artefact (`#53`, withdrawn).
 
-**One rung of six passes, and it is the one nearest the world the gates were written for.** The failures split in two, and neither is a defect in a generator (`KNOWN-ISSUES.md` #52, #53):
+Screened again with `npm run wall`: Gate 1b's two ends and the paired conflict cost, three seeds, no ablation.
 
-* **At the bottom there is nothing to measure.** A texture-only rung lets a lazy integrator capture 0.796, which is what a rung with no semantic conflict is *for*.
-* **At the top, Gate 3 goes negative** — the conflicted world is up to 11.78m *better* for a lazy reader than an honest one, because honest data lets it match stops, plan ambitious multi-operator journeys and be taken apart by reality, while conflicted data forces robust single-operator fallbacks. Differencing two catastrophes measures the difference between two catastrophes.
+| world | rung | `B-dst-offset` | lazy captures | conflicts cost | |
+|---|---|---|---|---|---|
+| K2 | `metro-town` | 1 | 0.732 | 8 % | thin |
+| K3 | `metro-city` | 1 | −3.494 | 569 % | **wall** |
+| K4 / M4 | `towns-and-rail` | 3 | −5.672 | 502 % | **wall** |
+| **candidate** | `towns-and-rail` | **0** | **0.057** | **61 %** | **rung** |
+| KP4 | `towns-and-rail`, polycentric | 1 | −2.028 | 252 % | **wall** |
+| *m1 — Phase 0* | `metro-town` | 0 | 0.186 | 44 % | *rung* |
+| *cal-a / cal-b — P1M4* | `metro-city` | 0 / 2 | 0.168 / 0.040 | 43 / 56 % | *rung* |
+
+**Every wall carries `B-dst-offset`, and the top rung drawn without it is a healthy rung.** Not every world carrying it is a wall — K2 is thin with one, cal-b a rung with two — so it is necessary on this evidence and not sufficient. And the calibration search shipped K4's draw as typical over `candidate`'s, because it screens on `naive`, which cannot see the setting (`#58`).
+
+**This screens the worlds that exist; it is not the re-sweep.** Item 8 below still stands, and waits on what the generator is allowed to draw.
 
 ### Decisions taken, 2026-09-09
 
 * **`#51` — the ladder ends at four.** `region` measured 0.075 easier than `towns-and-rail` at about two and a half sigma, and *a tier that is easier than the tier below it is not a rung*. The two merged, keeping the harder half of each: five operators and a 0.45 reach cap, with the old top rung's quota, density and clearance bar. What the old rung was *for* — a region rather than a city — became a **shape**, and there are now three: `polycentric-rail` (a train every forty minutes), `polycentric-bus` (a coach every twenty), and `polycentric-mixed`, which is two ways between the same two towns run by two operators.
 * **`#52` — the gates ask only the rungs that carry conflict.** `npm run gates` reads the world's rung and reports `n/a` for 1b and 3 where it declares no semantic section. A lazy integrator doing well on a texture-only rung is the rung working.
-* **`#53` — Gate 3 states its precondition.** Two guards: the lazy integrator must still be integrating (fallback under half the scored set), and the journey-time conflict cost must be positive. A negative cost means the conflicted world is *better* for a lazy reader than an honest one, which is a real property and not an answer to the question the gate asks.
+* **`#53` — Gate 3 states its precondition.** *Withdrawn 2026-09-11: the negative cost it was written for came from `#55`'s floor. `stillIntegrating` stands on its own evidence, and the ceiling the rung actually needed became Gate 1b's (`#56`). Kept below as recorded.* Two guards: the lazy integrator must still be integrating (fallback under half the scored set), and the journey-time conflict cost must be positive. A negative cost means the conflicted world is *better* for a lazy reader than an honest one, which is a real property and not an answer to the question the gate asks.
 
   **Two numbers, disagreeing in sign, and the first guard tested the wrong one.** At `towns-and-rail` the conflicts cost 0.164 of the whole score at 23 sigma *and* saved the lazy baseline 11.8 minutes of travel. The criterion ratified after P1M0 is journey time; the guard was written against the whole-score figure, which is positive at every rung and would never have fired. That is `#20`'s mistake, caught in review rather than in a measurement.
 
+### Decisions taken, 2026-09-11
+
+Put with the evidence that decided each one, and implemented the same day.
+
+* **`B-dst-offset` leaves the draw (`#57`).** Every wall on the structural ladder carried it; `candidate`, the top rung drawn without it, is a healthy rung at 61 %. It stays in the catalogue — audited, answerable, answered by `competent`, available to a world built around it on purpose — and a `drawn: false` flag stops the generator placing it. **The skip sits after each section's shuffle, not in the pool**, so a world that never drew it is unchanged and one that did gives the slot to `B-time-encoding`, one `random()` for one `random()`. `tools/tests/test_drawn.py` asserts that across every drawing tier and forty seeds, and on the top rung's generated network at the six seeds calibration screens, and fails if the substitution is never exercised. It also explains `#50`'s calibration outlier: the one draw where a shifted operator stated an offset first, beside an epoch-encoded one. Section B is back to one drawable setting against a quota of one, and the room test says so (`#47`, reopened).
+* **Every lazy reader believes a stated offset (`#58`).** What any date library does, and what the catalogue calls the lazy reading. The HTTP reference player read the wall clock and ignored the suffix; it now reads it with `statedOffsetS` from `@tns/schema`, and a test holds it to `parseSimTime`, the rule `P2rt` already used. No committed figure moves — `m1`'s only operator stating an offset states the true one — and every HTTP instrument, the calibration screen included, can now see the trap on a world that carries it.
+* **The memoriser files its answers by operator kind and rank (`#59`).** `operatorKeys` in `@tns/schema` names an operator by the last word of its published name and by how many lines and trips it runs — facts a rename cannot touch and a player can see — and leaves a tie unkeyed rather than breaking it by id. `npm run tune` files the key from the published timetables and `tuned` resolves it from the ones it receives, with the same function. **Validated on the case that exposed the defect**: the committed world against a copy with every operator id *and* name replaced reads `competent` 0.223 → 0.223, `tuned` 0.294 → 0.294, *the worlds are too alike* — where the id-filed key read −0.600 and *both halves hold*.
+* **The city within a rung is shared, and said plainly (`#48`).** Two worlds of one rung from different city seeds have one graph, one roster and one share per operator — and, since `#61`, one timetable, which the seed had been drawing and which set difficulty more than the conflicts did. The exit's non-memorisability is claimed for what differs between them — the conflict draw — and `PHASES.md`'s completion clause now says so. The transfer exit is measured on single-centre rungs, because a polycentric region's towns are symmetric and its operators tie on everything a rename leaves.
+* **The shape is tuned with its link modes.** `polycentric-bus`, a coach every twenty minutes against a train every forty, is measured first against `towns-and-rail`; shape stays an axis only if some link mode agrees within noise.
+* **`LADDER_VERSION` is 2**, the bump `#51` owed. The committed world's content hash moved from `592fb664` to **`125b606a`**, and nothing else in it changed.
+* **And both lazy readers read an offsetless timestamp as UTC** — decided later the same day, when the first calibrations on the new generator showed why it mattered. The top rung's six draws are healthy with two or three `local_naive` operators and easy and thin with none or one; `P2rt` could see that and the calibration screen could not, so it had shipped the thinnest. The player moved to the baseline's rule, and every world was recalibrated on it (`#58`).
+* **And each rung fixes how many operators publish `local_naive`** — `metro-town` 1, `metro-city` 2, `towns-and-rail` 3 — decided when the pairs calibrated on the UTC player failed `npm run profile` at both rungs, by 2.4–3.1 times seed noise. Across twelve draws the count decided rung against easy with no exceptions, and each pair disagreed the way its counts did. The generator adjusts a draw to the count rather than re-drawing it, so a world already at its count is unchanged. `LADDER_VERSION` 3; `m1` rebuilt at `436daf10` (`#58`).
+* **And each rung declares its radial headways** — twenty and twenty-five minutes, alternating — decided when the fixed-count pairs still failed `npm run profile` and the cause turned out to be the city rather than its conflicts (`#61`). At `metro-city` each city's draws sat close together and the two cities 0.255 apart; six cities spanned 0.335. The generator drew each radial's headway from the city seed, and replacing only one world's four headways moved `naive` from −0.253 to −0.648, with a control rebuilt the same way reproducing that world's hash. Frequent buses improve `P1`, shrink the headroom, and so move the denominator of every score — the one thing a calibration search holding the city fixed never varies. **Per line** rather than a set the seed deals out, because the order alone left 0.178 through the journeys the headroom criterion selects; **the old draw's expected value** rather than one chosen against a gate. The draw is still spent, so a city changes only its timetable. `LADDER_VERSION` 4; `m1` rebuilt at `f2db2704`, its clearance unchanged.
+
 ### Where that leaves the phase exit
 
-**Not met, and the remaining work is decisions rather than code.** The clearance ladder needed no re-derivation at all — bars stated as positions between reference solutions adapted to the new worlds by themselves, which is P1M4's design paying off years ahead of when it was written. What is left:
+**The exit clause is met at two rungs, 2026-09-11** — `metro-city` and `towns-and-rail`, each on two worlds from different city seeds, calibrated on `LADDER_VERSION` 4. Both pairs' profiles match at ten seeds on every reference; at ten seeds both transfers hold both halves — `competent` moves +0.028 and +0.039, `tuned` collapses by 0.218 and 0.370, the key resolving every operator; and all four worlds screen as rungs. The seed counts, and that each verdict would stand whichever way it went, were fixed before any result (`#61`, `#62`).
+
+**What that does not say.** It is two cities per rung. At `metro-city` six cities still span 0.175 on `naive` after the headway fix, this pair is the two extremes, and what the profile matched them within is a noise of about ±0.08. The transfer's generalising half, at its default of three seeds, read *not the same tier* on the same pair (`#62`, open). The clause is measured on single-centre rungs, because a polycentric region's towns cannot be keyed. **Closing Phase 1 again is a decision rather than a consequence**: the full gates now pass on one world per rung (item 8 below), and P1M8 still owes the monotone profile re-measured on `LADDER_VERSION` 4, `#47`, and a transfer below `metro-city`.
+
+The clearance ladder needed no re-derivation at all — bars stated as positions between reference solutions adapted to the new worlds by themselves, which is P1M4's design paying off years ahead of when it was written. What is left:
 
 1. ~~**Re-cut the rungs**~~ — done: the ladder ends at four (`#51`).
 2. ~~**State the gates per rung**~~ — done: they ask only the rungs that carry conflict, and Gate 3 says when it cannot decide (`#52`, `#53`).
@@ -272,7 +296,16 @@ So `P1M7`'s exit clause fails on evidence rather than for want of it: **shape is
    Rungs 3 and 4 separate by **8.6, 4.5 and 5.4 times their own noise** on the three references that measure anything, all in the same direction. Rungs 1 and 2 are indistinguishable, which is by construction rather than a defect: rung 1 is texture-only, and texture measures exactly zero.
 
    **The merged rung turned out to be the old rung 4 exactly** — same median, same spread, same selected draw — because the quota it inherited was undeliverable (`#54`). The merge is a deletion of a rung rather than a blend of two, and the record says so now.
-4. **Decide the shape axis.** The region is harder on every reference, so it is currently a difficulty lever rather than a neutral axis — and there are now three links to choose between, which is a lever for making it agree.
+4. ~~**Decide the shape axis**~~ — **done: shape is neutral.** On the current generator and player, each link mode against the city on the same conflict seed, at tier 4:
+
+   | | `blind` | `naive` | `competent` | `P2rt` |
+   |---|---|---|---|---|
+   | city | −0.503 | −0.387 | 0.277 | rung |
+   | `polycentric-rail` | −0.525 | −0.396 | 0.314 | rung |
+   | `polycentric-bus` | −0.525 | −0.390 | 0.317 | rung |
+   | `polycentric-mixed` | −0.525 | −0.420 | 0.315 | rung |
+
+   Every link mode sits within about 0.04 of the city on every reference, which is P1M7's clause. **The rail region measured much harder at P1M8 because `B-dst-offset` was still drawn**, and all four worlds here carry the same three `local_naive` operators. `P2rt` finds the regions somewhat easier than the city (0.28–0.32 against 0.10), inside the same verdict.
 5. ~~**Attribute the broken lazy baseline**~~ — done, and it answers in one word: **`B-dst-offset`**. With `#55` fixed, each conflict switched on alone over an honest world:
 
    ```
@@ -292,18 +325,20 @@ So `P1M7`'s exit clause fails on evidence rather than for want of it: **shape is
 
 6. ~~**Decide what stops a rung becoming a wall**~~ — done (`#56`). **Gate 1b is two-sided**: a lazy integrator must capture at least −1, the point where integrating badly loses as much as integrating perfectly would have won. It went on 1b rather than Gate 3 because 488 % is a *correct* answer to Gate 3's question, and not on the clearance ladder because a rung's bar rescales with that world's own references and so cannot see a wall. `ablate` also compares on a matched population now, which moved the figure 12 points and not the verdict.
 
-   **What it exposes: every rung that carries conflict fails the new end.** `metro-city` −3.494, `towns-and-rail` −5.672, `region` −6.633, against +0.186 on Phase 0's hand-built world and +0.393 on P1M4's generated tier-3. **`B-dst-offset` is a cliff rather than a dial, and one operator's is already too much.** The compounding reading was wrong: acting *alone*, `kameniariv` at `+3600` costs **44.83m** against 10.62m of headroom — four times the whole prize from one setting on one operator. A cap of one per world would not have saved it. The two signs also fail in different metrics, which is why each looks mild in the other's table: `−3600` puts departures in the past so no plan exists (**+73 fallbacks of 200**, 1.37m of journey time), `+3600` leaves a plannable itinerary that arrives an hour late (**44.83m**, +18 fallbacks). Every other semantic setting is a dial — `C-coordinate-offset` runs `[30, 60, 130]` — and this one has no weaker realistic value, because a wrong-zone claim *is* an hour.
+   **What it exposes: every calibrated rung above `metro-town` fails the new end** (`metro-town` fails the other way — thin, at 8 %). `metro-city` −3.494, `towns-and-rail` −5.672, `region` −6.633, against +0.186 on Phase 0's hand-built world and +0.393 on P1M4's generated tier-3. **`B-dst-offset` is a cliff rather than a dial, and one operator's is already too much.** The compounding reading was wrong: acting *alone*, `kameniariv` at `+3600` costs **44.83m** against 10.62m of headroom — four times the whole prize from one setting on one operator. A cap of one per world would not have saved it. The two signs also fail in different metrics, which is why each looks mild in the other's table: `−3600` puts departures in the past so no plan exists (**+73 fallbacks of 200**, 1.37m of journey time), `+3600` leaves a plannable itinerary that arrives an hour late (**44.83m**, +18 fallbacks). Every other semantic setting is a dial — `C-coordinate-offset` runs `[30, 60, 130]` — and this one has no weaker realistic value, because a wrong-zone claim *is* an hour.
 
-7. **Widen the catalogue between 18 % and 502 % (`#57`).** Measured, not guessed: switching `B-dst-offset` off on the top rung and changing nothing else moves a lazy integrator from **−5.672 to +0.468** and the conflict cost from **502 % to 18 %**. With that setting the rung is a wall; without it the other thirty conflicts are decorative. There is no working middle, and none of the obvious bounds reach it — not a cap of one per world (the smallest of the three operators that drew it, at 15.9 % reach, costs 44.83m alone), not a reach bound, not a weaker value (a wrong-zone claim *is* an hour), not a partial day (real transitions happen when nothing runs).
+7. ~~**Widen the catalogue between 18 % and 502 % (`#57`)**~~ — not needed; decided instead that `B-dst-offset` leaves the draw. Measured, not guessed: switching `B-dst-offset` off on the top rung and changing nothing else moves a lazy integrator from **−5.672 to +0.468** and the conflict cost from **502 % to 18 %**. With that setting the rung is a wall; without it the other thirty conflicts are decorative. There is no working middle, and none of the obvious bounds reach it — not a cap of one per world (the smallest of the three operators that drew it, at 15.9 % reach, costs 44.83m alone), not a reach bound, not a weaker value (a wrong-zone claim *is* an hour), not a partial day (real transitions happen when nothing runs).
+
+   **Corrected 2026-09-11: the middle exists.** The 18 % came from editing the setting out of a built world, which left three operators' section-B quota spent on nothing; a draw made *without* it gives them `B-time-encoding` instead. `candidate` — the top rung drawn without `B-dst-offset`, in the same calibration run — is a healthy rung at lazy **+0.057** and **61 %**. So the top rung does not need a wider catalogue to be playable; it needs not to be handed this setting. `#48`'s variety is a separate question, and `#59` is why it is now an open one.
 
    This is `#47` with numbers attached. **P2M0 added two settings at the strong end and neither lands in the range**: `B-dst-offset` is 502 %, and `C-cancellation-token` is under 0.21m on journey time — its damage, if any, is in arrival and Information, and nothing has measured it there. That measurement is the cheapest next step.
 
    **Whether `B-dst-offset` stays in the generated pool is a decision rather than a defect.** It is realistic, answerable, and `competent` answers it; a rung *built around* it with everything else mild is a coherent thing to want.
 
-   **Decide first what a lazy integrator does with a stated offset (`#58`).** The two lazy integrators disagree totally: `P2rt` believes the claim and loses 44.83m, the HTTP naive player ignores it and loses nothing, and the four reference solutions score identically on worlds with and without the setting. Until that is settled, "how strong is `B-dst-offset`" has two answers and the widening work above cannot be aimed.
+   ~~**Decide first what a lazy integrator does with a stated offset (`#58`)**~~ — decided: both believe it. The two lazy integrators disagree totally: `P2rt` believes the claim and loses 44.83m, the HTTP naive player ignores it and loses nothing, and the four reference solutions score identically on worlds with and without the setting. Until that is settled, "how strong is `B-dst-offset`" has two answers and the widening work above cannot be aimed.
 
-8. **Re-sweep the ladder.** Every gate and calibration figure in P1M8 was measured against the broken floor and none of it stands. `npm run wall` makes this affordable — two calibrations per seed instead of the ablation's 145 — and `npm run gates` then runs only on the rungs it flags.
-9. Then, and only then, the transfer runs: a memorised solution is worth testing against a ladder whose rungs mean something.
+8. ~~**Re-sweep the ladder**~~ — **done at `metro-city` and `towns-and-rail`.** Every gate and calibration figure in P1M8 was measured against the broken floor and none of it stands. `npm run wall` makes this affordable — two calibrations per seed instead of the ablation's 145 — and `npm run gates` then runs only on the rungs it flags. The first calibrations on the new generator found the offsetless-timestamp seam; the rebuild on the UTC player found that neither pair matched within seed noise, and why (`#58`). **Now being rebuilt on the fixed counts**: `towns-and-rail` and `metro-city` at two city seeds each, then the wall screen, `npm run profile` on both pairs at five seeds, both transfers, and the full gates on one world per rung. *On the UTC player, before the count was fixed*, `towns-and-rail`'s calibrated world passed every gate — 1b at 0.100, Gate 3 at 45 % of headroom — and `metro-city` sat on Gate 1b's bar, with three of its six draws easy. The pair figures once recorded here as matching were two-seed verification runs; the profile instrument did not agree. **On the fixed counts** both pairs still failed the profile — `towns-and-rail` on `competent` alone, by 1.2 and then 1.4 times noise; `metro-city` on `blind` and `naive`, with one world easy — and the cause was each city's bus timetable, which the seed drew (`#61`). **On declared headways** both pairs match at ten seeds, every world is a rung, and both ten-seed transfers hold. The full gates then ran on one world per rung and **both pass every gate**. `metro-city` (R3a): 1a with unresolvable ambiguity at 0 % of headroom against a 25 % bar, 1b at 0.158 with 60/200 given up, four distinct scores, and Gate 3 at **58 %** of headroom (6.23m of 10.69m) measured on 146/200 journeys. `towns-and-rail` (R4a): 2 %, 0.094 with 58/200 given up, four distinct scores, **62 %** (6.72m of 10.78m) on 142/200. `B-time-encoding` is the largest single conflict in both ablations, which is `#58`'s count doing the work. The audit column reads `LEAK` for `blind` and `naive` on the `metro-city` world and `clean` for all four on the other. That is `#40`'s diagnostic bound rather than a gate: the scorecard verdict is `scored`, no traveller beat `P0`, the one finding is 0.0m, and the blind-hit statistic is **0 where an optimal planner with the same information would have taken 4**.
+9. ~~Then, and only then, the transfer runs~~ — **done at `metro-city` and `towns-and-rail`, ten seeds each, both halves holding**: a memorised solution is worth testing against a ladder whose rungs mean something. **Now measurable**: on each single-centre pair, `npm run tune` on one world and `npm run transfer` to the other, with the memoriser keyed by kind and rank.
 
 ---
 

@@ -40,6 +40,10 @@ class Setting:
     #: not prefer its later entries. See the field's note in
     #: `src/schema/src/catalogue.ts` and `KNOWN-ISSUES.md` #48.
     categorical: bool = False
+    #: In the catalogue — audited, answerable, measurable — and never placed by
+    #: the generator. See the field's note in `src/schema/src/catalogue.ts` and
+    #: `KNOWN-ISSUES.md` #57.
+    drawn: bool = True
 
     def is_plausible(self, value: object) -> bool:
         """Whether a value stays inside what two real operators could differ by."""
@@ -84,6 +88,9 @@ class RungWorld:
     metro_lines: int
     roster: tuple[str, ...]
     max_reach_share: float
+    #: Each radial line's headway in seconds, cycled over the radials in order.
+    #: See the field's note in `src/schema/src/ladder.ts` (`KNOWN-ISSUES.md` #61).
+    radial_headways_s: tuple[int, ...]
 
 
 @dataclass(frozen=True)
@@ -120,6 +127,9 @@ class Rung:
     quota: dict[str, int]
     density: float
     world: RungWorld
+    #: How many dirty operators publish time with no offset, or `None` to leave it
+    #: to the draw. See the field's note in `src/schema/src/ladder.ts`.
+    offsetless: int | None = None
 
 
 @dataclass(frozen=True)
@@ -204,6 +214,7 @@ def load() -> Catalogue:
             plausible_because=(s.get("plausible") or {}).get("because"),
             excludes=tuple(s.get("excludes", ())),
             categorical=bool(s.get("categorical", False)),
+            drawn=bool(s.get("drawn", True)),
         )
         for s in raw["settings"]
     )
@@ -216,6 +227,7 @@ def load() -> Catalogue:
             cosmetic_only=bool(r.get("cosmeticOnly", False)),
             quota={sec: int(n) for sec, n in r["quota"].items()},
             density=float(r["density"]),
+            offsetless=None if r.get("offsetless") is None else int(r["offsetless"]),
             world=RungWorld(
                 arms=int(r["world"]["arms"]),
                 sites_per_arm=int(r["world"]["sitesPerArm"]),
@@ -225,6 +237,7 @@ def load() -> Catalogue:
                 metro_lines=int(r["world"]["metroLines"]),
                 roster=tuple(r["world"]["roster"]),
                 max_reach_share=float(r["world"]["maxReachShare"]),
+                radial_headways_s=tuple(int(v) for v in r["world"]["radialHeadwaysS"]),
             ),
         )
         for r in raw["ladder"]

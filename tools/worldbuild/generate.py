@@ -350,6 +350,15 @@ def generate_manifests(
             quota = cat.tier_quota.get(tier, {})
             wanted = {section: _quota_for(count, share) for section, count in quota.items()}
             for setting in _in_quota_order(settings, wanted, rng):
+                # **Not drawn, and skipped here rather than filtered out of the
+                # pool** (`KNOWN-ISSUES.md` #57). `_in_quota_order` has already
+                # shuffled the whole section, and a smaller pool would spend less
+                # randomness and re-draw every world after it. Skipping before
+                # the pick spends nothing: a world that never drew this setting
+                # is unchanged, and one that did gives the slot to the next
+                # setting in its section, one pick for one pick.
+                if not setting.drawn:
+                    continue
                 # A conflict that masks another wastes it. Exclusion is
                 # symmetric, so ask in both directions.
                 blocked = any(
@@ -393,11 +402,69 @@ def generate_manifests(
         manifests.append(manifest)
 
     _rebalance(manifests, settings, cat, reference, {o.id: o for o in operators})
+    # After rebalancing, which may move a setting between operators: the count is
+    # a property of the finished world, like the reach cap (`#58`).
+    _fix_offsetless(manifests, settings, cat, tier, seed)
 
     # Restore the caller's order: downstream code and the content hash should
     # not depend on how this function happened to rank operators.
     by_id = {m["id"]: m for m in manifests}
     return tuple(by_id[o.id] for o in operators)
+
+
+def _fix_offsetless(
+    manifests: list[dict],
+    settings: tuple[catalogue.Setting, ...],
+    cat: catalogue.Catalogue,
+    tier: int,
+    seed: int,
+) -> None:
+    """Make exactly the rung's declared number of operators publish time with no offset.
+
+    **The values of `B-time-encoding` are not equal traps** (`KNOWN-ISSUES.md`
+    #58). The setting was drawn uniformly as categorical, on the premise that
+    which trap an operator sets does not change how hard it is. For a lazy reader
+    it does: `local_naive` is read as UTC and costs three hours, while the epoch
+    encodings are decoded by a heuristic every integrator has. Across twelve
+    draws of two rungs the number of operators publishing `local_naive` decided
+    whether a world was a rung or easy, with no exceptions. So the count is a
+    strength, and a rung fixes it — `#42`'s principle, one level down.
+
+    **Adjusted, not re-drawn.** A draw that already has the count is left exactly
+    as drawn. Otherwise only the difference moves, on a random stream of its own
+    so that no other setting in the world changes: surplus `local_naive`
+    operators take an epoch encoding, and a shortfall is made up from operators
+    that drew one. Which operators, and which epoch, still vary with the seed.
+
+    A rung that declares no count is left as drawn. A roster that cannot carry
+    the count gets as many as it can; on every generated network the ladder
+    produces it can carry it, which `tests/test_offsetless.py` asserts.
+    """
+    rung = cat.rung_at(tier)
+    wanted = rung.offsetless if rung is not None else None
+    setting = next((s for s in settings if s.conflict == "B-time-encoding"), None)
+    if wanted is None or setting is None:
+        return
+
+    offsetless = "local_naive"
+    epochs = tuple(v for v in setting.generate if v != offsetless)
+    carriers = [m for m in manifests if m["time"]["encoding"] != setting.off]
+    naive = [m for m in carriers if m["time"]["encoding"] == offsetless]
+    others = [m for m in carriers if m["time"]["encoding"] != offsetless]
+    if len(naive) == wanted:
+        return
+
+    rng = random.Random(seed * 1_000_003 + 17)
+    pool = naive if len(naive) > wanted else others
+    for i in range(len(pool) - 1, 0, -1):
+        j = int(rng.random() * (i + 1))
+        pool[i], pool[j] = pool[j], pool[i]
+    if len(naive) > wanted:
+        for m in pool[: len(naive) - wanted]:
+            m["time"]["encoding"] = _pick(rng, epochs, 0.0)
+    else:
+        for m in pool[: wanted - len(naive)]:
+            m["time"]["encoding"] = offsetless
 
 
 def _cosmetic_floor(
@@ -432,6 +499,9 @@ def _cosmetic_floor(
         j = int(rng.random() * (i + 1))
         pool[i], pool[j] = pool[j], pool[i]
     for setting in pool:
+        # Skipped after the shuffle, for the reason the quota loop gives.
+        if not setting.drawn:
+            continue
         blocked = any(
             other in setting.excludes or setting.conflict in _excludes_of(cat, other)
             for other in placed

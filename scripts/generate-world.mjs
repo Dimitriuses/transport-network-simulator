@@ -85,7 +85,9 @@ console.log("");
 
 // ---- phase 1: every candidate ---------------------------------------------
 mkdirSync(join(tmpdir(), "tns"), { recursive: true });
-const candidates = join(tmpdir(), "tns", `candidates-${seed}.world.db`);
+// Named for this process as well as the city (KNOWN-ISSUES.md #60): two builds of
+// the same city seed at once used to share this file.
+const candidates = join(tmpdir(), "tns", `candidates-${seed}-${process.pid}.world.db`);
 console.log("  1/3  building with every candidate journey");
 python([candidates, "--network", "--seed", seed, "--tier", tier, ...shapeArgs, ...conflictArgs]);
 

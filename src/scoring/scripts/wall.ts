@@ -4,17 +4,22 @@
 //
 // Specification: PHASES.md Gate 1b, KNOWN-ISSUES.md #56, #57.
 //
-// **Gate 1b's two ends, without the ablation.** `npm run gates` answers this and
-// a great deal else, and the great deal else costs `(2 + conflicts) × seeds`
-// calibrations — 145 on the merged top rung, an hour of compute. The two
-// questions *which conflict* and *how much altogether* are different questions,
-// and re-sweeping a ladder only ever needed the second.
+// **Gate 1b's two ends and Gate 3's floor, without the ablation.** `npm run gates`
+// answers this and a great deal else, and the great deal else costs
+// `(2 + conflicts) × seeds` calibrations — 145 on the merged top rung, an hour of
+// compute. The two questions *which conflict* and *how much altogether* are
+// different questions, and re-sweeping a ladder only ever needed the second.
 //
 // So this runs two calibrations per seed: the world as declared, and the same
 // world publishing honest values. That is enough for both ends of 1b and for
 // Gate 3's headline number, and it turns a ladder sweep from most of a day into
 // a few minutes. When a rung looks wrong here, `npm run gates` says which
 // conflict did it.
+//
+// **The verdict is `rung-verdict.ts`'s, not this script's.** Until 2026-09-11
+// this kept its own copy of the bars, checked only one end of Gate 1b, and so
+// printed "rung" for a world a lazy integrator had already won — and it passed
+// Gate 3 at exactly 20 % where the gates failed it.
 //
 // **It decides nothing.** The gates are the gates; this is the cheap screen
 // that says which world is worth spending an hour on.
@@ -23,7 +28,7 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadWorld } from "@tns/core";
-import { calibrate, withNoConflicts, pairedCost } from "@tns/scoring";
+import { calibrate, withNoConflicts, pairedCost, rungVerdict } from "@tns/scoring";
 import { rungAt } from "@tns/schema";
 import { progress } from "./progress.ts";
 
@@ -35,7 +40,7 @@ const repoRoot = resolve(here, "..", "..", "..");
  *
  * This is a screen rather than a verdict, and the quantity it screens on is
  * large where it matters — a wall reads −5.7 against a bar of −1, which no
- * plausible seed-to-seed scatter reaches. A world close enough to the bar for
+ * plausible seed-to-seed scatter reaches. A world close enough to a bar for
  * three seeds to be too few is a world to run `npm run gates` against.
  */
 const SEEDS = 3;
@@ -49,11 +54,6 @@ for (const p of paths) {
     process.exit(1);
   }
 }
-
-/** The point where integrating lazily loses as much as integrating perfectly would win. */
-const LAZY_LOSS_LIMIT = -1;
-/** Gate 3's ratified floor, reported here for context and decided in `npm run gates`. */
-const MATERIALITY_FLOOR = 0.2;
 
 const bar = progress(paths.length * SEEDS * 2, "calibrating");
 const m = (s: number) => `${(s / 60).toFixed(2)}m`;
@@ -127,13 +127,7 @@ console.log("  ------------------------   --------------   ------  -------   ---
 
 for (const r of rows) {
   const share = r.headroomS === 0 ? 0 : r.costS / r.headroomS;
-  const verdict = !r.carriesConflict
-    ? "n/a"
-    : r.lazyCapture < LAZY_LOSS_LIMIT
-      ? "WALL"
-      : share < MATERIALITY_FLOOR
-        ? "thin"
-        : "rung";
+  const verdict = rungVerdict(r.lazyCapture, share, r.carriesConflict).label;
   console.log(
     `  ${r.label.padEnd(24)}   ${r.rung.padEnd(14)}   ${n(r.lazyCapture)}  ` +
       `${`${r.fellBack}/${r.queries}`.padStart(7)}   ` +
@@ -143,14 +137,15 @@ for (const r of rows) {
 
 console.log("");
 console.log("  WALL   a lazy integrator loses more than the whole prize — Gate 1b's");
-console.log("         ceiling. Run `npm run gates` to see which conflict did it.");
+console.log("         lower end. Run `npm run gates` to see which conflict did it.");
+console.log("  easy   a lazy integrator captures 0.5 or more — Gate 1b's upper end.");
+console.log("         Doing the obvious thing badly already wins.");
 console.log("  thin   conflicts cost under 20% of the headroom, which is Gate 3's");
 console.log("         floor. The world is playable and the conflicts are decorative.");
 console.log("  n/a    this rung declares no semantic conflict and is not answering");
 console.log("         either question (KNOWN-ISSUES.md #52).");
 console.log("");
-console.log("  Both verdicts are failures and a rung can only avoid one of them by");
-console.log("  having settings between the two. On the merged top rung the whole");
-console.log("  distance is one setting: 502% with `B-dst-offset`, 18% without it,");
-console.log("  and nothing in the catalogue lives in between (KNOWN-ISSUES.md #57).");
+console.log("  All three are failures, and a world can miss two at once. On the top");
+console.log("  rung, B-dst-offset made walls, and draws with at most one operator");
+console.log("  publishing local_naive came out easy and thin (KNOWN-ISSUES.md #57, #58).");
 console.log("");

@@ -20,6 +20,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadWorld } from "@tns/core";
 import { projectOperator } from "@tns/projections";
+import { operatorKeys } from "@tns/schema";
 import type { Tuning, OperatorTuning } from "../src/index.ts";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
@@ -38,8 +39,23 @@ const quayById = new Map(world.quays.map((q) => [q.id, q]));
 
 const operators: Record<string, OperatorTuning> = {};
 
+// **Filed by what each operator is, not what it is called** (`KNOWN-ISSUES.md`
+// #59). Computed from the published timetables — the data `tuned` computes its
+// own keys from on whatever world it meets — so the two cannot disagree about
+// how to name an operator. One that ties with another of its kind on lines and
+// trips gets no entry, since nothing a rename leaves could find it again.
+const keyOf = operatorKeys(
+  world.manifest.operators.map((o) => projectOperator(world, o.id, 0).timetable),
+);
+const unkeyed: string[] = [];
+
 for (const op of world.manifest.operators) {
   const { timetable, resolution } = projectOperator(world, op.id, 0);
+  const key = keyOf.get(op.id);
+  if (!key) {
+    unkeyed.push(op.id);
+    continue;
+  }
   const manifest = op.manifest as {
     time: { encoding: OperatorTuning["encoding"] };
     realtime?: { cancelled_token?: string; delay_unit?: OperatorTuning["delayUnit"] };
@@ -71,7 +87,7 @@ for (const op of world.manifest.operators) {
     n++;
   }
 
-  operators[op.id] = {
+  operators[key] = {
     dLat: n === 0 ? 0 : sumLat / n,
     dLon: n === 0 ? 0 : sumLon / n,
     encoding: manifest.time.encoding,
@@ -87,7 +103,7 @@ console.log("");
 console.log(`  ANSWER KEY — ${worldArg}`);
 console.log(`  world ${world.manifest.contentHash.slice(0, 16)}`);
 console.log("");
-console.log("    operator     displacement (m)   encoding      cancelled   delay");
+console.log("    key          displacement (m)   encoding      cancelled   delay");
 for (const [id, t] of Object.entries(operators)) {
   const metres = Math.sqrt((t.dLat * 111_320) ** 2 + (t.dLon * 111_320 * 0.64) ** 2);
   console.log(
@@ -98,7 +114,13 @@ for (const [id, t] of Object.entries(operators)) {
 console.log("");
 console.log(`  written ${outPath}`);
 console.log("");
-console.log("  This is what `TNS_PLAYER_MODE=tuned` memorises. On this world it is");
-console.log("  exact; on another world of the same tier the operator ids are the same");
-console.log("  and every answer is wrong, which is the point.");
+if (unkeyed.length > 0) {
+  console.log(`  no entry for ${unkeyed.join(", ")}: tied with another of its kind on`);
+  console.log("  lines and trips, so nothing a rename leaves could find it again.");
+  console.log("");
+}
+console.log("  This is what `TNS_PLAYER_MODE=tuned` memorises, filed by operator kind and");
+console.log("  rank rather than by id. On this world it is exact. On another world of the");
+console.log("  same rung the ids and names are new, the same keys find the same roles, and");
+console.log("  every answer is the home world's, which is the point (KNOWN-ISSUES.md #59).");
 console.log("");

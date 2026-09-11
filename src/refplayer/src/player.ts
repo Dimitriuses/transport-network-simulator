@@ -5,7 +5,7 @@
 // problem does not arise (TECHNICAL-RESEARCH.md §10).
 
 import { createServer, type Server } from "node:http";
-import { publishedEpochSeconds } from "@tns/schema";
+import { publishedEpochSeconds, statedOffsetS } from "@tns/schema";
 import { makeCheatPlanner, type CheatPlanner } from "./cheat.ts";
 import { readTuning } from "./tuning.ts";
 import {
@@ -51,8 +51,20 @@ const CONTRACT_VERSION = "0.3";
  * (catalogue B). This handles the shapes — a number is epoch seconds *or*
  * milliseconds, told apart by magnitude; a string with an offset is RFC 3339 —
  * and then makes the mistake a mediocre integrator makes: a timestamp with
- * **no offset** is assumed to be in the same frame as everything else. It is
- * not. Nothing in the data says so.
+ * **no offset** is read as UTC. In this world it is not, and nothing in the data
+ * says so.
+ *
+ * **Until 2026-09-11 it read one as world-local instead**, which is correct, so
+ * this player was accidentally competent at `local_naive` while the scoring
+ * baseline paid three hours for it. The calibration search screens on this
+ * player, so it could not see the setting that decides whether a top-rung draw
+ * is a rung or thin (`KNOWN-ISSUES.md` #58). Both now read it as UTC.
+ *
+ * **An offset it is given, it believes** (`KNOWN-ISSUES.md` #58, decided
+ * 2026-09-11). It used to read the wall clock and ignore the suffix, which made
+ * it accidentally immune to `B-dst-offset` while the scoring baseline lost 44.83m
+ * to the same feed — two lazy readers disagreeing completely about one conflict,
+ * and the calibration search screening on the one that could not see it.
  *
  * The unit discrimination lives in `@tns/schema` because the scoring baseline
  * needs exactly the same rule, and had exactly the same bug.
@@ -108,9 +120,15 @@ const WORLD_EPOCH_DAY = 7;
  * Exported so the rule can be tested rather than trusted.
  */
 export function wallClockSeconds(value: string | number, offsetS: number): number {
-  return typeof value === "number"
-    ? (toSeconds(value) + offsetS) % 86400
-    : toSeconds(value) % 86400;
+  if (typeof value === "number") return (toSeconds(value) + offsetS) % 86400;
+  // A stated offset is believed: the instant it names, put on this player's wall
+  // clock — the rule `parseSimTime` applies for the scoring baseline, and a test
+  // holds the two together. No offset is read as UTC, which is the baseline
+  // rule too and the intended defect (catalogue B). Both decided 2026-09-11,
+  // KNOWN-ISSUES.md #58.
+  const stated = statedOffsetS(value) ?? 0;
+  const local = toSeconds(value);
+  return (((local - stated + offsetS) % 86400) + 86400) % 86400;
 }
 
 function toSeconds(value: string | number): number {
@@ -139,10 +157,9 @@ function toSeconds(value: string | number): number {
 function normaliseOffset(timetables: Timetable[]): number {
   for (const t of timetables) {
     const sample = t.trips[0]?.stop_times[0]?.depart;
-    if (typeof sample === "string" && /[+-]\d{2}:\d{2}$/.test(sample)) {
-      const m = /([+-])(\d{2}):(\d{2})$/.exec(sample)!;
-      return (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 3600 + Number(m[3]) * 60);
-    }
+    // The same reading of the suffix the decoder uses, rather than a copy of it.
+    const stated = typeof sample === "string" ? statedOffsetS(sample) : null;
+    if (stated !== null) return stated;
   }
   return 0;
 }

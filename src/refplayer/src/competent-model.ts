@@ -4,6 +4,7 @@
 // not extra data — it has none — but that it distrusts what it is given in the
 // specific ways the data deserves.
 
+import { operatorKeys } from "@tns/schema";
 import {
   detectTimeDecoder,
   estimateOffset,
@@ -29,6 +30,12 @@ export interface CompetentModel {
   readonly cancelled: Set<string>;
   /** Will run late. Boarded, with the delay carried into the arrival time. */
   readonly delayed: Map<string, number>;
+  /**
+   * For `tuned`: each operator in this world, to the key its memorised answers
+   * are filed under. An operator with no entry has no key here — a kind the home
+   * world had none of, or two operators tied on everything a rename leaves.
+   */
+  readonly tuningKey?: ReadonlyMap<string, string>;
 }
 
 export function buildCompetentModel(
@@ -86,14 +93,40 @@ export function buildCompetentModel(
   const byKey = new Map<string, MatchedStop>();
   const decoders = new Map<string, (v: string | number) => number>();
 
-  for (const t of timetables) {
-    const baked = tuning?.operators[t.operator];
+  // **Answers are filed by what an operator is, not by what it is called**
+  // (`KNOWN-ISSUES.md` #59). An operator's id is generated from the world's
+  // seed, so a key filed by id resolved against nothing on any other world of a
+  // rung and `tuned` read no feed at all. `operatorKeys` names an operator by
+  // its kind and how much it runs — published facts a rename cannot touch — and
+  // is the function `npm run tune` filed the key with.
+  const keyOf = tuning
+    ? operatorKeys(
+        timetables.map((t) => ({
+          operator: t.operator,
+          operator_name: t.operator_name ?? "",
+          routes: t.routes,
+          trips: t.trips,
+        })),
+      )
+    : undefined;
+  const tuningKey = new Map<string, string>();
+  if (keyOf) {
+    for (const [operator, key] of keyOf) {
+      if (key) tuningKey.set(operator, key);
+    }
+  }
+  const bakedFor = (operator: string) => {
+    const key = tuningKey.get(operator);
+    return key ? tuning?.operators[key] : undefined;
+  };
 
-    // **An operator the answer key never heard of is one this solution cannot
-    // read.** Since P1M6 a world generates its own operators, so two worlds of
-    // a rung need not share an identity — and a memorised solution meeting
-    // `verbovaline` when it was built against `nordline` has no handling wired
-    // in for it. Falling back to inference here would quietly turn `tuned` into
+  for (const t of timetables) {
+    const baked = bakedFor(t.operator);
+
+    // **An operator the answer key cannot name is one this solution cannot
+    // read** — a kind the home world had none of, or two operators of one kind
+    // running identical lines and trips, which nothing a rename leaves can tell
+    // apart. Falling back to inference here would quietly turn `tuned` into
     // `competent` and the fixture would measure nothing, which is the same
     // mistake as the decoder fallback `tuning.ts` refuses.
     if (tuning && !baked) continue;
@@ -105,7 +138,7 @@ export function buildCompetentModel(
 
     // Recover this operator's systematic displacement, if it has one, and
     // correct for it. Without this its stops look like neighbours of nothing.
-    const bakedGeometry = tuning?.operators[t.operator];
+    const bakedGeometry = bakedFor(t.operator);
     const { dLat, dLon } = bakedGeometry
       ? { dLat: bakedGeometry.dLat, dLon: bakedGeometry.dLon }
       : t.operator === reference.operator
@@ -162,7 +195,16 @@ export function buildCompetentModel(
   }
   for (const list of boardings.values()) list.sort((a, b) => a.departS - b.departS);
 
-  return { stops, byKey, links, boardings, seenTrips, cancelled: new Set(), delayed: new Map() };
+  return {
+    stops,
+    byKey,
+    links,
+    boardings,
+    seenTrips,
+    cancelled: new Set(),
+    delayed: new Map(),
+    tuningKey,
+  };
 }
 
 /** Fold a realtime feed into what the model believes. */
@@ -174,7 +216,8 @@ export function applyRealtime(
   tuning?: Tuning,
 ): void {
   const previously = new Set([...model.seenTrips].filter((k) => k.startsWith(`${operator}:`)));
-  const baked = tuning?.operators[operator];
+  const key = model.tuningKey?.get(operator);
+  const baked = key ? tuning?.operators[key] : undefined;
   const read = baked ? tunedRealtimeReader(baked) : readRealtime;
   const view = read(operator, updates, previously);
   for (const k of view.cancelled) model.cancelled.add(k);

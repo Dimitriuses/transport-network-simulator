@@ -35,6 +35,13 @@ import { publishedEpochSeconds } from "@tns/schema";
 
 export interface Timetable {
   operator: string;
+  /**
+   * The operator's published name. Its last word is its kind, which is how a
+   * memorised answer key finds this operator again on a world where its id is
+   * new (`@tns/schema` operatorKeys). Optional because a fixture may not name
+   * one; every served timetable does.
+   */
+  operator_name?: string;
   stops: Stop[];
   routes: { route_id: string; route_name: string }[];
   trips: Trip[];

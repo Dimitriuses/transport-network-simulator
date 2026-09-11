@@ -89,6 +89,21 @@ export interface CatalogueSetting {
    */
   readonly categorical?: boolean;
   /**
+   * Whether the generator may place this setting. Absent means yes.
+   *
+   * **A setting can belong in the catalogue and not in a generated world.**
+   * `B-dst-offset` is realistic, audited and answerable, and `competent` answers
+   * it — and every wall on the structural ladder carries it, while the top rung
+   * drawn without it is a healthy rung (`KNOWN-ISSUES.md` #57). It stays here so
+   * the audit, the probe, the isolation tests and a world built around it on
+   * purpose all still know it; only the generator passes it by.
+   *
+   * Skipped at placement rather than filtered out of the pool, because the pool
+   * is shuffled first and a smaller pool spends less randomness, which would
+   * re-draw every world after it — see `tools/worldbuild/generate.py`.
+   */
+  readonly drawn?: boolean;
+  /**
    * How `generate` was derived from the world's own parameters, when it was.
    *
    * **A setting's values were chosen for plausibility alone, and plausibility
@@ -243,6 +258,13 @@ export const CATALOGUE: readonly CatalogueSetting[] = [
     // problem of a fact stated nowhere in the feed — no ordering of those is a
     // ladder, and treating them as one made Tier 5 draw `local_naive` every
     // time (`KNOWN-ISSUES.md` #48).
+    //
+    // **And not equal traps either, which is the premise that rested on.** For a
+    // lazy reader `local_naive` costs three hours and the epoch encodings almost
+    // nothing, so how many operators draw it is a strength. The rung fixes that
+    // count (`offsetless` in `ladder.ts`, `KNOWN-ISSUES.md` #58); which operators
+    // carry it, and epoch seconds against milliseconds for the rest, are still
+    // drawn uniformly.
     categorical: true,
     generate: ["epoch_s", "epoch_ms", "local_naive"],
   },
@@ -272,6 +294,10 @@ export const CATALOGUE: readonly CatalogueSetting[] = [
     // an operator's own passengers would have said so.
     plausible: { max: 3600, because: "one hour is the DST step; beyond it nobody would keep publishing" },
     excludes: ["B-time-encoding"],
+    // Out of the draw, decided 2026-09-11. Acting alone on one operator it cost
+    // a lazy integrator 44.83m against 10.62m of headroom, and no weaker value
+    // is realistic — a wrong-zone claim *is* an hour (`KNOWN-ISSUES.md` #57).
+    drawn: false,
     // The sign is a direction, not a severity: an hour early and an hour late
     // are the same size of error and the same size of mistake.
     categorical: true,

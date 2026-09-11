@@ -46,3 +46,24 @@ export const MILLISECOND_CUTOFF_S = 30 * 24 * 3600;
 export function publishedEpochSeconds(value: number): number {
   return value > MILLISECOND_CUTOFF_S ? Math.round(value / 1000) : value;
 }
+
+/**
+ * The offset a published timestamp *claims*, in seconds, or `null` if it states
+ * none.
+ *
+ * **Believed by every lazy reader, decided 2026-09-11** (`KNOWN-ISSUES.md` #58).
+ * `P2rt` sent an offset-bearing string to `parseSimTime`, which believes the
+ * claim; the HTTP reference player took the wall-clock reading and never looked
+ * at the suffix. So `B-dst-offset` — which changes *only* the suffix — cost one
+ * lazy integrator 44.83m and the other nothing, and every instrument built on
+ * the second, the calibration search included, could not see it.
+ *
+ * Trusting a stated offset is what any date library does, and what this
+ * catalogue calls the lazy reading. `competent` still checks the claim against
+ * the brief. One reading of the suffix, here, for the reason this file exists.
+ */
+export function statedOffsetS(value: string): number | null {
+  const m = /([+-])(\d{2}):(\d{2})$/.exec(value);
+  if (!m) return null;
+  return (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 3600 + Number(m[3]) * 60);
+}

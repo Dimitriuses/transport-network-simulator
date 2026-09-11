@@ -133,7 +133,11 @@ console.log(`  ${candidates} candidate conflict draws over one fixed city, scree
 console.log(`  \`${SCREENING_MODE}\` at ${seedsPerCandidate} disruption seeds each.`);
 console.log("");
 
-const scratch = join(repoRoot, "worlds", "scratch", "candidate.world.db");
+// Beside the world being calibrated, not at one fixed path (KNOWN-ISSUES.md #60).
+// A shared candidate file let two calibrations overwrite each other and let any
+// reader see whichever draw was in flight, and it overwrote the evidence world
+// #57 cites, which survived only because a copy had been made first.
+const scratch = out.replace(/\.world\.db$/, "") + ".candidate.world.db";
 const bar = progress(candidates, "candidates");
 const screened: { conflictSeed: number; headline: number }[] = [];
 
@@ -162,7 +166,15 @@ if (screened.length === 0) {
 // whichever draw happened to be tried first.
 const sorted = [...screened].sort((a, b) => a.headline - b.headline);
 const median = sorted[Math.floor(sorted.length / 2)]!.headline;
+// A standard deviation over six draws is owned by whichever draw sits furthest
+// out: one poisoned draw made it 0.967 while five sat within 0.054
+// (KNOWN-ISSUES.md #50). The span of the middle draws says how far apart two
+// shipped worlds are likely to be, which is the question a reader brings to it,
+// so it is printed first and the deviation beside it.
 const spread = sd(screened.map((s) => s.headline));
+const ordered = screened.map((s) => s.headline).sort((a, b) => a - b);
+const middle = ordered.length >= 4 ? ordered.slice(1, -1) : ordered;
+const middleSpan = middle.length === 0 ? 0 : middle[middle.length - 1]! - middle[0]!;
 
 console.log("");
 console.log("    conflict seed   screened headline   distance from median");
@@ -178,7 +190,7 @@ const winner = screened.reduce((best, s) =>
 );
 
 console.log("");
-console.log(`  tier ${tier} sits at ${median.toFixed(3)} on \`${SCREENING_MODE}\`, spread ${spread.toFixed(3)}`);
+console.log(`  tier ${tier} sits at ${median.toFixed(3)} on \`${SCREENING_MODE}\`, middle ${middle.length} span ${middleSpan.toFixed(3)}, sd ${spread.toFixed(3)}`);
 console.log(`  across ${screened.length} draws of the same city.`);
 console.log("");
 console.log(`  Selected conflict seed ${winner.conflictSeed} at ${winner.headline.toFixed(3)}.`);

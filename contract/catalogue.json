@@ -118,6 +118,7 @@
       "excludes": [
         "B-time-encoding"
       ],
+      "drawn": false,
       "categorical": true,
       "generate": [
         -3600,
@@ -229,7 +230,7 @@
       ]
     }
   ],
-  "ladder_version": 1,
+  "ladder_version": 4,
   "ladder": [
     {
       "id": "clean",
@@ -246,7 +247,11 @@
           "radial",
           "ring"
         ],
-        "maxReachShare": 0.62
+        "maxReachShare": 0.62,
+        "radialHeadwaysS": [
+          1200,
+          1500
+        ]
       },
       "quota": {
         "A": 0,
@@ -280,7 +285,11 @@
           "radial",
           "ring"
         ],
-        "maxReachShare": 0.62
+        "maxReachShare": 0.62,
+        "radialHeadwaysS": [
+          1200,
+          1500
+        ]
       },
       "quota": {
         "A": 2,
@@ -316,7 +325,11 @@
           "ring",
           "metro"
         ],
-        "maxReachShare": 0.55
+        "maxReachShare": 0.55,
+        "radialHeadwaysS": [
+          1200,
+          1500
+        ]
       },
       "quota": {
         "A": 3,
@@ -324,6 +337,7 @@
         "C": 1,
         "D": 0
       },
+      "offsetless": 1,
       "density": 0.55,
       "clearance": {
         "from": "blind",
@@ -354,7 +368,11 @@
           "metro",
           "regional"
         ],
-        "maxReachShare": 0.5
+        "maxReachShare": 0.5,
+        "radialHeadwaysS": [
+          1200,
+          1500
+        ]
       },
       "quota": {
         "A": 3,
@@ -362,6 +380,7 @@
         "C": 1,
         "D": 2
       },
+      "offsetless": 2,
       "density": 0.6,
       "clearance": {
         "from": "naive",
@@ -393,7 +412,11 @@
           "metro",
           "regional"
         ],
-        "maxReachShare": 0.45
+        "maxReachShare": 0.45,
+        "radialHeadwaysS": [
+          1200,
+          1500
+        ]
       },
       "quota": {
         "A": 4,
@@ -401,6 +424,7 @@
         "C": 2,
         "D": 2
       },
+      "offsetless": 3,
       "density": 0.8,
       "clearance": {
         "from": "naive",

@@ -16,6 +16,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
+import { parseEpoch, parseSimTime } from "@tns/schema";
+
 import { wallClockSeconds } from "../src/index.ts";
 
 /** The committed world's offset: +03:00. */
@@ -63,12 +65,44 @@ test("a trip's stops stay in order after decoding", () => {
   }
 });
 
-test("a string with no offset is left on the wall clock", () => {
-  // The intended defect, and it must survive the fix: an operator publishing
-  // local time with no offset is read as though it were already in this
-  // world's frame, which is the plausible, unexamined, wrong choice.
-  const naive = wallClockSeconds("2031-04-07T06:00:00", OFFSET);
-  assert.equal(naive, 6 * 3600, "a naive local time should not be shifted");
+test("a string with no offset is read as UTC, as the scoring baseline reads it", () => {
+  // The intended defect, decided 2026-09-11 (KNOWN-ISSUES.md #58): local time
+  // published with no offset is read as UTC, which in this +03:00 world puts it
+  // three hours late. This player used to read it as world-local, which is
+  // correct, and was accidentally competent at local_naive while the baseline
+  // paid for it. Held to the baseline rule rather than to a number alone.
+  const epoch = parseEpoch("2031-04-07T00:00:00+03:00");
+  const iso = "2031-04-07T06:00:00";
+  const tau = parseSimTime(epoch, `${iso}+00:00`);
+  assert.equal(wallClockSeconds(iso, OFFSET), ((tau % 86_400) + 86_400) % 86_400);
+  assert.equal(wallClockSeconds(iso, OFFSET), 9 * 3600, "06:00 read as UTC is 09:00 here");
+});
+
+test("an honest offset leaves the reading where it was", () => {
+  // The world's own offset, stated: nothing to believe differently, so a feed
+  // that tells the truth decodes exactly as it did before offsets were read.
+  assert.equal(wallClockSeconds("2031-04-07T08:15:00+03:00", OFFSET), 8 * 3600 + 15 * 60);
+});
+
+test("a stated offset is believed exactly as the scoring baseline believes it", () => {
+  // **Two lazy readers, one rule** (`KNOWN-ISSUES.md` #58). `P2rt` decodes an
+  // offset-bearing string with `parseSimTime`; this player used to take the
+  // wall-clock reading and ignore the suffix, so `B-dst-offset` cost the one
+  // 44.83m and the other nothing. Compared against the baseline's own function
+  // rather than against a number, so the two cannot drift apart again.
+  //
+  // Before the fix every claim other than +03:00 fails here: the player returned
+  // 08:15 whatever the suffix said.
+  const epoch = parseEpoch("2031-04-07T00:00:00+03:00");
+  for (const claimed of ["+03:00", "+02:00", "+04:00", "-01:00"]) {
+    const iso = `2031-04-07T08:15:00${claimed}`;
+    const tau = parseSimTime(epoch, iso);
+    assert.equal(
+      wallClockSeconds(iso, OFFSET),
+      ((tau % 86_400) + 86_400) % 86_400,
+      `a feed claiming ${claimed} decoded differently from the scoring baseline`,
+    );
+  }
 });
 
 test("decoding is stable across the day boundary", () => {

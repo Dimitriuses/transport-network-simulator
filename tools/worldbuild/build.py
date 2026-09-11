@@ -328,6 +328,7 @@ def spec_for_tier(tier: int | None, shape: str = DEFAULT_SHAPE) -> network.Netwo
         metro_lines=w.metro_lines,
         roster=w.roster,
         max_reach_share=w.max_reach_share,
+        radial_headways_s=w.radial_headways_s,
     )
 
 

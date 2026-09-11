@@ -32,10 +32,12 @@
 // over-converging, now that `npm run calibrate:tier` selects draws near a
 // median.
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadWorld } from "@tns/core";
+import { projectOperator } from "@tns/projections";
+import { operatorKeys } from "@tns/schema";
 import { profileWorld, headlineOf } from "@tns/scoring";
 import { progress } from "./progress.ts";
 
@@ -56,6 +58,56 @@ const tuningPath = resolve(repoRoot, homePath).replace(/\.world\.db$/, ".tuning.
 if (!existsSync(tuningPath)) {
   console.error(`No answer key at ${tuningPath}.`);
   console.error(`Bake one first:  npm run tune -- ${homePath}`);
+  process.exit(1);
+}
+
+// **Can this key be wrong about the away world at all?** (`KNOWN-ISSUES.md` #59)
+//
+// `tuned` looks every feed up in its key by operator id and skips a feed the
+// key has no entry for. Since P1M6 two worlds of a rung share no operator ids,
+// so on a genuinely independent away world the key resolves against nothing,
+// `tuned` reads no feed at all and scores like a player that answers nothing —
+// and the verdict at the bottom reports "both halves hold" however alike the
+// two worlds are.
+//
+// **Measured, not reasoned.** The committed world against a copy identical in
+// every respect except its operators' names: `competent` did not move by a
+// thousandth, and `tuned` went 0.294 -> -0.600, which is `null`'s headline to
+// three places. This instrument certified Phase 1's exit on two identical
+// worlds.
+//
+// So a collapse means something only if the key resolved. Checked before any
+// run, because it is a property of the key and the away world, costs nothing to
+// know, and makes three minutes of simulation pointless when it fails. A gate
+// that cannot be decided is not a gate that passes (`#53`).
+const answerKey = JSON.parse(readFileSync(tuningPath, "utf8")) as {
+  operators: Record<string, unknown>;
+};
+// **Resolved the way `tuned` resolves it**: by operator kind and rank, computed
+// from the away world's published timetables with the function that filed the
+// key. Since 2026-09-11 that finds the same roles on a renamed world, so this
+// refuses only where the key genuinely cannot reach — a kind the home world had
+// none of, or operators tied on everything a rename leaves.
+const awayWorld = loadWorld(resolve(repoRoot, awayPath));
+const awayKeys = operatorKeys(
+  awayWorld.manifest.operators.map((o) => projectOperator(awayWorld, o.id, 0).timetable),
+);
+const awayOperators = awayWorld.manifest.operators.map((o) => o.id);
+const resolved = awayOperators.filter((id) => {
+  const key = awayKeys.get(id);
+  return key !== null && key !== undefined && key in answerKey.operators;
+});
+if (resolved.length === 0) {
+  console.error("");
+  console.error("  CANNOT BE DECIDED — the memorised key resolves none of the away world's operators.");
+  console.error(`    key   ${Object.keys(answerKey.operators).join(", ")}`);
+  console.error(
+    `    away  ${awayOperators.map((id) => `${id}=${awayKeys.get(id) ?? "tie"}`).join(", ")}`,
+  );
+  console.error("");
+  console.error("  `tuned` would skip every feed and score like a player that answers");
+  console.error("  nothing, so its collapse is guaranteed by the key alone and says");
+  console.error("  nothing about whether the two worlds are alike (KNOWN-ISSUES.md #59).");
   process.exit(1);
 }
 
@@ -91,6 +143,13 @@ console.log("");
 console.log(`  home  ${homePath}   (the world \`tuned\` memorised)`);
 console.log(`  away  ${awayPath}`);
 console.log(`  ${seeds} disruption seeds each.`);
+console.log(
+  `  the key resolves ${resolved.length} of ${awayOperators.length} away operators by kind and rank.`,
+);
+if (resolved.length < awayOperators.length) {
+  console.log("  `tuned` skips the rest, so part of any loss it shows is the key rather");
+  console.log("  than the world (KNOWN-ISSUES.md #59).");
+}
 
 const home = await run(homePath);
 const away = await run(awayPath);

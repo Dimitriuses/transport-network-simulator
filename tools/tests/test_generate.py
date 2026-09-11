@@ -237,12 +237,21 @@ def test_tier_one_has_more_settings_than_its_quota_asks_for() -> None:
     #: `#43` is the record of why that is weaker than a choice of settings: the
     #: value is drawn with a tier-scaled bias that lands on the same rung most
     #: of the time, which is how Tier 1 produced one world from every seed.
-    NARROW: dict[str, str] = {}
+    #:
+    #: **Refilled 2026-09-11.** `B-dst-offset` left the draw (`#57`), so section
+    #: B again offers one drawable setting against a quota of one. Counting the
+    #: catalogue rather than what the generator may place would have kept this
+    #: passing, and reported room that does not exist.
+    NARROW: dict[str, str] = {
+        "B": "KNOWN-ISSUES.md #47: one drawable setting once B-dst-offset left the draw",
+    }
 
     cat = catalogue.load()
     for tier, quota in cat.tier_quota.items():
         pool: dict[str, int] = {}
         for setting in cat.for_tier(tier):
+            if not setting.drawn:
+                continue
             pool[setting.section] = pool.get(setting.section, 0) + 1
         for section, wanted in quota.items():
             if wanted <= 0 or section in NARROW:
@@ -259,7 +268,10 @@ def test_tier_one_has_more_settings_than_its_quota_asks_for() -> None:
             default=0,
         )
         available = max(
-            (sum(1 for s in cat.for_tier(tier) if s.section == section) for tier in cat.tier_quota),
+            (
+                sum(1 for s in cat.for_tier(tier) if s.section == section and s.drawn)
+                for tier in cat.tier_quota
+            ),
             default=0,
         )
         assert available <= widest, (
@@ -399,14 +411,11 @@ def test_a_ladder_is_climbed_by_tier_and_a_list_of_kinds_is_not() -> None:
                         out.append(v)
         return out
 
-    # Categorical: every value must show up at the top of the ladder, where the
-    # bias used to collapse the draw onto one of them.
-    encodings = drawn(_top_tier(), "B-time-encoding")
-    assert len(encodings) >= 10, "too few draws to say anything"
-    assert len(set(encodings)) == 3, (
-        f"The top rung drew {sorted(set(encodings))} for B-time-encoding; a categorical "
-        "setting must not converge on one kind (KNOWN-ISSUES.md #48)"
-    )
+    # Categorical: the top rung used to collapse B-time-encoding onto one kind.
+    # Since 2026-09-11 the rung fixes how many operators publish local_naive, and
+    # this hand-built city has fewer dirty operators than the top rung declares,
+    # so the check that every kind still appears lives in tests/test_offsetless.py,
+    # on the network the rung actually generates (KNOWN-ISSUES.md #48, #58).
 
     # Ordinal: the strongest rung must still be reached for more often at the
     # top of the ladder than at the bottom.

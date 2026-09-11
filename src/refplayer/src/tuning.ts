@@ -21,10 +21,17 @@
 //   * each operator's time encoding, instead of detecting it from a sample.
 //
 // On the world it was tuned for it is at least as good as `competent`, because
-// its answers are exact rather than estimated. On any other world of the same
-// tier the operator ids are the same and the answers are wrong, so it applies a
-// confident correction to the wrong data — which is what memorisation looks
-// like when the exam changes.
+// its answers are exact rather than estimated. On another world of the same rung
+// it finds the same roles — the key files each operator's answers by its kind and
+// rank, not by the id the seed renames (`@tns/schema` operatorKeys) — and applies
+// the home world's answers to them: a confident correction to the wrong data,
+// which is what memorisation looks like when the exam changes.
+//
+// **Filed by operator id until 2026-09-11, and that made it measure nothing**
+// (`KNOWN-ISSUES.md` #59). Since P1M6 no two worlds of a rung share an operator
+// id, so on any genuinely different world the key resolved against nothing, this
+// read no feed at all and scored like `null`, and `npm run transfer` certified
+// two worlds identical except for their operators' names as non-memorisable.
 //
 // **The two-sided test:**
 //
@@ -76,6 +83,7 @@ export interface OperatorTuning {
 export interface Tuning {
   /** The world this key was taken from, so a mismatch is legible in a report. */
   readonly world: string;
+  /** Filed by `operatorKeys` — `Kind#rank` — and never by operator id. */
   readonly operators: Readonly<Record<string, OperatorTuning>>;
 }
 

@@ -41,8 +41,26 @@ import type { CatalogueSection } from "./catalogue.ts";
  * Not for tuning a quota by one, which the content hash of a world already
  * captures. This is for "the tier in that scorecard does not mean what it means
  * now".
+ *
+ * **History.**
+ *
+ *   1  P1M5 — six rungs, `clean` to `region`.
+ *   2  2026-09-11, recording `#51`: `region` merged into `towns-and-rail` and the
+ *      ladder ends at tier 4. The bump was owed at the merge and missed, so for
+ *      two days a bundle claiming `region` at tier 5 carried the same version
+ *      as one built after the rung was gone — which is the one case this
+ *      constant exists to make legible. `#54` lowered a quota by one and, by the
+ *      rule above, did not need it.
+ *   3  2026-09-11, the same day: `metro-town`, `metro-city` and `towns-and-rail`
+ *      declare how many operators publish time with no offset — 1, 2 and 3 —
+ *      so a world at each rung carries that count rather than sampling it
+ *      (`#58`). Different content for three rungs, which the rule above counts.
+ *   4  2026-09-11, the same day again: every rung declares its radial headways —
+ *      twenty and twenty-five minutes, alternating — where the generator drew
+ *      them from the city seed (`#61`). Different content for every generated
+ *      world, which the rule above counts.
  */
-export const LADDER_VERSION = 1;
+export const LADDER_VERSION = 4;
 
 /**
  * The city a rung asks for.
@@ -88,6 +106,30 @@ export interface RungWorld {
    * most of its conflicts, which two equal companies do not do.
    */
   readonly maxReachShare: number;
+  /**
+   * Each radial line's headway in seconds, dealt to the radials in order and
+   * cycled: `[1200, 1500]` runs line 1 every twenty minutes, line 2 every
+   * twenty-five, line 3 every twenty. A polycentric town cycles the same list
+   * over its own radials.
+   *
+   * **Declared, not drawn** (`KNOWN-ISSUES.md` #61, decided 2026-09-11). The
+   * generator drew each radial's headway from the city seed — 15, 20, 25 or 30
+   * minutes — and that draw set a rung's difficulty more than its conflicts did.
+   * How often the buses run decides how well a traveller does *without*
+   * integration, so it sizes the prize every score is a share of. Forcing only
+   * one world's four headways to another city's moved `naive` from −0.253 to
+   * −0.648 with its conflicts untouched, and six cities of `metro-city` spanned
+   * 0.335 where one city's conflict draws spanned at most 0.117. The calibration
+   * search holds the city fixed, so it could not see this.
+   *
+   * **Per line, not a set the seed deals out**: which line runs often changes
+   * which journeys the headroom criterion selects, and that alone left 0.178
+   * between two orders of the same four headways.
+   *
+   * The values are the old draw's expected headway, 22.5 minutes, chosen without
+   * reference to any gate.
+   */
+  readonly radialHeadwaysS: readonly number[];
 }
 
 /** One rung: what a tier declares about a world. */
@@ -114,6 +156,20 @@ export interface Rung {
    * and this still scales how much of it lands on a small operator.
    */
   readonly density: number;
+  /**
+   * How many dirty operators publish time with no offset (`local_naive`).
+   * Absent means the draw decides.
+   *
+   * **A strength, not a kind** (`KNOWN-ISSUES.md` #58, decided 2026-09-11).
+   * `B-time-encoding`'s values were drawn uniformly as equal traps, and for a
+   * lazy reader they are not: `local_naive` is read as UTC and costs three
+   * hours, while the epoch encodings are decoded by a heuristic every integrator
+   * has. Across twelve draws of two rungs this count decided whether a world was
+   * a rung or easy, with no exceptions, and it ran the way each calibrated pair
+   * disagreed. A rung's composition is fixed rather than sampled (`#42`), and
+   * this was the part of it still left to chance.
+   */
+  readonly offsetless?: number;
   /** What clearing this rung takes, as a position between two references. */
   readonly clearance: {
     readonly from: string;
@@ -135,7 +191,7 @@ export const LADDER: readonly Rung[] = [
     id: "clean",
     name: "a world that publishes honestly",
     sections: [],
-    world: { arms: 6, sitesPerArm: 3, hubQuays: 2, chords: 2, regionalLines: 0, metroLines: 0, roster: ["radial", "ring"], maxReachShare: 0.62 },
+    world: { arms: 6, sitesPerArm: 3, hubQuays: 2, chords: 2, regionalLines: 0, metroLines: 0, roster: ["radial", "ring"], maxReachShare: 0.62, radialHeadwaysS: [1200, 1500] },
     quota: { A: 0, B: 0, C: 0, D: 0 },
     density: 0,
     clearance: {
@@ -150,7 +206,7 @@ export const LADDER: readonly Rung[] = [
     name: "texture only: the same facts, spelled differently",
     sections: ["A"],
     cosmeticOnly: true,
-    world: { arms: 6, sitesPerArm: 3, hubQuays: 2, chords: 2, regionalLines: 0, metroLines: 0, roster: ["radial", "ring"], maxReachShare: 0.62 },
+    world: { arms: 6, sitesPerArm: 3, hubQuays: 2, chords: 2, regionalLines: 0, metroLines: 0, roster: ["radial", "ring"], maxReachShare: 0.62, radialHeadwaysS: [1200, 1500] },
     quota: { A: 2, B: 0, C: 0, D: 0 },
     density: 1,
     clearance: {
@@ -164,8 +220,9 @@ export const LADDER: readonly Rung[] = [
     id: "metro-town",
     name: "the first conflicts that mean something",
     sections: ["A", "B", "C"],
-    world: { arms: 8, sitesPerArm: 3, hubQuays: 2, chords: 3, regionalLines: 0, metroLines: 2, roster: ["radial", "ring", "metro"], maxReachShare: 0.55 },
+    world: { arms: 8, sitesPerArm: 3, hubQuays: 2, chords: 3, regionalLines: 0, metroLines: 2, roster: ["radial", "ring", "metro"], maxReachShare: 0.55, radialHeadwaysS: [1200, 1500] },
     quota: { A: 3, B: 1, C: 1, D: 0 },
+    offsetless: 1,
     density: 0.55,
     clearance: {
       from: "blind",
@@ -178,8 +235,9 @@ export const LADDER: readonly Rung[] = [
     id: "metro-city",
     name: "realtime joins in, and starts lying",
     sections: ["A", "B", "C", "D"],
-    world: { arms: 8, sitesPerArm: 4, hubQuays: 2, chords: 4, regionalLines: 3, metroLines: 2, roster: ["radial", "ring", "metro", "regional"], maxReachShare: 0.5 },
+    world: { arms: 8, sitesPerArm: 4, hubQuays: 2, chords: 4, regionalLines: 3, metroLines: 2, roster: ["radial", "ring", "metro", "regional"], maxReachShare: 0.5, radialHeadwaysS: [1200, 1500] },
     quota: { A: 3, B: 1, C: 1, D: 2 },
+    offsetless: 2,
     density: 0.6,
     clearance: {
       from: "naive",
@@ -218,6 +276,7 @@ export const LADDER: readonly Rung[] = [
       metroLines: 3,
       roster: ["radial", "ring", "radial", "metro", "regional"],
       maxReachShare: 0.45,
+      radialHeadwaysS: [1200, 1500],
     },
     // **`D: 2`, not the 3 the merge intended.** Section D holds three settings
     // and `D-no-delays` excludes `C-delay-unit`, which this rung's `C: 2` draws
@@ -227,6 +286,7 @@ export const LADDER: readonly Rung[] = [
     // one level up: *declared and undeliverable* rather than declared and
     // absent.
     quota: { A: 4, B: 1, C: 2, D: 2 },
+    offsetless: 3,
     density: 0.8,
     clearance: {
       from: "naive",
