@@ -94,7 +94,13 @@ const seedsPerCandidate = Number(flag("--seeds", "2"));
 const shape = flag("--shape", "single-centre");
 const verify = argv.includes("--verify");
 
-const PORTS = { operator: 9000, control: 9030, player: 9040 };
+// **A fixed port is a shared resource, in the same way `#60`'s scratch file was.**
+// Any process on the machine may hold 9000 — a notebook kernel did, and this
+// instrument died with EADDRINUSE before screening a single candidate, with
+// nothing about the calibration at fault. The default is unchanged; the base is
+// overridable so a blocked port is a flag rather than a wait.
+const portBase = Number(process.env.TNS_CAL_PORT_BASE ?? 9000);
+const PORTS = { operator: portBase, control: portBase + 30, player: portBase + 40 };
 
 /**
  * Conflict seeds to try, spread so consecutive candidates do not draw adjacent

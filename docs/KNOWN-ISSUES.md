@@ -1644,6 +1644,20 @@ The fix is the same shape as `#43`'s and is content work: section B wants a seco
 
 **Found by the room test, which was about to stop finding it.** It counted every catalogue setting in a section, so it would have gone on reporting room in section B that the generator cannot use. It counts drawable settings now, and section B is on its exemption list with this issue beside it — an exemption the test fails the moment it stops being true.
 
+### Measured 2026-09-12 — what the choice of values is worth now
+
+Across 36 draws per rung — six cities, six conflict seeds each, on `LADDER_VERSION` 4:
+
+| rung | operators drawing `B-time-encoding` | distinct assignments | distinct value multisets |
+|---|---|---|---|
+| `metro-town` | every dirty operator (2), in all 36 draws | 4 | 2 |
+| `metro-city` | every dirty operator (3), in all 36 draws | 6 | 2 |
+| `towns-and-rail` | every dirty operator (4), in all 36 draws | 6 | 2 |
+
+**Fixing the offsetless count narrowed it further** (`#58`). The multiset is now *N operators publishing `local_naive`, the rest an epoch encoding*, so what still varies is which operators carry the count and whether the remainder publish `epoch_s` or `epoch_ms` — two value multisets per rung, and four to six whole assignments in thirty-six draws. Section B is the one section whose content is very nearly determined by the rung.
+
+**It is not yet a difficulty problem**, and the same measurements say why: within one city the middle four of its six draws span 0.02–0.15 on `naive`, which is sections A, C and D varying rather than B. But this entry's own warning — *a choice of values is a weaker guarantee than a choice of settings* — now applies to a choice of values that is itself half fixed.
+
 *What closes it again* is the fix this entry always named: a second **drawable** section-B setting. `CORECONCEPT.md` §2.1 B lists service days past midnight (`25:10:00` against `01:10:00`) and calendar representation, both still unimplemented — and `#57`'s lesson now applies to choosing one: its measurable consequence against the length of a journey, not only its plausibility.
 
 ---
@@ -2746,6 +2760,14 @@ A diagnostic then read the file after the overwrite. Its operators belonged to a
 
 `npm run calibrate:tier` now builds its candidates beside the world it is calibrating — `N4a.world.db` screens through `N4a.candidate.world.db` — and `npm run world:generate` names its first pass for its process as well as its city seed. Applied once no running job was left that would launch the edited scripts part-way through, and first used by the recalibration that followed the offsetless-timestamp decision.
 
+### And the ports are shared with the whole machine — `2026-09-12`
+
+The same lesson, one layer out. `calibrate:tier` listens on a hard-coded 9000, and on 2026-09-12 a notebook kernel from an unrelated project held it: four calibrations died with `EADDRINUSE` before screening a single candidate, and every queued step that needed their worlds failed after them. **A fixed port is a resource shared with every process on the machine, not only with this project's other runs** — checking that our own instruments do not collide is not enough, which is this entry's finding stated once more.
+
+The base is now `TNS_CAL_PORT_BASE`, defaulting to 9000 so nothing changes unless it is asked for, and a blocked port becomes a flag rather than a wait. The other instruments still hard-code theirs; unifying them is owed, and was deliberately not done while calibrations were in flight, because each one launches a fresh process that would have loaded the edited script.
+
+**And a port range is not a port.** `npm run gates` starts at 9400 and climbs by 20 for every run it makes — four solutions, then `(2 + conflicts) × seeds` for the ablation — so it sweeps hundreds of ports upward and will eventually reach anything parked above it. Moving a calibration to 9500 to dodge a blocked 9000 put it directly in that path, and the gates died with `EADDRINUSE 9500` part-way through Gate 3 on a world that was perfectly fine. **Choosing a free port is not enough when a neighbour's range grows**; the base and the span both have to be declared before two instruments are run together.
+
 ---
 
 ## 61. Two worlds of one rung were not one city: the seed drew the bus timetable, and the timetable set the difficulty — `fixed 2026-09-11: every rung declares its radial headways`
@@ -2841,3 +2863,26 @@ They have now disagreed about the same pair in both directions:
 **Decided 2026-09-11, for P1M8: resolution, not a new rule.** Both pairs' transfers are re-run at ten seeds, matching the profile, and each verdict stands whichever way it goes. Neither instrument's rule changes while it is the thing deciding the exit. Unifying them — the transfer's generalising half reading the profile's verdict, and its collapse half compared against noise rather than against a noisy move — is the fix, and it is open.
 
 **Settled for P1M8 at ten seeds.** Both pairs hold both halves: `competent` moved 0.028 and 0.039, inside every bar, and `tuned` lost 0.218 and 0.370. At ten seeds the transfer's `competent` figures equal the profile's exactly, so on these pairs the two rules were asked about one number and agreed. **The defect stands**: at its default of three seeds the transfer can still fail worlds of equal difficulty, and nothing yet makes the two instruments one rule.
+
+---
+
+## 63. Declaring the radial headways made shape a difficulty lever again — `open, 2026-09-12`
+
+`P1M7`'s clause is that **shape is a declared axis and not an ordered one**: a region of towns is a different problem from a city of the same rung, not a harder one. It was measured and it held — rail, bus and mixed regions each within about 0.04 of the city on every reference — once `B-dst-offset` was out of the draw.
+
+**It does not hold on `LADDER_VERSION` 4.** Each region calibrated over six conflict draws of city seed 481516 at `towns-and-rail`, then profiled against the calibrated city at five seeds:
+
+| tier-4 world | `blind` | `naive` | `competent` | against the city |
+|---|---|---|---|---|
+| the city (R4a) | −0.472 | −0.420 | 0.284 | — |
+| `polycentric-rail` | −0.664 | −0.557 | 0.354 | `blind` 2.2×, `naive` 1.5×, `competent` 1.2× — **do not match** |
+| `polycentric-bus` | −0.664 | −0.552 | 0.357 | `blind` 2.2×, `naive` 1.6×, `competent` 1.3× — **do not match** |
+| `polycentric-mixed` | −0.561 | −0.453 | 0.318 | within noise — matches |
+
+**The regions are harder for the lazy readers and easier for the reasoning one.** That is the shape of a world where integration pays more: a missed link costs a traveller forty minutes, and `competent` finds the connection the other two do not.
+
+**Why declaring the headways did it.** A town's radials are built by the same code as a city's, so each town used to draw its own bus frequencies from its own seed and now runs the rung's declared twenty and twenty-five minutes (`#61`). The link between towns was always declared — rail every forty minutes, coach every twenty — so the change moved the *towns* relative to the link, and with them how much of a region's journey is a local ride rather than the connection.
+
+**`polycentric-mixed` matching is the weakest evidence here, not the strongest.** Its six calibration draws span **0.310** on `naive` with a standard deviation of 0.158, against 0.062 and 0.077 for the other two modes. Its median is the least settled of the three, and the noise its profile is judged against is correspondingly wide.
+
+**Open, deliberately.** The options are the ones `#51` left: make the regions agree with the city — their link headways are the obvious lever, and tuning a world to pass a clause is not something this project does without saying so — or stop calling shape an axis and make each region a rung with its own clearance bar. Either is a decision about what the second dimension means.

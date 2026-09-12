@@ -2018,3 +2018,23 @@ On the fixed counts the calibration spreads collapsed as intended — the middle
 **Both held.** `metro-city`: `competent` +0.028, `tuned` −0.218. `towns-and-rail`: +0.039 and −0.370. The key resolved every operator, and at ten seeds `competent`'s transfer figures equal the profile's to three places.
 
 **So Phase 1's exit clause is met at two rungs** — two worlds per rung from different cities, matching profiles, a reasoning solution that carries between them, a memorised one that collapses. What it rests on is recorded beside it: two cities per rung, the widest-apart pair of six at `metro-city`, matched inside a noise of about ±0.08; a transfer instrument whose default can fail matched worlds; single-centre rungs only. **And the full gates pass on one world per rung** — Gate 3 at 58 % and 62 % of headroom, measured on 146 and 142 of 200 journeys, with `B-time-encoding` the largest single conflict in each ablation. The audit column reads `LEAK` for `blind` and `naive` on the `metro-city` world and `clean` for all four on the other. That is `#40`'s diagnostic bound rather than a gate: the scorecard verdict is `scored`, no traveller beat `P0`, the one finding is 0.0m, and the blind-hit statistic is **0 where an optimal planner with the same information would have taken 4**. Closing the phase again is left as a decision.
+
+### P1M8 finished — a third rung, a monotone ladder, and a shape that stopped being one
+
+**The exit clause holds at three rungs.** `metro-town` joined the other two: profiles matching at ten seeds on every reference, and a transfer where `competent` moves 0.038 and `tuned` loses **0.947** — the largest collapse this instrument has measured, on the rung with the fewest conflicts.
+
+**The ladder is monotone by measurement on `competent`, in both cities**, five seeds each:
+
+| rung | city 481516 | city 20260911 |
+|---|---|---|
+| `clean` | 0.511 | — |
+| `small-town` | 0.509 | — |
+| `metro-town` | 0.463 | 0.508 |
+| `metro-city` | 0.345 | 0.440 |
+| `towns-and-rail` | 0.284 | 0.295 |
+
+`clean` and `small-town` are identical to three places, which is the texture-only rung doing exactly what it is for. **On the lazy references one city inverts at the top** — 481516 reads `blind` −0.522 at `metro-city` against −0.472 at `towns-and-rail` — and the other city does not. That city holds the hardest `metro-city` world of the six measured for `#61`, so the inversion is the residual city effect rather than the ladder: **the rung step at the top is now about the size of what a city seed still moves.**
+
+**The gates pass at every rung that carries conflict**: `metro-town` at 25 % of headroom on 131/200 journeys, `metro-city` 58 %, `towns-and-rail` 62 %. `metro-town`'s lazy integrator captures **0.487**, thirteen thousandths under Gate 1b's easy bar — a rung, and barely one.
+
+**And the shape axis stopped being neutral** (`KNOWN-ISSUES.md` #63). Rail and bus regions are now harder than the city on every reference, `polycentric-mixed` still matches on the least settled calibration of the three, and the cause is the same declaration that closed the city effect. Recorded rather than tuned away.
