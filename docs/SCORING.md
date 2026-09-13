@@ -401,7 +401,7 @@ What stays open is the question, not the defect: nobody has decided what the fam
 
 `capture` normalises against `P0a` since 2026-09-04, because `P0` is clairvoyant and unreachable. But `P0a` routes on the **canonical** world: it knows which of Sudbahn's three platforms at Central its train uses, and no player can (`KNOWN-ISSUES.md` #23).
 
-So `P0a` is unreachable too, by the identifiability floor `npm run identifiability` now measures — **0.19 min, about 6 % of headroom** on this world. Capture of 1.0 remains slightly impossible, by a much smaller margin than before.
+So `P0a` is unreachable too, by the identifiability floor `npm run identifiability` now measures — **0.19 min, about 6 % of headroom** on this world when first measured. Capture of 1.0 remains slightly impossible, by a much smaller margin than before. *Re-measured 2026-09-13 on the committed world: 1.27 min in the worst case for one traveller (15 %), and **0.13 min across the scored population (2 %)**, which is the figure Gate 1a thresholds.*
 
 **Options:**
 
@@ -427,6 +427,19 @@ The floor does not grow with tier, and it is *smaller* than the hand-built world
 **This weakens the objection to option 1 without answering it.** The scenario that motivated the warning — Site granularity over larger stations — is a property of the *network*, and P1M2 is what generates networks. The floor is worth re-measuring there before the option is chosen, and `npm run identifiability` takes a world path so that costs nothing.
 
 **Ratified 2026-09-05: hold at option 2 and re-measure at P1M2.** The status quo — publish the figure beside capture, subtract nothing — stands until generated *networks* exist to test the case the warning was about. Deciding now on evidence from one city's shape would be answering a question the measurement has not reached. **Reassigned from P1M1 to P1M2.**
+
+**Re-measured 2026-09-13 (P2M0), on the current generator** — the committed world, one calibrated world per rung, and a region:
+
+| world | worst one traveller cannot predict | across the scored population |
+|---|---|---|
+| committed `m1` | 1.27m (15 %) | 0.13m (2 %) |
+| `small-town` | 0.00m (0 %) | 0.00m (0 %) |
+| `metro-town` | 0.72m (8 %) | 0.03m (0 %) |
+| `metro-city` | 0.72m (6 %) | 0.05m (0 %) |
+| `towns-and-rail` | **1.42m (12 %)** | **0.23m (2 %)** |
+| `polycentric-rail`, tier 4 | 0.72m (5 %) | 0.15m (1 %) |
+
+**Two things the P1M1 paragraph above says are no longer true.** The floor *does* grow at the top rung: `towns-and-rail`'s hub has three stands 110 m apart, which doubles the worst case and brings the population floor level with the hand-built world's. And the ambiguity no longer comes from `A-granularity` collapsing stations — every group is now a set of hub stands or metro platforms publishing one description. **The case the original warning was about, a larger interchange, now exists**, and it moves the population floor from under 0.1 min to 0.23 min, well inside Gate 1a's 25 % bar. Option 2 was ratified to hold until such worlds existed; they do, and at 2 % they do not argue against it. Whether that settles the item is for its owner (`ROADMAP.md`, deferred to Phase 3).
 
 ---
 
@@ -457,6 +470,6 @@ The method was adopted. `CLEARANCE_LADDER` in `@tns/schema` states each rung as 
 
 **Clearance left the scorecard.** A bar defined against reference solutions needs their scores *on that world*, which means running them; `scoreRun` is a pure function of one run log and cannot. `Scorecard.cleared` and `clearanceThreshold` are gone, and `npm run clearance [world]` decides it, writing `<world>.clearance.json` so a later scorecard can be judged without running four solutions again.
 
-On the committed world the new bars are **−0.600 / −0.139 / 0.076 / 0.166 / 0.256 / 0.301** against the old **0.0 / 0.1 / 0.25 / 0.35 / 0.4 / 0.45** — materially lower, which is the point: the old numbers had been left behind by the change of denominator and were asking for far more than they were chosen to mean.
+On the committed world the new bars are **−0.600 / −0.139 / 0.076 / 0.166 / 0.256 / 0.301** against the old **0.0 / 0.1 / 0.25 / 0.35 / 0.4 / 0.45** — materially lower, which is the point: the old numbers had been left behind by the change of denominator and were asking for far more than they were chosen to mean. *Re-measured 2026-09-13 (P2M0): the committed world's bars now read **−0.600 / −0.152 / 0.058 / 0.156 / 0.304** — five rungs since `#51` merged the top two, and lower again after the reference player began believing a stated offset and reading an offsetless timestamp as UTC (`KNOWN-ISSUES.md` #58).*
 
 It also reports something the decimals never could: **which references clear which rung.** On this world `competent` clears tiers 0–3 and not 4, so our own answer key is a tier-3 solution here. That is a fact about the world worth knowing, and no fixed threshold would have surfaced it.
