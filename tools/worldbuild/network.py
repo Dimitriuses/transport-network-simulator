@@ -630,6 +630,30 @@ def _polycentric(
         quays.append(Quay(f"rail-{c + 1}", sid, station.official, lat, lon))
         stops.append(f"rail-{c + 1}")
 
+        # **A declared way onto the train** (`KNOWN-ISSUES.md` #64). The station is
+        # its own Site, and a traveller with no integration layer may change only
+        # between quays of one Site — so that traveller could never reach a
+        # platform, and every journey between towns fell out of the scored set as
+        # unroutable, though the open policy routed all of them. One town bus line
+        # now calls at a stop inside the station's Site, as the single-centre
+        # city's line `T0` calls at the hub so its tram is reachable without an
+        # undeclared transfer. **The walk from the hub stands stays undeclared and
+        # stays faster**, so discovering it is still a gain rather than a wall.
+        step = spec.min_quay_separation_m + 15.0
+        blat, blon = _offset(lat, lon, -east * step, north * step)
+        forecourt = f"c{c + 1}-q-station"
+        naming[forecourt] = names_mod.PlaceNames(
+            official=f"{station.official}, bus stop",
+            colloquial=station.colloquial,
+            abbreviated=f"{station.abbreviated} bus",
+        )
+        quays.append(Quay(forecourt, sid, naming[forecourt].official, blat, blon))
+        through = f"c{c + 1}-line-1"
+        lines = [
+            replace(ln, quays=_call_after(ln.quays, hub.id, forecourt)) if ln.id == through else ln
+            for ln in lines
+        ]
+
     #: Per link mode: headway, speed, dwell. A coach is slower, stops longer and
     #: comes more often; a train is the opposite, which is the whole difference
     #: between the two shapes.
@@ -658,6 +682,20 @@ def _polycentric(
     region = Network(tuple(sites), tuple(quays), tuple(lines), naming, tuple(operators))
     check_reach(region, spec.max_reach_share)
     return region
+
+
+def _call_after(route: tuple[str, ...], after: str, stop: str) -> tuple[str, ...]:
+    """The same route, calling at `stop` straight after `after`.
+
+    Refuses a route that does not call at `after`: silently appending the stop
+    somewhere else would put a bus on a detour nobody drew.
+    """
+    if after not in route:
+        raise ValueError(
+            f"route {route!r} does not call at {after!r}, so {stop!r} has nowhere to go"
+        )
+    i = route.index(after)
+    return (*route[: i + 1], stop, *route[i + 1 :])
 
 
 def _town_arms(arms: int, centres: int) -> int:

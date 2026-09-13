@@ -145,6 +145,7 @@ console.log(
   `  integration can help  ${String(report.improvable.length).padStart(5)}` +
     `   (${((report.improvable.length / report.total) * 100).toFixed(0)} %)`,
 );
+console.log(`  only integration routes ${String((report.onlyOpen ?? []).length).padStart(3)}`);
 console.log(`  unroutable by anyone  ${String(report.unroutable.length).padStart(5)}`);
 console.log("");
 console.log(`  scored                ${String(scored.length).padStart(5)}`);

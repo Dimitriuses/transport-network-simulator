@@ -59,8 +59,15 @@ import type { CatalogueSection } from "./catalogue.ts";
  *      twenty and twenty-five minutes, alternating — where the generator drew
  *      them from the city seed (`#61`). Different content for every generated
  *      world, which the rule above counts.
+ *   5  2026-09-13: every polycentric region gives each town a declared way
+ *      onto its railway — a bus stop inside the station's Site, served by one
+ *      town line (`#64`). Not a rung field, since a shape is not part of a
+ *      rung, but a tier-4 region now scores the journeys between its towns it
+ *      used to drop, and a result recorded against it means something else.
+ *      **Single-centre worlds are generated identically** to version 4; only
+ *      the version they record differs.
  */
-export const LADDER_VERSION = 4;
+export const LADDER_VERSION = 5;
 
 /**
  * The city a rung asks for.

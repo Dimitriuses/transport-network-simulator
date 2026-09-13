@@ -286,7 +286,7 @@ The gates pass, so Phase 1 may begin. But the ablation is a sharper instruction 
 
 ## Phase 1 — Generation
 
-> **Reopened on 2026-09-08.** `KNOWN-ISSUES.md` #48: a tier declares which conflicts a world holds and nothing else, so every generated world at every tier is the same city with the same three operators under the same names. The completion clause below was met at one rung on that generator; the ladder is being given a second dimension — **scale as the ordered tier, shape as a declared axis** — and the exit re-established across rungs. *The completion clause was met again at three rungs on 2026-09-11/12 — `metro-town`, `metro-city` and `towns-and-rail` — with the shape axis reopened by the same generator change (`KNOWN-ISSUES.md` #63); see the roadmap.* `P1M5`–`P1M8` in [`../ROADMAP.md`](../ROADMAP.md); Phase 2 pauses behind them, as Phase 0 paused behind P1M0 in 2026-09-02.
+> **Reopened on 2026-09-08.** `KNOWN-ISSUES.md` #48: a tier declares which conflicts a world holds and nothing else, so every generated world at every tier is the same city with the same three operators under the same names. The completion clause below was met at one rung on that generator; the ladder is being given a second dimension — **scale as the ordered tier, shape as a declared axis** — and the exit re-established across rungs. *The completion clause was met again at three rungs on 2026-09-11/12 — `metro-town`, `metro-city` and `towns-and-rail` — and **closed again on 2026-09-13, on the scale axis**. P1M7's shape clause was measured and not met — once a region's journeys between towns were scored, no region agreed with its city and none was a rung — and regions are carried to P2M5 (`KNOWN-ISSUES.md` #63–#65); see the roadmap.* `P1M5`–`P1M8` in [`../ROADMAP.md`](../ROADMAP.md); Phase 2 pauses behind them, as Phase 0 paused behind P1M0 in 2026-09-02.
 
 **Complete, 2026-09-07.** Five milestones; the record is in [`BUILD-LOG.md`](BUILD-LOG.md) under *Phase 1 — closed*. The completion clause below was amended twice during P1M4 and is reproduced in its amended form; what it measures now is `npm run profile` and `npm run transfer`, and it was met on one calibrated tier-3 pair — **evidence, not coverage**, with a second pair carried into Phase 2 as P2M0.
 
@@ -315,7 +315,7 @@ The overfitted solution is therefore keyed by what survives a rename — **opera
 
 ## Phase 2 — The living world
 
-**Current from 2026-09-07**, planned in [`../ROADMAP.md`](../ROADMAP.md) as P2M0–P2M4. Two items reach it from earlier phases: the router's non-monotonicity (`KNOWN-ISSUES.md` #40), because everything here is measured through it, and the external playtest (#3), which is scheduled last.
+**Current from 2026-09-07; paused on 2026-09-08 behind the reopened Phase 1, and resumed on 2026-09-13.** Planned in [`../ROADMAP.md`](../ROADMAP.md) as P2M0–P2M5, of which P2M5 carries Phase 1's unmet shape clause. Two items reach it from earlier phases: the router's non-monotonicity (`KNOWN-ISSUES.md` #40), because everything here is measured through it, and the external playtest (#3), which is scheduled last.
 
 **Delivers:** the sandbox half of the project, which Phase 0 deliberately skipped.
 

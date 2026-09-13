@@ -1826,6 +1826,10 @@ This project's recurring failure has a name — *a right number compared against
 
 ---
 
+### P2M0, revisited 2026-09-13
+
+**Its unmet clause was met four milestones later, and one of its met clauses stopped being true.** The transfer verdict holds at three rungs on `LADDER_VERSION` 4, at ten seeds, where P2M0 found it failing at Tier 5 for `#48`'s reason. And *every difficulty figure quoted was measured on the current generator* was true on the day it was ticked and was undone by three generator changes (`#57`, `#58`, `#61`) — which is `#20`'s lesson about thresholds, applied to a status line: **a tick is a measurement with a date, and a later change to what it measured does not update it.** The roadmap now records both.
+
 ## P1M5 — The ladder becomes data
 
 **Six tables, one list.** `TIER_SECTIONS`, `TIER_QUOTA` and `TIER_COSMETIC_ONLY` in the schema, `CLEARANCE_LADDER` next door, `TIER_DENSITY` in Python, and four `range(6)` loops in the tests — each keyed by the literals 0-5, each edited by hand, and between them they decided what a tier *was*.
@@ -2038,3 +2042,18 @@ On the fixed counts the calibration spreads collapsed as intended — the middle
 **The gates pass at every rung that carries conflict**: `metro-town` at 25 % of headroom on 131/200 journeys, `metro-city` 58 %, `towns-and-rail` 62 %. `metro-town`'s lazy integrator captures **0.487**, thirteen thousandths under Gate 1b's easy bar — a rung, and barely one.
 
 **And the shape axis stopped being neutral** (`KNOWN-ISSUES.md` #63). Rail and bus regions are now harder than the city on every reference, `polycentric-mixed` still matches on the least settled calibration of the three, and the cause is the same declaration that closed the city effect. Recorded rather than tuned away.
+
+## Phase 1 — closed again, 2026-09-13
+
+**Reopened on 2026-09-08 because a tier said nothing about its world** (`#48`), and closed on the scale axis. A tier now declares its city — arms, operators by role, reach, metro, the offsetless count and the radial headways — and Phase 1's completion clause holds at `metro-town`, `metro-city` and `towns-and-rail`: profiles matching at ten seeds, transfers holding both halves, the gates passing, and the ladder monotone on `competent` in both cities measured.
+
+### What the reopening taught
+
+* **A number is a property of its generator, and a tick is a measurement with a date.** Three generator changes in three days (`#57`, `#58`, `#61`) each invalidated figures quoted as current, and P2M0's second clause with them.
+* **Hold the instrument constant before comparing two readings.** `#63` set a two-seed calibration table against five-seed profiles and wrote down a cause from the difference. Re-measured like for like, the cause survived and the measurement did not — it had been of towns (`#64`).
+* **A classifier that merges two failures hides the interesting one.** *No policy can route* held every journey only integration could route, and in a region that was every journey between towns.
+* **The single-centre generator had already solved the region's problem once**, with line `T0`, and nothing carried the lesson to the new shape.
+
+### What did not close
+
+**Shape.** With a region's journeys between towns scored, no region agrees with its city and none is a rung (`#65`): rail and bus screen easy and thin, mixed easy, and `competent` falls from 0.290 to 0.072 on rail. By decision the phase closes on scale, and regions are carried to P2M5 with their causes unmeasured.

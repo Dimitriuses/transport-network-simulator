@@ -80,7 +80,14 @@ const rows: Row[] = world.queries.map((q) => {
 
 const worth = rows.filter((r) => r.gainS !== null && r.gainS >= MEANINGFUL_S);
 const nothing = rows.filter((r) => r.gainS !== null && r.gainS < MEANINGFUL_S);
-const unroutable = rows.filter((r) => r.gainS === null);
+// **Two different failures, which one class used to hold** (`KNOWN-ISSUES.md` #64).
+// A journey nobody can route is unroutable. A journey only the open graph
+// routes is the opposite of empty — integration is what makes it possible
+// at all — and it was printed as *no policy can route*, which in a region
+// was false for every journey between towns. Neither can be scored on the
+// restricted-against-open gain, so the selector still leaves both out.
+const unroutable = rows.filter((r) => r.restrictedS === null && r.openS === null);
+const onlyOpen = rows.filter((r) => r.restrictedS === null && r.openS !== null);
 
 const m = (s: number | null) => (s === null ? "  n/a" : `${(s / 60).toFixed(1)}m`);
 
@@ -94,6 +101,7 @@ if (asJson) {
       improvable: worth.map((r) => ({ id: r.id, gainS: r.gainS })).sort((a, b) => (a.id < b.id ? -1 : 1)),
       flat: nothing.map((r) => r.id).sort(),
       unroutable: unroutable.map((r) => r.id).sort(),
+      onlyOpen: onlyOpen.map((r) => r.id).sort(),
     }),
   );
   process.exit(0);
@@ -110,6 +118,7 @@ console.log("");
 console.log(`  journeys integration can improve by ${MEANINGFUL_S}s or more   ` +
   `${worth.length} of ${world.queries.length}`);
 console.log(`  journeys where it can win nothing                  ${nothing.length}`);
+console.log(`  journeys only integration can route at all         ${onlyOpen.length}`);
 console.log(`  journeys no policy can route at all                ${unroutable.length}`);
 console.log("");
 

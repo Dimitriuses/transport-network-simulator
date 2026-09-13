@@ -2866,7 +2866,7 @@ They have now disagreed about the same pair in both directions:
 
 ---
 
-## 63. Declaring the radial headways made shape a difficulty lever again — `open, 2026-09-12`
+## 63. Declaring the radial headways made shape a difficulty lever again — `measured again 2026-09-13; carried to P2M5 with #65`
 
 `P1M7`'s clause is that **shape is a declared axis and not an ordered one**: a region of towns is a different problem from a city of the same rung, not a harder one. It was measured and it held — rail, bus and mixed regions each within about 0.04 of the city on every reference — once `B-dst-offset` was out of the draw.
 
@@ -2886,3 +2886,81 @@ They have now disagreed about the same pair in both directions:
 **`polycentric-mixed` matching is the weakest evidence here, not the strongest.** Its six calibration draws span **0.310** on `naive` with a standard deviation of 0.158, against 0.062 and 0.077 for the other two modes. Its median is the least settled of the three, and the noise its profile is judged against is correspondingly wide.
 
 **Open, deliberately.** The options are the ones `#51` left: make the regions agree with the city — their link headways are the obvious lever, and tuning a world to pass a clause is not something this project does without saying so — or stop calling shape an axis and make each region a rung with its own clearance bar. Either is a decision about what the second dimension means.
+
+### Re-measured 2026-09-13 — the cause holds, and what it measures is towns (`#64`)
+
+The first reading set a two-seed calibration table from `LADDER_VERSION` 2 against five-seed profiles from `LADDER_VERSION` 4. Re-measured on both generators with one instrument — `npm run profile` at ten seeds, the calibrated city against each calibrated region — with the reading written down before any result:
+
+| ten seeds, city against region | `polycentric-rail` | `polycentric-bus` | `polycentric-mixed` |
+|---|---|---|---|
+| `LADDER_VERSION` 2 | matches | matches | matches |
+| `LADDER_VERSION` 4 | **`blind` 1.9×**, `naive` 1.2×, `competent` within | **`blind` 1.9×**, `naive` 1.2×, `competent` within | matches |
+
+So the neutral reading was real on the old generator, and **declaring the headways is what moved rail and bus**, as this entry said. Ten seeds narrow it: `competent` agrees within noise, and the gap is the lazy readers'.
+
+**But rail and bus score the same to three places on both generators** — `blind` −0.515 and −0.515, then −0.681 and −0.681. Two worlds that differ only in the link between their towns can do that only if the link never reaches the scored set, and it does not (`#64`). What this entry measures is a city against three small towns scored separately, and declaring the headways changed the towns. **Whether a region with its journeys between towns scored agrees with a city has not been measured on any generator.**
+
+**Measured on `LADDER_VERSION` 5, with those journeys scored** (`#64` fixed): no region agrees with its city at ten seeds, and none is a rung (`#65`). Phase 1 closed on the scale axis with this recorded, and shape is carried to P2M5.
+
+---
+
+## 65. Once a region's journeys between towns are scored, no region is a rung — `open, carried to P2M5`
+
+`#64`'s fix made a region score the journeys it exists for, and the first measurement of a region with them scored says what `#63` could not: **a region is not a tier-4 world.**
+
+Each world calibrated at tier 4 over six conflict draws of city seed 481516; `npm run wall` for the rung verdict, `npm run profile` at ten seeds against the calibrated city:
+
+| tier 4, `LADDER_VERSION` 5 | lazy captures | conflicts cost | screen | against the city, ten seeds |
+|---|---|---|---|---|
+| city | 0.094 | 60 % | rung | — |
+| `polycentric-rail` | 0.769 | 19 % | **easy, thin** | `competent` 0.290 → 0.072, **4.6×** |
+| `polycentric-bus` | 0.745 | 19 % | **easy, thin** | `naive` 1.6×, `blind` 1.4×, `competent` 1.5× |
+| `polycentric-mixed` | 0.515 | 37 % | **easy** | `competent` 2.1×, `naive` 1.5×, `blind` 1.4× |
+
+* **A lazy integrator captures about three quarters of a region's reachable headroom** on rail and bus, against 0.094 in the city — Gate 1b's *easy*.
+* **The declared conflicts cost 19 % of it** on rail and bus, under Gate 3's floor — *thin*.
+* **`competent` collapses on the rail region** — 0.072 against 0.290 in the city — while the lazy references score about as they do there. A regression detector falling that far below its own city is either meeting a harder problem or missing a competence the problem needs.
+* **Rail and bus no longer score alike**, so the link between towns now reaches scoring, as `#64` intended.
+
+**None of the causes has been measured.** Why a lazy integrator does so well in a region, why the conflicts cost so little of it, and why `competent` fails on the rail region are the questions carried to P2M5, with whether shape is an axis at all. **Not to be answered by making a conflict bigger.**
+
+---
+
+## 64. A region's scored set holds almost none of the journeys a region is for — `fixed 2026-09-13: each town gives a declared way onto its railway`
+
+**`npm run headroom` calls a journey unroutable when *either* policy fails to route it, and prints that group as *"journeys no policy can route at all"*.** `gainS` is null whenever `restricted` or `open` is null. In a region the station beside each town's hub sits in its own Site — an undeclared interchange, by design (P1M7) — so the restricted policy, `P1`, can never board a train, and every journey between towns lands in that group.
+
+Measured on the tier-4 `polycentric-rail` region, city seed 481516, `LADDER_VERSION` 4, all 900 candidates:
+
+| headroom's class | journeys | same town | cross-town |
+|---|---|---|---|
+| improvable | 78 | 78 | 0 |
+| flat | 135 | 132 | 3 |
+| *"no policy can route"* | 687 | 0 | **687** |
+
+Routed directly with the same calls `headroom` makes: **all 687 are routable by the open policy** — median 54.2 minutes, p10 34.0, p90 75.5 — and not one by the restricted policy. The label is false for every journey it covers here. And the selector, which draws the scored set from improvable and flat journeys only, **excludes the inter-town problem entirely**: a region's scored set is 197 same-town journeys and 3 cross-town ones, in every link mode, on `LADDER_VERSION` 2 and 4 alike. Rail, bus and mixed producing identical classification counts is the same fact seen from the other side — the link a traveller takes between towns never reaches the scored set.
+
+**What it undermines.** P1M7's third clause — *a polycentric world's scored set still rewards integration on the same criterion, measured rather than assumed* — was measured, at 109 of 200 then and 78 of 200 now, and was true of the journeys it counted, which were journeys inside a town. Its first clause, shape against city, and `#63` built on it, compare a city with **three small towns scored separately**: the forty-minute railway connection that makes a region a different problem is in neither measurement, so neither *neutral* nor *not neutral* is a finding about shape. The single-centre rungs are unaffected — a city's 900 candidates include no journey either policy fails to route.
+
+**Why it is not simply a bug to fix.** A journey `P1` cannot route has no reference outcome, and `capture` is `(P1 − player) / (P1 − P0a)`. Scoring such journeys needs a decision about what a traveller with no integration layer does when no plan exists — does not travel, is charged a penalty, takes a slower mode — which `REFERENCE-POLICY.md` does not state. The label is wrong whatever is decided, and should say which policy failed.
+
+### Fixed, 2026-09-13 — a declared way onto the train
+
+**Decided: mirror the city's line `T0`.** The single-centre generator met this problem once already — its tram's hub stop is called at by one line *so that operator is legitimately reachable without an undeclared transfer*, because *without it the headroom stops being a gain and becomes a wall*. A region now gives each town a bus stop **inside its station's Site**, called at by that town's line 1 straight after its hub stand. A traveller with no integration layer rides to the forecourt, changes within the Site and boards the train. **The walk from the hub stands to the platform stays an undeclared interchange and stays the faster way**, so finding it is still what integration wins. Scoring a journey `P1` cannot route was the other option, and it would have changed the reference outcome of every world; this changes only regions.
+
+`tools/tests/test_region_station.py` holds every town of every polycentric shape, at three seeds, to a line calling inside its station's Site; to its hub stands staying in a different Site from the station, so the fix cannot declare the interchange whose discovery is the headroom; and to the station stop keeping the quay separation the lazy matching tolerance is derived from, which `_polycentric` does not otherwise check. The first test failed before the change.
+
+**`npm run headroom` now says which policy failed.** *Only integration routes* — the restricted policy cannot, the open one can — is separate from *unroutable by anyone*, and `npm run world:generate` prints both. The selector still leaves both out: neither has a restricted-against-open gain to rank by.
+
+`LADDER_VERSION` is 5. Single-centre worlds are generated identically to version 4; `m1` rebuilt at `e2abb5ab`, its clearance unchanged.
+
+**Measured on the new generator**, tier 4, city seed 481516, all 900 candidates and the 200 selected:
+
+| | candidates improvable | only integration routes | unroutable by anyone | scored set improvable | improvable and cross-town |
+|---|---|---|---|---|---|
+| city | 432 | 0 | 0 | 140 (70 %) | — |
+| `polycentric-rail` | 433 | 162 | 0 | 140 (70 %) | **116** |
+| `polycentric-bus` | 405 | 162 | 0 | 140 (70 %) | **106** |
+| `polycentric-mixed` | 423 | 162 | 0 | 140 (70 %) | **111** |
+
+Against 78 improvable journeys, none of them crossing a town, on `LADDER_VERSION` 4. **The link modes now differ in what they make improvable**, which they could not while the link never reached scoring. 162 journeys per region still need integration to route at all and are left out, as before, for want of a reference outcome. *Why the restricted policy still cannot route them has not been measured.*

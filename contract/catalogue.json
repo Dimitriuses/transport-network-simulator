@@ -230,7 +230,7 @@
       ]
     }
   ],
-  "ladder_version": 4,
+  "ladder_version": 5,
   "ladder": [
     {
       "id": "clean",

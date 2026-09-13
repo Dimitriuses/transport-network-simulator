@@ -68,7 +68,10 @@ if (MODES.length === 0) {
   process.exit(2);
 }
 
-const PORTS = { operator: 8900, control: 8930, player: 8940 };
+// Overridable for the reason calibrate-tier.ts gives (KNOWN-ISSUES.md #60): a fixed
+// port is shared with the whole machine, and profiles run side by side need bases apart.
+const portBase = Number(process.env.TNS_PROFILE_PORT_BASE ?? 8900);
+const PORTS = { operator: portBase, control: portBase + 30, player: portBase + 40 };
 
 type Profile = DifficultyProfile;
 
