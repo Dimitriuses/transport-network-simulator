@@ -25,6 +25,15 @@ export interface RunHeader {
   readonly timeMode: "virtual" | "realtime" | "scaled";
   /** Simulated seconds per wall second. Recorded outside `virtual` only (TIME-MODEL.md §2.3). */
   readonly speed?: number;
+  /**
+   * Recorded only for a closed-loop run, so an open-loop header is byte-identical
+   * to one written before closed loop existed. Absent means open loop. A
+   * closed-loop score is computed by the same machinery and never compares with
+   * an open-loop one (SCORING.md §12).
+   */
+  readonly loop?: "closed";
+  /** Closed loop only: the share of scored travellers who use the player (REFERENCE-POLICY.md §3). */
+  readonly appUserFraction?: number;
   readonly latencyMode: "none" | "sim" | "wall";
   readonly referenceCompetence: "habitual" | "timetable" | "single_operator_rt";
   readonly hardwareProfile: string | null;
@@ -119,6 +128,13 @@ export interface TravellerOutcome {
   readonly announcedJourneyS?: number | null;
   readonly announcedWaitS?: number | null;
   readonly referenceWaitS: number | null;
+  /**
+   * Closed loop only. `false` for a traveller outside the app-user fraction, who
+   * travels under the reference policy and is never asked about: recorded so the
+   * run log holds the whole population, and excluded from every score, because
+   * nothing the player did could reach them (REFERENCE-POLICY.md §3).
+   */
+  readonly appUser?: boolean;
 }
 
 /**

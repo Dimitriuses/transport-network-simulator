@@ -134,7 +134,7 @@ The clock tracks wall time and the world feels alive.
 
 ---
 
-### P2M2 — Closed loop, and the app-user fraction
+### P2M2 — Closed loop, and the app-user fraction — **delivered 2026-09-14, staged**
 
 Travellers consult the player and act on its answers; the world diverges accordingly. A configured share consults it and the rest follow `P1`, which bounds request volume, models reality, and doubles as a difficulty axis.
 
@@ -142,16 +142,25 @@ Travellers consult the player and act on its answers; the world diverges accordi
 
 **Assigned here:**
 
-* **Ghost-rider capacity denial** (`REFERENCE-POLICY.md` §9) — needs a simulated background population, which the app-user fraction is.
+* **Ghost-rider capacity denial** (`REFERENCE-POLICY.md` §9) — needs a simulated background population, which the app-user fraction is. *Split to P2M6 on 2026-09-14: the fraction is a share of the scored travellers, and a population that occupies seats is a milestone of its own.*
 * **Trajectory in-bundle vs regenerated from seed** (`DATA-MODEL.md` §6) — `TECHNICAL-RESEARCH.md` §4 recommended seed-as-canonical with the trajectory as a cache, and bundle size was never estimated. A closed loop is what makes the distinction matter.
 
 **Exit:** a player's advice changes what happens to a traveller; the app-user fraction is configurable and its effect on request volume is measured; and `SCORING.md` states what is scored when the denominator is no longer fixed.
+
+**Decided 2026-09-14, before building:**
+
+* **Staged.** P2M2 puts travellers on the clock, adds the app-user fraction, measures request volume, records replay and settles scoring. **A background population and vehicle capacity are their own milestone, P2M6** — so until then a traveller's choice changes its own journey and nobody else's.
+* **The denominator is the unchanged day's references**, and a closed-loop score is marked non-comparable (`SCORING.md` §12).
+* **`KNOWN-ISSUES.md` #66 is fixed in closed loop only**; open loop keeps its semantics, so Phase 1's exit figures stand.
+* **The trajectory is regenerated from the seed** (`DATA-MODEL.md` §6): two milliseconds at the largest world measured.
+
+**Delivered 2026-09-14 — the exit met, on the staged scope.** `runOpenLoop({ loop: "closed", appUserFraction })` queues a traveller's replan at the break, so it is asked with τ there; travellers outside the fraction ride `P1`, are never asked about and are scored nowhere; `replay` reproduces a run's every traveller and obligation from its recorded answers. An open-loop log is byte-identical to one written before, checked by golden hash on three players. **Request volume is the fraction's, and ingestion is not:** on the committed world `competent` is asked 0, 31, 61, 94 and 127 plans and replans at 0, ¼, ½, ¾ and all, while its 734 ticks and 2,205 feed reads do not move — a tick-driven player's cost does not scale with its users. **Closing the loop fixed what #66 said it would**: seven travellers `competent` had stranded after three replans at one instant now arrive. *Found while building it:* plans were answered before the tick at their own instant (`#67`, fixed in every mode), and a non-arrival costs less than a long journey, so the scorer counted one of those rescues as a loss (`#68`, open, needs a decision).
 
 ---
 
 ### P2M3 — The view that explains it
 
-Map replay, vehicle and passenger flows, an API request view, and the traveller timeline of `OBSERVABILITY.md` §9 — **with the player's knowledge state rendered as a band beneath the world's**, which is the feature the phase exit rests on. Plus closed-loop replay: recorded player responses replayed for post-hoc debugging.
+Map replay, vehicle and passenger flows, an API request view, and the traveller timeline of `OBSERVABILITY.md` §9 — **with the player's knowledge state rendered as a band beneath the world's**, which is the feature the phase exit rests on. Plus closed-loop replay in the view: P2M2 records it and reproduces a run from its answers; this milestone is what lets a person step through one.
 
 **Assigned here**, because this UI is their first real consumer:
 
@@ -199,15 +208,31 @@ Map replay, vehicle and passenger flows, an API request view, and the traveller 
 
 ---
 
+### P2M6 — A population that rides — **split from P2M2, 2026-09-14**
+
+**Why it exists.** P2M2 put the scored travellers on the clock and stopped there. `REFERENCE-POLICY.md` §3's closed-loop row says the app users *perturb the world*, and nothing yet can be perturbed: the core has no vehicle occupancy, no capacity and no background population, so a traveller's choice changes its own journey and nobody else's.
+
+**What it has to build:**
+
+* **A background population** drawn from the world's demand, riding `P1` as individuals rather than as a demand table.
+* **Vehicle capacity and ghost-rider capacity denial** (`REFERENCE-POLICY.md` §9, decided at P0M2 and never built) — in open loop the load comes from the fixed population; in closed loop app users add to it.
+* **Then the caveat `SCORING.md` §12 states:** once riders reach each other, the day that happened and the day the references describe differ. Whether capture should then be taken against a recomputed day is a decision for this milestone, measured first.
+* **Concurrent issuance** (`TIME-MODEL.md` §2.3), if the population's volume needs it.
+
+**Exit:** in closed loop, one player's routing changes another traveller's journey through a full vehicle, reproducibly by replay; and the effect on `P1` and `P0a` of the population riding is measured.
+
+---
+
 ## Deferred, with the milestone that owns them
 
 | Item | Source | Owner |
 |---|---|---|
 | Free-running ingestion between ticks in `realtime` | `TIME-MODEL.md` §6, `PLAYER-CONTRACT.md` §5.6 | **P2M1** — decided 2026-09-14: permitted in `realtime` and `scaled`, required nowhere |
 | Sub-second time resolution | `TIME-MODEL.md` §8 | **P2M1** — closed 2026-09-14 at one second |
-| Ghost-rider capacity denial — needs a background population | `REFERENCE-POLICY.md` §9 | **P2M2** |
-| Trajectory in-bundle vs regenerated from seed | `DATA-MODEL.md` §6 | **P2M2** |
-| What `capture` normalises against once the day is no longer fixed | `SCORING.md` §2 | **P2M2**, before the first scored closed-loop run |
+| Ghost-rider capacity denial — needs a background population | `REFERENCE-POLICY.md` §9 | **P2M6** — split from P2M2 on 2026-09-14 |
+| Trajectory in-bundle vs regenerated from seed | `DATA-MODEL.md` §6 | **P2M2** — decided 2026-09-14: regenerated from the seed |
+| What `capture` normalises against once the day is no longer fixed | `SCORING.md` §2, §12 | **P2M2** — decided 2026-09-14: the unchanged day's references, non-comparable; revisited at **P2M6** once riders reach each other |
+| `KNOWN-ISSUES.md` #68 — a non-arrival costs less than a long journey | `SCORING.md` §4 | **Needs a decision**: every recorded capture moves with it |
 | `verbatim` logging, and the three trace disclosure levels | `OBSERVABILITY.md` §7, §8 | **P2M3**; assessment-mode redaction in Phase 4 |
 | `KNOWN-ISSUES.md` #47 — sections B and D offer no choice of *settings* | `#43`'s invariant test | Restated against measurement at P1M8. Closing it is content work — a second drawable section-B setting — with no milestone yet |
 | `KNOWN-ISSUES.md` #48 — the top rung is memorisable | `npm run transfer` | **P1M6**–**P1M7**: the structural ladder is the answer chosen for it — decided 2026-09-11; the transfer holds at three rungs |
@@ -226,7 +251,7 @@ Map replay, vehicle and passenger flows, an API request view, and the traveller 
 
 **A two-dimensional ladder invites a third dimension.** Scale and shape are enough to state the exit against, and shape has not yet been shown to be an axis at all (P2M5); the temptation will be to add a mode axis, a demand axis, a fidelity axis, each defensible on its own. **Every axis multiplies what must be measured per release** — the gates, the profile and the transfer test already run per rung. Adding one is a decision to be argued in `PHASES.md`, not a parameter to be introduced in the generator.
 
-**A closed loop removes the fixed denominator that makes two scores comparable.** This is the largest design risk in the phase and it is not a coding problem: `capture` is measured against `P1` and `P0a` on *the same day*, and a day that responds to the player's advice is not the same day. Deciding it late means either a scoring change after results exist, or a sandbox that quietly cannot be scored. **P2M2 states the decision as a deliverable** for that reason.
+**A closed loop removes the fixed denominator that makes two scores comparable.** This is the largest design risk in the phase and it is not a coding problem: `capture` is measured against `P1` and `P0a` on *the same day*, and a day that responds to the player's advice is not the same day. Deciding it late means either a scoring change after results exist, or a sandbox that quietly cannot be scored. **P2M2 states the decision as a deliverable** for that reason. *Stated 2026-09-14* (`SCORING.md` §12): the unchanged day's references, non-comparable — and the risk is deferred rather than retired, because until riders reach each other the two days are one day. It returns at P2M6.
 
 **`realtime` is one `Date.now()` away from breaking every reproducibility guarantee in the project.** The rule is not new — `src/core` and `src/router` may not read a wall clock, and lint enforces it — but a mode whose whole purpose is to track wall time is the first thing that will want to. Wall time belongs to the scheduler that decides *when to advance τ*, never to anything that decides *what happens*.
 

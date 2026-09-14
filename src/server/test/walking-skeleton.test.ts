@@ -78,6 +78,25 @@ test("the walking skeleton crosses every layer", { skip }, async () => {
     log.every((r) => !("lagS" in r) && !("speed" in r)),
     "a virtual run log carries a wall-derived pacing field",
   );
+
+  // PLAYER-CONTRACT.md §5.6 and §9.3: where a tick and an obligation share an
+  // instant, the tick is delivered first, so the player answers with the freshest
+  // data it could have had. The queue breaks ties by insertion order, and until
+  // P2M2 the plans were queued first (`KNOWN-ISSUES.md` #67).
+  const issued = log.filter(
+    (r): r is Extract<RunRecord, { kind: "obligation" }> => r.kind === "obligation" && r.obligation !== "replan",
+  );
+  const firstAt = new Map<number, string>();
+  const kindsAt = new Map<number, Set<string>>();
+  for (const o of issued) {
+    if (!firstAt.has(o.issuedAt)) firstAt.set(o.issuedAt, o.obligation);
+    kindsAt.set(o.issuedAt, (kindsAt.get(o.issuedAt) ?? new Set()).add(o.obligation));
+  }
+  const shared = [...kindsAt].filter(([, kinds]) => kinds.has("tick") && kinds.has("plan"));
+  assert.ok(shared.length > 0, "no instant held both a tick and a plan, so the ordering was never exercised");
+  for (const [tau] of shared) {
+    assert.equal(firstAt.get(tau), "tick", `a plan was answered before the tick at τ ${tau}`);
+  }
 });
 
 test("the run is byte-identical when repeated", { skip }, async () => {

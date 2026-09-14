@@ -36,6 +36,17 @@ function timeOptions(): { timeMode?: "virtual" | "realtime" | "scaled"; speed?: 
   return { timeMode: mode, ...(speed ? { speed: Number(speed) } : {}) };
 }
 
+/** `TNS_LOOP=closed`, optionally with `TNS_APP_USER_FRACTION=0.5` (SCORING.md §12). */
+function loopOptions(): { loop?: "open" | "closed"; appUserFraction?: number } {
+  const loop = process.env["TNS_LOOP"];
+  if (!loop) return {};
+  if (loop !== "open" && loop !== "closed") {
+    throw new Error(`TNS_LOOP must be open or closed, not ${loop}`);
+  }
+  const fraction = process.env["TNS_APP_USER_FRACTION"];
+  return { loop, ...(fraction ? { appUserFraction: Number(fraction) } : {}) };
+}
+
 async function main(): Promise<number> {
   if (!existsSync(worldPath)) {
     console.error(
@@ -82,6 +93,7 @@ async function main(): Promise<number> {
       operatorPort: OPERATOR_PORT,
       controlPort: CONTROL_PORT,
       ...timeOptions(),
+      ...loopOptions(),
     });
 
     const card = scoreRun(log, { profile: process.env["TNS_PROFILE"] ?? "balanced", tier: world.manifest.tier });

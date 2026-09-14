@@ -2440,3 +2440,38 @@ Nothing wall-derived reaches a `virtual` log. `lagS` and `speed` are written onl
 ### Found while building it
 
 **In open loop a replan is answered with the world as it stood when the plan was** (`KNOWN-ISSUES.md` #66). The harness walks a traveller's whole journey when its plan is answered, so replans are asked with the clock still at plan time. It is a handicap on every recorded replan and never a leak, it is why only a plan's deadline can bind in wall time, and it belongs to the closed loop.
+
+## P2M2 — Closed loop, and the app-user fraction
+
+**Delivered 2026-09-14, staged.** Travellers on the clock, a configurable app-user fraction, replay from recorded answers, and the closed-loop scoring rule stated in `SCORING.md` §12. A background population with vehicle capacity is split out as P2M6.
+
+### Four decisions, taken before building
+
+* **Stage it.** The core has no vehicle occupancy, capacity or background population, so "the app users perturb the world" (`REFERENCE-POLICY.md` §3) had nothing to perturb. Building travellers on the clock first gives the closed loop its own measurement before a population makes everything move at once.
+* **Score against the unchanged day's references**, marked non-comparable. There is no single counterfactual day to recompute `P1` and `P0a` on, and until riders reach each other the day that happened is that day.
+* **Fix `KNOWN-ISSUES.md` #66 in closed loop only.** Changing open loop would move every replan outcome behind Phase 1's exit figures.
+* **Regenerate the trajectory from the seed.** Two milliseconds at the largest world measured; a cached copy is a second truth that can drift (`DATA-MODEL.md` §6).
+
+### What open loop kept
+
+**Everything, to the byte.** The harness now answers obligations through a player seam — a live player over HTTP or a recording — and handles a closed-loop replan as a queued event, and open loop runs through the same code. The golden hash of an open-loop run was taken for `naive`, `competent` and `null` before the refactor and matched after it. A closed-loop header records `loop` and `appUserFraction`, a closed-loop traveller `appUser`, and neither appears in an open-loop log.
+
+### Measured: request volume against the fraction
+
+On the committed world, plans and replans asked:
+
+| player | 0 | ¼ | ½ | ¾ | all | ticks and feed reads, at every fraction |
+|---|---|---|---|---|---|---|
+| `naive` | 0 | 31 | 64 | 96 | 127 | 367 ticks, 1,104 reads |
+| `competent` | 0 | 31 | 61 | 94 | 127 | 734 ticks, 2,205 reads |
+
+**Request volume is the fraction's; ingestion cost is not.** A player that ingests on ticks pays for the city, not for its users. The app users at a smaller fraction are among those at a larger, because one seeded shuffle is cut at each — but each capture is still over a different population, and `competent`'s read 0.537, −0.141, −0.025 and 0.060, which is why captures at two fractions do not compare.
+
+### Measured: what putting travellers on the clock changed
+
+At every traveller an app user, against open loop: `naive` changed no traveller and answered every replan identically, and its Information family rose from 0.524 to 0.616; `competent` changed ten travellers, asked 29 replans instead of 42, and captured 0.060 against 0.030. **Seven of the ten had been asked three replans at one instant in open loop**, each with the feeds as they stood at plan time, proposed the cancelled service each time, and were abandoned; on the clock one replan saw the cancellation. `naive`'s move is the same defect seen from the other side: the reference player follows a replanned itinerary for its warnings, and in open loop it started following it half an hour before the original's trouble was known. At 600×, one closed-loop replan was issued twenty simulated seconds late and missed its deadline — which no replan could do before.
+
+### Found while building it
+
+* **Plans were answered before the tick at their own instant** (`#67`). The contract says ticks first; the queue breaks ties by insertion order and the plans were queued first — 47 of 98 on the committed world. No traveller's outcome changed on three worlds; fixed in every mode, with a test that requires the shared instant to exist.
+* **A non-arrival costs less than a long journey** (`#68`, open). The penalty is 3,600 s of generalised time, and 20 of the committed world's 89 scored `P1` journeys are longer — 6 of its `P0` journeys too. `competent` got a stranded traveller home on the clock and the scorer counted it a loss. It needs a decision, because every recorded capture moves with it.

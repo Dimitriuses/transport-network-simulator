@@ -168,6 +168,15 @@ export function startControlApi(
     mode: "virtual",
     speed: 1,
   },
+  /**
+   * Whether the scored travellers' choices reach the world (SCORING.md §12).
+   * `app_user_fraction` is stated only in closed loop, so an open-loop brief is
+   * what it always was.
+   */
+  loop: { readonly mode: "open" | "closed"; readonly appUserFraction: number } = {
+    mode: "open",
+    appUserFraction: 1,
+  },
 ): Promise<Server> {
   const anchor = parseEpoch(world.manifest.worldEpochIso);
 
@@ -190,7 +199,8 @@ export function startControlApi(
             String(Math.floor((Math.abs(world.manifest.utcOffsetS) % 3600) / 60)).padStart(2, "0"),
         },
         run: {
-          mode: "open_loop",
+          mode: loop.mode === "closed" ? "closed_loop" : "open_loop",
+          ...(loop.mode === "closed" ? { app_user_fraction: loop.appUserFraction } : {}),
           cold_start: true,
           tier: world.manifest.tier,
           time_mode: pacing.mode,

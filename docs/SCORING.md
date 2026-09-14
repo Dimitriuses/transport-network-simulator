@@ -302,6 +302,18 @@ Implemented in `src/scoring` as `impossibleTravellers`. **Both checks should run
 
 **Closed-loop scores** are computed with the same machinery and marked `non-comparable`. They are useful for tracking your own progress against yourself; they must never appear on a leaderboard beside open-loop results. The distinction is carried in the score identity via `run.mode`.
 
+### DECIDED 2026-09-14 (P2M2) — what a closed-loop run is scored against
+
+**The denominator is the unchanged day's references.** `P1` and `P0a` for each traveller are computed exactly as in open loop, from the same seed's player-independent day, and `capture` is formed from them as before. A closed-loop day is a function of the player's advice, so there is no single counterfactual day to recompute them on; the day nobody's choices entered is the one that is fixed and the one every closed-loop run of a world shares.
+
+**Stated plainly, because it is a caveat and not a detail:** once riders reach each other — through vehicle capacity and a background population, which P2M2 does not build — the day that happened and the day the references describe differ, and a player's capture then includes what its travellers did to the world as well as what it did for them. Until then the two days are the same day, and a closed-loop capture differs from open loop only in *when* the player was asked.
+
+**Only app users are scored.** The run log records every traveller; one outside `app_user_fraction` carries `appUser: false`, travels under `P1`, is never asked about, and enters no family. **Captures at different fractions are not comparable with each other either** — each is taken over a different population of journeys, nested but not equal. Measured on the committed world, `competent` read 0.537, −0.141, −0.025 and 0.060 at a quarter, half, three quarters and all of its travellers.
+
+**The scorecard says so.** `comparable` is false and `notComparableBecause` names the reason for a closed-loop run and for any run outside `virtual` time (`TIME-MODEL.md` §2); both are properties of the run header, so the verdict stays a pure function of the log.
+
+**Replay is built** (Q19). `runOpenLoop({ replay: log })` gives back the recorded answers by request id in place of a player, and a run replayed on its own answers reproduces every traveller and every obligation record. An answer the recording does not hold means the run diverged, and replay throws rather than improvising one. What replay does not reproduce is what the player did while answering — its feed reads and warnings — because nobody is reading.
+
 ---
 
 ## 13. Example scorecard

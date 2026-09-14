@@ -75,6 +75,8 @@ Two consequences worth stating plainly:
 
 This is what makes open loop reproducible: the entire population runs P1, which is a pure function of the seeded world, so the trajectory is fixed regardless of what the player does.
 
+**Built at P2M2, with one half of the closed-loop row.** A closed-loop run takes `app_user_fraction` of the *scored* travellers as the player's — a seeded draw, nested across fractions, so the app users at a quarter are among those at a half — and runs the rest on P1 without asking anyone about them. Travellers are on the clock: a replan is asked when a traveller reaches the break. **What is not built is "they perturb the world"**: there is no background population and no vehicle capacity yet, so a traveller's choice changes its own journey and nobody else's. That half is **P2M6** (§9).
+
 ---
 
 ## 4. P1's design
@@ -199,6 +201,8 @@ The asymmetry is real and worth stating plainly rather than discovering later: *
 **Not yet implemented, and the milestone was wrong.** The P0M2 decision assumed vehicle loads would first exist at P0M4. They do not. P0M4 brought delays, cancellations and the realtime feeds that report them — but *loads* require simulating a background population as individuals, and open loop does not have one: its population is the reference policy applied to a demand table, not a crowd occupying seats.
 
 Capacity therefore belongs with closed loop in **Phase 2**, where riders are real and their crowding is a genuine feedback effect rather than a number attached to a vehicle. The decision above stands unchanged; only its milestone moves.
+
+*Moved again at P2M2 (2026-09-14):* the closed loop was built staged, travellers on the clock first, and a background population with vehicle capacity is its own milestone, **P2M6**. The decision still stands unchanged.
 
 ---
 

@@ -304,6 +304,8 @@ The single machine-readable entry point, and the answer to **Q41/Q42**: what a h
 }
 ```
 
+**`run.mode` is `open_loop` or `closed_loop`** (P2M2). A closed-loop brief also states `app_user_fraction`, the share of scored travellers who consult the player; the rest are never asked about. What changes for a player is when it is asked: in closed loop a `replan` arrives when the traveller reaches the break, with τ there, so its deadline binds in `realtime` and `scaled` like a plan's (`SCORING.md` §12).
+
 The brief states *where* the operators are and how to authenticate. It says **nothing** about their schemas, their quality, or how their data relates. Discovering that is the game.
 
 **`docs_url` is always present.** *Decided at P0M3.*

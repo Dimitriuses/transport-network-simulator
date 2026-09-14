@@ -214,7 +214,11 @@ Two consequences worth keeping:
 * **The hash names a world independently of its container.** It belongs in the run identity alongside `world_seed`, and a `VACUUM` — which rewrites every page — leaves it unchanged. That is the property being asserted, and there is a test for exactly that.
 * **Distances are integers.** See `TECHNICAL-RESEARCH.md` §11: the offline haversine goes through the platform libm, which is not identical across operating systems. Rounding to whole metres removes every libm-produced float from the bundle, leaving only source-literal coordinates and derived integers.
 
-**OPEN:** whether the pre-recorded open-loop trajectory lives in the bundle or is regenerated from the seed. `TECHNICAL-RESEARCH.md` §4 recommended seed-as-canonical with the trajectory as a cache; that still seems right, but bundle size has not been estimated.
+### DECIDED 2026-09-14 (P2M2) — the trajectory is regenerated from the seed
+
+**It does not live in the bundle.** `generateDisruptions(journeys, seed)` rebuilds the day in **0.87 ms** for the committed world's 286 disruptions, **1.58 ms** on a calibrated `towns-and-rail` world and **2.05 ms** for the 1,080 of a polycentric rail region; serialised, the same day is 25–97 KB of JSON. A cache that saves two milliseconds per run is not worth a second copy of the truth that can drift from the generator, and the golden-trajectory test is what catches the generator drifting. `TECHNICAL-RESEARCH.md` §4's recommendation stands, without the cache.
+
+**Closed loop does not change the answer.** What a closed-loop run needs to reproduce is the player's answers, not the day, and those live in its run log (`SCORING.md` §12).
 
 ---
 
@@ -237,7 +241,7 @@ The builder emits nothing that has not passed:
 **Q34** — five validation gates, of which the defect audit is the one that protects difficulty calibration.
 **Q35** — operator documentation generated from the same schema source as behaviour, so divergence between them is deliberate.
 
-**Open:** trajectory in-bundle vs regenerated (§6).
+**Open:** none. Trajectory in-bundle vs regenerated was closed at P2M2: regenerated from the seed (§6).
 
 **Reviewed at P0M4 — `latency: sim` stays optional, for now.** §4 argued it should perhaps be promoted because non-atomic pagination depends on it. Revisiting with catalogue D actually implemented: the dependency is real but not yet *live*, because pagination is not implemented either. The operator APIs return whole feeds in one response, so there is no page boundary for inconsistency to appear across.
 

@@ -40,6 +40,7 @@ export function renderScorecard(card: Scorecard, audit?: AuditResult): string {
         : "INVALID";
   p(`             ${verdict}`);
   if (card.verdictReason) p(`             ${card.verdictReason}`);
+  if (card.notComparableBecause) p(`             ${card.notComparableBecause}`);
   p();
 
   // ---- Service -----------------------------------------------------------
@@ -50,6 +51,9 @@ export function renderScorecard(card: Scorecard, audit?: AuditResult): string {
   }
   if (s.capture === null && s.captureNote) p(`    ${s.captureNote}`);
   p(`    travellers               ${s.arrived}/${s.travellers} arrived`);
+  if (s.outsideApp > 0) {
+    p(`    outside the app          ${pad(String(s.outsideApp), 16)} <- on the reference policy, not scored`);
+  }
   if (s.nonArrivals > 0) {
     p(`    non-arrivals             ${pad(String(s.nonArrivals), 16)} <- dominates`);
   }

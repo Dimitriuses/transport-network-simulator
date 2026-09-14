@@ -60,6 +60,12 @@ export interface ServiceScore {
   readonly meanReferenceS: number | null;
   readonly meanWaitS: number;
   readonly meanTransfers: number;
+  /**
+   * Closed loop: travellers outside the app-user fraction. Recorded in the run
+   * log and scored nowhere, because nothing the player did could reach them
+   * (REFERENCE-POLICY.md §3). Zero in open loop.
+   */
+  readonly outsideApp: number;
 }
 
 export interface CostScore {
@@ -110,6 +116,14 @@ export interface Scorecard {
   /** Travellers who arrived sooner than perfect information allows. */
   readonly impossibleTravellers: readonly string[];
   readonly obligations: Record<string, number>;
+  /**
+   * Whether this score may stand beside another. Only an open-loop `virtual`
+   * run's may: a closed-loop run is reproducible only by replaying its own
+   * answers (SCORING.md §12), and a wall-driven one depends on the machine
+   * (TIME-MODEL.md §2). Computed by the same machinery either way.
+   */
+  readonly comparable: boolean;
+  readonly notComparableBecause: string | null;
 }
 
 const mean = (xs: readonly number[]): number | null =>
@@ -134,7 +148,10 @@ export interface ScoreOptions {
 
 export function scoreRun(log: readonly RunRecord[], opts: ScoreOptions = {}): Scorecard {
   const header = (log.find((r) => r.kind === "run_header") as RunHeader | undefined) ?? null;
-  const travellers = log.filter((r): r is TravellerOutcome => r.kind === "traveller");
+  const recorded = log.filter((r): r is TravellerOutcome => r.kind === "traveller");
+  // Only the player's own travellers are scored. `appUser` is written only in
+  // closed loop, so an open-loop log scores every traveller, as it always has.
+  const travellers = recorded.filter((t) => t.appUser !== false);
   const obligationRecords = log.filter((r): r is ObligationRecord => r.kind === "obligation");
   const ingestion = log.filter((r) => r.kind === "ingestion");
   const notifications = log.filter((r) => r.kind === "notification");
@@ -269,6 +286,7 @@ export function scoreRun(log: readonly RunRecord[], opts: ScoreOptions = {}): Sc
     meanReferenceS: mean(scored.map((t) => t.referenceJourneyS!)),
     meanWaitS: mean(travellers.map((t) => t.waitS)) ?? 0,
     meanTransfers: mean(travellers.map((t) => t.transfers)) ?? 0,
+    outsideApp: recorded.length - travellers.length,
   };
 
   // ---- Information -------------------------------------------------------
@@ -356,6 +374,12 @@ export function scoreRun(log: readonly RunRecord[], opts: ScoreOptions = {}): Sc
   //
   // `npm run clearance` decides it now.
 
+  // ---- Comparability -----------------------------------------------------
+  const reasons = [
+    ...(header?.loop === "closed" ? ["a closed-loop run (SCORING.md §12)"] : []),
+    ...(header && header.timeMode !== "virtual" ? [`${header.timeMode} time (TIME-MODEL.md §2)`] : []),
+  ];
+
   return {
     header,
     verdict,
@@ -368,6 +392,8 @@ export function scoreRun(log: readonly RunRecord[], opts: ScoreOptions = {}): Sc
     attribution: attribute(travellers),
     impossibleTravellers,
     obligations,
+    comparable: reasons.length === 0,
+    notComparableBecause: reasons.length === 0 ? null : `non-comparable: ${reasons.join(" in ")}`,
   };
 }
 

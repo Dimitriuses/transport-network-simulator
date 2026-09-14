@@ -24,6 +24,8 @@ import {
   makeVirtualClock,
   generateDisruptions,
   DisruptionTable,
+  makeRng,
+  below,
   type Disruption,
   type TimeMode,
 } from "@tns/core";
@@ -85,11 +87,47 @@ export interface HarnessOptions {
   readonly speed?: number;
   /** The wall clock, injectable so pacing can be tested without waiting on it. */
   readonly timer?: WallTimer;
+  /**
+   * Whether a traveller's journey is walked when its plan is answered (`open`,
+   * the default) or on the clock as it happens (`closed`).
+   *
+   * **In closed loop a replan is asked when the traveller reaches the break**,
+   * with τ there, so the player answers with the world as it stands rather than
+   * as it stood half an hour earlier (`KNOWN-ISSUES.md` #66), and a replan's
+   * deadline binds in wall time. Only the scored travellers are real so far: with
+   * no background population and no vehicle capacity, a traveller's choice
+   * changes its own journey and nobody else's. Closed-loop scores never compare
+   * with open-loop ones (SCORING.md §12).
+   */
+  readonly loop?: "open" | "closed";
+  /**
+   * Closed loop only: the share of scored travellers who use the player
+   * (REFERENCE-POLICY.md §3). The rest travel under the reference policy and are
+   * never asked about. Defaults to 1.
+   */
+  readonly appUserFraction?: number;
+  /**
+   * An earlier run's log, whose recorded answers are given back in place of a
+   * player (SCORING.md §12, Q19). A closed-loop run is not reproducible live and
+   * is reproducible this way; an answer the log does not hold means the run
+   * diverged, and throws.
+   */
+  readonly replay?: readonly RunRecord[];
 }
 
 type Obligation =
   | { kind: "plan"; queryId: string; travellerRef: string; requestId: string }
-  | { kind: "tick"; requestId: string };
+  | { kind: "tick"; requestId: string }
+  // Closed loop only: a traveller has reached the point where its plan broke.
+  | {
+      kind: "replan";
+      queryId: string;
+      travellerRef: string;
+      /** The plan's request id; the attempt is appended to it. */
+      baseRequestId: string;
+      attempt: number;
+      brk: PlanBreak;
+    };
 
 export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
   const { world } = opts;
@@ -175,14 +213,20 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
   const pacer = makePacer(timeMode, clock, opts.speed, opts.timer ?? systemTimer);
   const queue = new EventQueue<Obligation>();
 
-  for (const q of world.queries) {
-    queue.push(q.departAfterS - PLAN_LEAD_S, {
-      kind: "plan",
-      queryId: q.id,
-      travellerRef: `trv-${q.id}`,
-      requestId: `req-${q.id}`,
-    });
+  const loop = opts.loop ?? "open";
+  if (loop === "open" && opts.appUserFraction !== undefined) {
+    throw new Error("appUserFraction applies only to a closed-loop run (REFERENCE-POLICY.md §3)");
   }
+  const appUserFraction = opts.appUserFraction ?? 1;
+  const appUsers =
+    loop === "closed"
+      ? selectAppUsers(
+          world.queries.map((q) => q.id),
+          appUserFraction,
+          world.manifest.seed,
+        )
+      : null;
+  const player = opts.replay ? replayPlayer(opts.replay) : httpPlayer(opts.playerBaseUrl);
 
   let state: "preparation" | "running" | "paused" | "ended" = "preparation";
   const ingestion: (OperatorCall & { operator: string; cause: string | null })[] = [];
@@ -219,6 +263,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       (n) => notifications.push(n),
       opts.controlPort,
       { mode: timeMode, speed: pacer.speed },
+      { mode: loop, appUserFraction },
     ),
   );
 
@@ -235,15 +280,17 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       // Recorded only where it means something, so a `virtual` log is
       // byte-identical to one written before the other modes existed.
       ...(timeMode === "virtual" ? {} : { speed: pacer.speed }),
+      // The same rule for the loop: absent means open, so an open-loop log is
+      // what it was before closed loop existed.
+      ...(loop === "closed" ? { loop: "closed" as const, appUserFraction } : {}),
       latencyMode: "none",
       referenceCompetence: "timetable",
       hardwareProfile: null,
     });
 
     // ---- lifecycle -------------------------------------------------------
-    await waitForHealth(opts.playerBaseUrl);
-    const identity = await readIdentity(opts.playerBaseUrl);
-    await post(opts.playerBaseUrl, "/v1/run-start", { run_id: RUN_ID });
+    const identity = await player.ready();
+    await player.notify("/v1/run-start", { run_id: RUN_ID });
     state = "running";
     // Wall time starts counting here, not at preparation (PLAYER-CONTRACT.md §4).
     pacer.start();
@@ -262,12 +309,133 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       }
     }
 
+    // **Plans are queued after the ticks, and that is the whole of the rule.**
+    // The queue breaks a tie at one instant by insertion order, and the contract
+    // says a tick at an obligation's instant is delivered first (§5.6, §9.3).
+    // Queued before them, as they were until P2M2, every plan sharing an instant
+    // with a tick was answered before it — 47 of the committed world's 98
+    // (`KNOWN-ISSUES.md` #67). Anything queued later, a closed-loop replan
+    // included, lands after the tick at its instant for the same reason.
+    for (const q of world.queries) {
+      // Outside the app-user fraction nobody asks the player anything.
+      if (appUsers && !appUsers.has(q.id)) continue;
+      queue.push(q.departAfterS - PLAN_LEAD_S, {
+        kind: "plan",
+        queryId: q.id,
+        travellerRef: `trv-${q.id}`,
+        requestId: `req-${q.id}`,
+      });
+    }
+
     // ---- the run ---------------------------------------------------------
     // The resolution table, merged across operators. Private: it is how the
     // simulator reads a player's operator-scoped references back into
     // canonical entities, and it is never served (DATA-MODEL.md §4).
     const resolution = mergeResolutions(world, pacer.tau());
     const outcomes: RunRecord[] = [];
+    const queryById = new Map(world.queries.map((q) => [q.id, q]));
+
+    const contextFor = (queryId: string): ReplanContext => ({
+      world,
+      resolution,
+      table,
+      scheduleIx,
+      disruptions,
+      destinations: accessFor(queryId, "destination"),
+      anchor,
+      player,
+      clock,
+      pacer,
+      log,
+    });
+
+    const travellerRecord = (
+      query: World["queries"][number],
+      travellerRef: string,
+      simulated: Simulated,
+      forgone: boolean,
+      /** Closed loop only; left out of an open-loop record so its hash stands. */
+      appUser?: boolean,
+    ): RunRecord => {
+      const base = baselines.get(query.id)!;
+      return {
+        kind: "traveller",
+        travellerRef,
+        queryId: query.id,
+        departAfter: query.departAfterS,
+        arrived: simulated.arrived,
+        journeyS: simulated.journeyS,
+        waitS: simulated.waitS,
+        transfers: simulated.transfers,
+        failureReason: simulated.failureReason,
+        forgone,
+        oracleJourneyS: base.p0,
+        referenceJourneyS: base.p1,
+        oracleWaitS: base.p0Wait,
+        referenceWaitS: base.p1Exec.waitS,
+        // **An optimum must dominate every achievable strategy, and P1 is one.**
+        // P1 plans on the bare schedule with no disruption knowledge at all,
+        // which is strictly less than "everything announced by now", so where
+        // P1 does better, P1's outcome *is* the announcement-limited optimum.
+        // The same rule `baselines.ts` applies for the same reason: without it
+        // a reference that fails to arrive reports no ceiling at all, and
+        // capture silently falls back to the clairvoyant scale.
+        //
+        // In closed loop these are the unchanged day's references — the world
+        // with nobody's choices in it (SCORING.md §12). Until riders reach each
+        // other through capacity that is also the day that happened.
+        announcedJourneyS: betterOf(base.p0aExec, base.p1Exec).journeyS,
+        announcedWaitS: betterOf(base.p0aExec, base.p1Exec).waitS,
+        ...(appUser === undefined ? {} : { appUser }),
+      };
+    };
+
+    // Closed loop: a traveller whose plan broke goes back on the queue, to be
+    // asked about when it reaches the break. Queued behind anything already at
+    // that instant, a tick included (§5.6).
+    const advance = (
+      query: World["queries"][number],
+      travellerRef: string,
+      baseRequestId: string,
+      step: StepOutcome,
+      attempt: number,
+    ): void => {
+      if (step.kind === "settled") {
+        outcomes.push(travellerRecord(query, travellerRef, settled(step), false, true));
+      } else if (attempt > MAX_REPLANS) {
+        // The budget P1 gets, as in open loop.
+        outcomes.push(
+          travellerRecord(query, travellerRef, gaveUp(step, "abandoned_after_replans"), false, true),
+        );
+      } else {
+        queue.push(step.progress.cursorS, {
+          kind: "replan",
+          queryId: query.id,
+          travellerRef,
+          baseRequestId,
+          attempt,
+          brk: step,
+        });
+      }
+    };
+
+    // Outside the app-user fraction a traveller does what anyone in a city with
+    // no integration layer does, and nothing the player does can reach them.
+    // Recorded, so the log holds the whole population, and never scored.
+    if (appUsers) {
+      for (const q of world.queries) {
+        if (appUsers.has(q.id)) continue;
+        const p1 = baselines.get(q.id)!.p1Exec;
+        const simulated: Simulated = {
+          arrived: p1.arrived,
+          journeyS: p1.journeyS,
+          waitS: p1.waitS,
+          transfers: p1.transfers,
+          failureReason: p1.failureReason,
+        };
+        outcomes.push(travellerRecord(q, `trv-${q.id}`, simulated, false, false));
+      }
+    }
 
     for (;;) {
       const next = queue.pop();
@@ -294,7 +462,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         // (OBSERVABILITY.md §3.1).
         attributeTo = ob.requestId;
         const t0 = Date.now();
-        const ok = await sendTick(opts.playerBaseUrl, {
+        const ok = await player.tick(ob.requestId, {
           contract_version: CONTRACT_VERSION,
           run_id: RUN_ID,
           sim_time: renderSimTime(anchor, issuedAt),
@@ -317,8 +485,23 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         continue;
       }
 
+      if (ob.kind === "replan") {
+        // Closed loop: the traveller is standing where the plan broke, and τ is
+        // there too — so the player reads the world as it is now (#66).
+        const query = queryById.get(ob.queryId)!;
+        const ctx = contextFor(query.id);
+        const answer = await askReplan(ctx, ob.travellerRef, ob.baseRequestId, ob.attempt, ob.brk, lag);
+        const after = afterReplan(ctx, query, ob.brk, answer);
+        if (after.kind === "done") {
+          outcomes.push(travellerRecord(query, ob.travellerRef, after.simulated, false, true));
+        } else {
+          advance(query, ob.travellerRef, ob.baseRequestId, after.step, ob.attempt + 1);
+        }
+        continue;
+      }
+
       const deadline = issuedAt + PLAN_DEADLINE_S;
-      const query = world.queries.find((q) => q.id === ob.queryId)!;
+      const query = queryById.get(ob.queryId)!;
 
       // The clock stops while the player thinks. Safe only because operator
       // responses are pure functions of τ (TIME-MODEL.md §3). The wall-driven
@@ -326,63 +509,34 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       if (pacer.pausesForHandlers) clock.pause();
 
       const startedMs = Date.now();
-      const answer = await askPlayer(opts.playerBaseUrl, {
-        contract_version: CONTRACT_VERSION,
-        run_id: RUN_ID,
-        issued_at: renderSimTime(anchor, issuedAt),
-        deadline: renderSimTime(anchor, deadline),
-        guard_wall_s: GUARD_WALL_S,
-        requests: [
-          {
-            request_id: ob.requestId,
-            traveller_ref: ob.travellerRef,
-            origin: { lat: query.originLat, lon: query.originLon },
-            destination: { lat: query.destLat, lon: query.destLon },
-            depart_after: renderSimTime(anchor, query.departAfterS),
-            arrive_by: null,
-          },
-        ],
-      }, "plan", pacer.timeoutMs(deadline, GUARD_WALL_S * 1000));
+      const answer = await player.ask(
+        ob.requestId,
+        {
+          contract_version: CONTRACT_VERSION,
+          run_id: RUN_ID,
+          issued_at: renderSimTime(anchor, issuedAt),
+          deadline: renderSimTime(anchor, deadline),
+          guard_wall_s: GUARD_WALL_S,
+          requests: [
+            {
+              request_id: ob.requestId,
+              traveller_ref: ob.travellerRef,
+              origin: { lat: query.originLat, lon: query.originLon },
+              destination: { lat: query.destLat, lon: query.destLon },
+              depart_after: renderSimTime(anchor, query.departAfterS),
+              arrive_by: null,
+            },
+          ],
+        },
+        "plan",
+        pacer.timeoutMs(deadline, GUARD_WALL_S * 1000),
+      );
       const latencyMs = Date.now() - startedMs;
 
       if (pacer.pausesForHandlers) clock.resume();
 
       const base = baselines.get(query.id)!;
-
-      // What the traveller actually did.
-      //
-      // An answer that arrives and works is used. An answer that arrives and
-      // is wrong about the world is a modelling failure and the traveller does
-      // not arrive. And an obligation the player did not answer at all falls
-      // back to the reference policy — the traveller does what they would have
-      // done in a city with no integration layer (REFERENCE-POLICY.md §8).
-      //
-      // That fallback is why declining can never be a winning strategy: the
-      // player is charged P1's outcomes *and* a forgone obligation.
-      const forgone = answer.itinerary === null;
-      const simulated = forgone
-        ? fallbackToReference(base.p1Exec)
-        : await drivePlan(
-            {
-              world,
-              resolution,
-              table,
-              scheduleIx,
-              disruptions,
-              destinations: accessFor(query.id, "destination"),
-              anchor,
-              playerBaseUrl: opts.playerBaseUrl,
-              clock,
-              pacer,
-              log,
-            },
-            query,
-            ob.travellerRef,
-            ob.requestId,
-            answer.itinerary.legs,
-          );
-
-      log.push({
+      const planRecord: RunRecord = {
         kind: "obligation",
         obligation: "plan",
         requestId: ob.requestId,
@@ -395,33 +549,47 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         latencyMs,
         itinerary: answer.itinerary,
         ...lag,
-      });
+      };
 
-      outcomes.push({
-        kind: "traveller",
-        travellerRef: ob.travellerRef,
-        queryId: query.id,
-        departAfter: query.departAfterS,
-        arrived: simulated.arrived,
-        journeyS: simulated.journeyS,
-        waitS: simulated.waitS,
-        transfers: simulated.transfers,
-        failureReason: simulated.failureReason,
-        forgone,
-        oracleJourneyS: base.p0,
-        referenceJourneyS: base.p1,
-        oracleWaitS: base.p0Wait,
-        referenceWaitS: base.p1Exec.waitS,
-        // **An optimum must dominate every achievable strategy, and P1 is one.**
-        // P1 plans on the bare schedule with no disruption knowledge at all,
-        // which is strictly less than "everything announced by now", so where
-        // P1 does better, P1's outcome *is* the announcement-limited optimum.
-        // The same rule `baselines.ts` applies for the same reason: without it
-        // a reference that fails to arrive reports no ceiling at all, and
-        // capture silently falls back to the clairvoyant scale.
-        announcedJourneyS: betterOf(base.p0aExec, base.p1Exec).journeyS,
-        announcedWaitS: betterOf(base.p0aExec, base.p1Exec).waitS,
-      });
+      // What the traveller actually did.
+      //
+      // An answer that arrives and works is used. An answer that arrives and
+      // is wrong about the world is a modelling failure and the traveller does
+      // not arrive. And an obligation the player did not answer at all falls
+      // back to the reference policy — the traveller does what they would have
+      // done in a city with no integration layer (REFERENCE-POLICY.md §8).
+      //
+      // That fallback is why declining can never be a winning strategy: the
+      // player is charged P1's outcomes *and* a forgone obligation.
+      const forgone = answer.itinerary === null;
+
+      if (loop === "open") {
+        // The whole journey is walked now, replans included, ahead of the clock.
+        const simulated = forgone
+          ? fallbackToReference(base.p1Exec)
+          : await drivePlan(contextFor(query.id), query, ob.travellerRef, ob.requestId, answer.itinerary.legs);
+        log.push(planRecord);
+        outcomes.push(travellerRecord(query, ob.travellerRef, simulated, forgone));
+        continue;
+      }
+
+      log.push(planRecord);
+      if (forgone) {
+        outcomes.push(travellerRecord(query, ob.travellerRef, fallbackToReference(base.p1Exec), true, true));
+      } else {
+        // Walked only as far as its first break; the rest happens on the clock.
+        const step = simulateFrom(world, resolution, table, answer.itinerary.legs, query, setOut(query));
+        advance(query, ob.travellerRef, ob.requestId, step, 1);
+      }
+    }
+
+    // Closed loop settles travellers in the order their journeys end; the log
+    // reads in the order the query set does, as an open-loop log always has.
+    if (appUsers) {
+      const order = new Map(world.queries.map((q, i) => [q.id, i]));
+      const queryOf = (r: RunRecord): number =>
+        r.kind === "traveller" ? (order.get(r.queryId) ?? 0) : 0;
+      outcomes.sort((a, b) => queryOf(a) - queryOf(b));
     }
 
     // Who was materially affected, and by when they needed telling. Recorded
@@ -536,7 +704,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
     log.push(...outcomes);
 
     state = "ended";
-    await post(opts.playerBaseUrl, "/v1/run-end", { run_id: RUN_ID, reason: "completed" });
+    await player.notify("/v1/run-end", { run_id: RUN_ID, reason: "completed" });
 
     return log;
   } finally {
@@ -1031,15 +1199,145 @@ interface ReplanContext {
   readonly disruptions: readonly Disruption[];
   readonly destinations: readonly Access[];
   readonly anchor: ReturnType<typeof parseEpoch>;
-  readonly playerBaseUrl: string;
+  readonly player: PlayerPort;
   readonly clock: ReturnType<typeof makeVirtualClock>;
   readonly pacer: Pacer;
   readonly log: RunRecord[];
 }
 
+/** Where a traveller stands before setting out: at the origin, at its departure time. */
+function setOut(query: { departAfterS: number }): Progress {
+  return { cursorS: query.departAfterS, atQuay: null, waitS: 0, transitLegsTaken: 0 };
+}
+
+function settled(s: Extract<StepOutcome, { kind: "settled" }>): Simulated {
+  return {
+    arrived: s.arrived,
+    journeyS: s.journeyS,
+    waitS: s.waitS,
+    transfers: s.transfers,
+    failureReason: s.failureReason,
+  };
+}
+
+function gaveUp(brk: PlanBreak, reason: string): Simulated {
+  return {
+    arrived: false,
+    journeyS: null,
+    waitS: brk.progress.waitS,
+    transfers: Math.max(0, brk.progress.transitLegsTaken - 1),
+    failureReason: reason,
+  };
+}
+
+/**
+ * Ask the player about a broken plan, and record the asking.
+ *
+ * Open loop asks while walking the whole journey at plan time; closed loop asks
+ * when the traveller reaches the break. The request, the deadline and the record
+ * are the same either way — only the τ the player reads the world at differs.
+ */
+async function askReplan(
+  ctx: ReplanContext,
+  travellerRef: string,
+  baseRequestId: string,
+  attempt: number,
+  brk: PlanBreak,
+  lag: { lagS?: number } = {},
+): Promise<PlayerAnswer> {
+  const issuedAt = brk.progress.cursorS;
+  const deadline = issuedAt + PLAN_DEADLINE_S;
+  const requestId = `${baseRequestId}-r${attempt}`;
+
+  if (ctx.pacer.pausesForHandlers) ctx.clock.pause();
+  const startedMs = Date.now();
+  const answer = await ctx.player.ask(
+    requestId,
+    {
+      contract_version: CONTRACT_VERSION,
+      run_id: RUN_ID,
+      issued_at: renderSimTime(ctx.anchor, issuedAt),
+      deadline: renderSimTime(ctx.anchor, deadline),
+      guard_wall_s: GUARD_WALL_S,
+      requests: [
+        {
+          request_id: requestId,
+          traveller_ref: travellerRef,
+          // What the traveller perceives, never why. Naming the cause would
+          // hand over the answer to catalogue §2.1 D.
+          trigger: brk.trigger,
+          position: brk.position,
+          remaining_itinerary: { legs: brk.remaining },
+        },
+      ],
+    },
+    "replan",
+    ctx.pacer.timeoutMs(deadline, GUARD_WALL_S * 1000),
+  );
+  const latencyMs = Date.now() - startedMs;
+  if (ctx.pacer.pausesForHandlers) ctx.clock.resume();
+
+  ctx.log.push({
+    kind: "obligation",
+    obligation: "replan",
+    requestId,
+    travellerRef,
+    issuedAt,
+    deadline,
+    outcome: answer.outcome,
+    latencyMs,
+    itinerary: answer.itinerary,
+    trigger: brk.trigger,
+    attempt,
+    ...lag,
+  });
+  return answer;
+}
+
+/**
+ * What a replan's answer does to the traveller: a new plan to walk, or an end.
+ */
+function afterReplan(
+  ctx: ReplanContext,
+  query: { id: string; departAfterS: number },
+  brk: PlanBreak,
+  answer: PlayerAnswer,
+): { kind: "step"; step: StepOutcome } | { kind: "done"; simulated: Simulated } {
+  if (answer.outcome === "ok" && answer.itinerary) {
+    return {
+      kind: "step",
+      step: simulateFrom(ctx.world, ctx.resolution, ctx.table, answer.itinerary.legs, query, brk.progress),
+    };
+  }
+
+  // The player advised giving up, and is charged for it exactly as it would
+  // be charged for failing to route them. Advising abandonment to a traveller
+  // who could still have arrived is a real cost, which is what stops
+  // `abandon` becoming a cheap way out of a hard reroute.
+  if (answer.outcome === "abandon") return { kind: "done", simulated: gaveUp(brk, "advised_abandon") };
+
+  // `continue`, `no_route`, `declined`, an error or a timeout all leave the
+  // traveller standing where they are with no usable advice. `continue`
+  // reaches here because the leg it wants to continue onto is the one that
+  // just broke.
+  return {
+    kind: "done",
+    simulated: resumeUnderReference(
+      ctx.world,
+      ctx.scheduleIx,
+      ctx.disruptions,
+      ctx.destinations,
+      brk,
+      query,
+      `replan_${answer.outcome}`,
+    ),
+  };
+}
+
 /**
  * Walk a player's plan through the day, asking it again whenever the plan
- * breaks in front of the traveller.
+ * breaks in front of the traveller. Open loop only: closed loop walks the same
+ * steps on the clock.
  *
  * Specification: `PLAYER-CONTRACT.md` §5.5.
  *
@@ -1058,110 +1356,120 @@ async function drivePlan(
   baseRequestId: string,
   initialLegs: readonly Leg[],
 ): Promise<Simulated> {
-  const settle = (s: Extract<StepOutcome, { kind: "settled" }>): Simulated => ({
-    arrived: s.arrived,
-    journeyS: s.journeyS,
-    waitS: s.waitS,
-    transfers: s.transfers,
-    failureReason: s.failureReason,
-  });
-  const giveUp = (brk: PlanBreak, reason: string): Simulated => ({
-    arrived: false,
-    journeyS: null,
-    waitS: brk.progress.waitS,
-    transfers: Math.max(0, brk.progress.transitLegsTaken - 1),
-    failureReason: reason,
-  });
-
-  let legs: readonly Leg[] = initialLegs;
-  let step = simulateFrom(ctx.world, ctx.resolution, ctx.table, legs, query, {
-    cursorS: query.departAfterS,
-    atQuay: null,
-    waitS: 0,
-    transitLegsTaken: 0,
-  });
+  let step = simulateFrom(ctx.world, ctx.resolution, ctx.table, initialLegs, query, setOut(query));
 
   for (let attempt = 1; step.kind === "break"; attempt++) {
     // The same budget the reference policy gets. A player allowed more
     // attempts than P1 would be compared against a traveller held to a
     // stricter rule than itself.
-    if (attempt > MAX_REPLANS) return giveUp(step, "abandoned_after_replans");
-
-    const issuedAt = step.progress.cursorS;
-    const deadline = issuedAt + PLAN_DEADLINE_S;
-    const requestId = `${baseRequestId}-r${attempt}`;
+    if (attempt > MAX_REPLANS) return gaveUp(step, "abandoned_after_replans");
 
     // In open loop a traveller's journey is walked when its plan is answered,
     // so a replan is asked then, ahead of the clock: its deadline lies in the
     // simulated future and never binds in wall time (KNOWN-ISSUES.md #66).
-    if (ctx.pacer.pausesForHandlers) ctx.clock.pause();
-    const startedMs = Date.now();
-    const answer = await askPlayer(
-      ctx.playerBaseUrl,
-      {
-        contract_version: CONTRACT_VERSION,
-        run_id: RUN_ID,
-        issued_at: renderSimTime(ctx.anchor, issuedAt),
-        deadline: renderSimTime(ctx.anchor, deadline),
-        guard_wall_s: GUARD_WALL_S,
-        requests: [
-          {
-            request_id: requestId,
-            traveller_ref: travellerRef,
-            // What the traveller perceives, never why. Naming the cause would
-            // hand over the answer to catalogue §2.1 D.
-            trigger: step.trigger,
-            position: step.position,
-            remaining_itinerary: { legs: step.remaining },
-          },
-        ],
-      },
-      "replan",
-      ctx.pacer.timeoutMs(deadline, GUARD_WALL_S * 1000),
-    );
-    const latencyMs = Date.now() - startedMs;
-    if (ctx.pacer.pausesForHandlers) ctx.clock.resume();
-
-    ctx.log.push({
-      kind: "obligation",
-      obligation: "replan",
-      requestId,
-      travellerRef,
-      issuedAt,
-      deadline,
-      outcome: answer.outcome,
-      latencyMs,
-      itinerary: answer.itinerary,
-      trigger: step.trigger,
-      attempt,
-    });
-
-    if (answer.outcome === "ok" && answer.itinerary) {
-      legs = answer.itinerary.legs;
-      step = simulateFrom(ctx.world, ctx.resolution, ctx.table, legs, query, step.progress);
-      continue;
-    }
-
-    // The player advised giving up, and is charged for it exactly as it would
-    // be charged for failing to route them. Advising abandonment to a traveller
-    // who could still have arrived is a real cost, which is what stops
-    // `abandon` becoming a cheap way out of a hard reroute.
-    if (answer.outcome === "abandon") return giveUp(step, "advised_abandon");
-
-    // `continue`, `no_route`, `declined`, an error or a timeout all leave the
-    // traveller standing where they are with no usable advice. `continue`
-    // reaches here because the leg it wants to continue onto is the one that
-    // just broke.
-    return resumeUnderReference(
-      ctx.world,
-      ctx.scheduleIx,
-      ctx.disruptions,
-      ctx.destinations,
-      step,
-      query,
-      `replan_${answer.outcome}`,
-    );
+    const answer = await askReplan(ctx, travellerRef, baseRequestId, attempt, step);
+    const after = afterReplan(ctx, query, step, answer);
+    if (after.kind === "done") return after.simulated;
+    step = after.step;
   }
 
-  return settle(step);
+  return settled(step);
+}
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Who uses the player's app, in closed loop (REFERENCE-POLICY.md §3).
+ *
+ * A seeded shuffle of the sorted query ids, cut at the fraction. **One shuffle
+ * for every fraction**, so the app users at a quarter are among those at a half:
+ * comparing two fractions compares nested populations rather than two draws.
+ * Its own stream, salted off the world seed, so drawing it spends nothing any
+ * other part of the world draws from.
+ */
+export function selectAppUsers(
+  queryIds: readonly string[],
+  fraction: number,
+  seed: number,
+): Set<string> {
+  if (!(fraction >= 0 && fraction <= 1)) {
+    throw new Error(`appUserFraction must lie in [0, 1], not ${fraction}`);
+  }
+  const ids = [...queryIds].sort();
+  const rng = makeRng((seed ^ APP_USER_SALT) >>> 0);
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = below(rng, i + 1);
+    [ids[i], ids[j]] = [ids[j]!, ids[i]!];
+  }
+  return new Set(ids.slice(0, Math.round(fraction * ids.length)));
+}
+
+/** "appu". Any constant would do; this one is not shared with another stream. */
+const APP_USER_SALT = 0x61707075;
+
+/**
+ * Who answers the obligations: a live player over HTTP, or an earlier run's
+ * recorded answers. The harness cannot tell which, and must not.
+ */
+interface PlayerPort {
+  ready(): Promise<PlayerIdentity>;
+  notify(path: "/v1/run-start" | "/v1/run-end", body: unknown): Promise<void>;
+  tick(requestId: string, body: unknown): Promise<boolean>;
+  ask(
+    requestId: string,
+    request: unknown,
+    endpoint: "plan" | "replan",
+    timeoutMs: number,
+  ): Promise<PlayerAnswer>;
+}
+
+function httpPlayer(baseUrl: string): PlayerPort {
+  return {
+    ready: async () => {
+      await waitForHealth(baseUrl);
+      return readIdentity(baseUrl);
+    },
+    notify: (path, body) => post(baseUrl, path, body),
+    tick: (_requestId, body) => sendTick(baseUrl, body),
+    ask: (_requestId, request, endpoint, timeoutMs) => askPlayer(baseUrl, request, endpoint, timeoutMs),
+  };
+}
+
+/**
+ * The recorded answers, given back by request id (SCORING.md §12, Q19).
+ *
+ * The player is the only input a seed does not fix, so a run replayed on its
+ * own answers decides every traveller and every obligation as it did. What it
+ * does not reproduce is what the player *did* while answering — its feed reads
+ * and its warnings — because nobody is reading or warning.
+ */
+function replayPlayer(recorded: readonly RunRecord[]): PlayerPort {
+  type Answered = Extract<RunRecord, { kind: "obligation" }>;
+  const answers = new Map<string, Answered>();
+  for (const r of recorded) if (r.kind === "obligation") answers.set(r.requestId, r);
+  const ticks = recorded.filter((r): r is Answered => r.kind === "obligation" && r.obligation === "tick");
+
+  const answerTo = (requestId: string): Answered => {
+    const r = answers.get(requestId);
+    if (!r) {
+      throw new Error(
+        `replay diverged: the recorded run was never asked ${requestId}, so this run is not the one recorded`,
+      );
+    }
+    return r;
+  };
+
+  return {
+    ready: () =>
+      Promise.resolve({
+        capabilities: ticks.length > 0 ? ["tick"] : [],
+        tickIntervalS: ticks.length > 1 ? ticks[1]!.issuedAt - ticks[0]!.issuedAt : null,
+      }),
+    notify: () => Promise.resolve(),
+    tick: (requestId) => Promise.resolve(answerTo(requestId).outcome === "ok"),
+    ask: (requestId) => {
+      const r = answerTo(requestId);
+      return Promise.resolve({ outcome: r.outcome, itinerary: r.itinerary });
+    },
+  };
 }

@@ -2926,7 +2926,7 @@ Each world calibrated at tier 4 over six conflict draws of city seed 481516; `np
 
 ---
 
-## 66. In open loop a replan is answered with the world as it stood when the plan was — `open, owned by P2M2`
+## 66. In open loop a replan is answered with the world as it stood when the plan was — `fixed in closed loop 2026-09-14; open loop keeps it by decision`
 
 **Found while building P2M1's `realtime` mode.** The harness answers a traveller's plan and then, in the same breath, walks that traveller's whole journey through the day: `drivePlan` simulates each leg and, wherever the plan breaks, asks the player for a replan. Every one of those replans is asked while the clock still stands at the **plan's** issue time — thirty minutes before departure, and hours before a traveller stranded in the afternoon — while each carries an `issued_at` at the simulated moment of the break.
 
@@ -2937,6 +2937,21 @@ Each world calibrated at tier 4 over six conflict draws of city seed 481516; `np
 **In `realtime` and `scaled` it has a second consequence**: a replan's deadline lies in the simulated future, so it never binds in wall time, and only a plan can miss its deadline in a wall-driven run (`TIME-MODEL.md` §2.3).
 
 **Why it is not fixed here.** Putting each traveller on the clock — asking a replan when τ reaches the break — is what the closed loop, P2M2, builds. Doing it in open loop would change every replan outcome and every score that depends on one, which is a measured change to make deliberately rather than a side effect of adding a time mode.
+
+**Fixed in closed loop at P2M2; open loop keeps its semantics** (decided 2026-09-14), so every open-loop figure — Phase 1's exit included — stands. A closed-loop traveller whose plan breaks goes back on the queue at the break, and the player is asked with τ there.
+
+**Measured on the committed world, closed loop at every traveller an app user against open loop:**
+
+| player | travellers changed | replans | capture | headline, `balanced` |
+|---|---|---|---|---|
+| `naive` | 0 of 98 | 29 → 29, answered identically | −0.253 → −0.253 | 0.058 → 0.094 |
+| `competent` | 10 of 98 | 42 → 29 | 0.030 → 0.060 | 0.255 → 0.337 |
+
+**`competent` shows the handicap directly.** Seven of its ten changed travellers had been asked three times *at one instant* in open loop, with the feeds as they stood at plan time; it proposed the cancelled service each time and the traveller was abandoned after the replan budget. On the clock one replan read the cancellation and routed around it. Thirteen replans disappear for the same reason. One of those rescued travellers counts against capture rather than for it, which is `#68`.
+
+**`naive` shows it where nobody looked.** It routes on the timetable, so every answer is the same — but the reference player re-points its warning bookkeeping at a replanned itinerary when it answers. In open loop that happened at plan time, so it stopped watching the original trips before their trouble was announced; on the clock it watches them until the break. Warnings sent went from 23 to 35, recall from 0.43 to 0.54, and the Information family from 0.524 to 0.616, which is the whole of its headline's move. **The handicap reached the Information family, not only Service.**
+
+**And replan deadlines bind in wall time** in closed loop: at 600×, one of `competent`'s 23 replans was issued 20 simulated seconds late and missed its deadline (`TIME-MODEL.md` §2.3).
 
 ---
 
@@ -2978,3 +2993,25 @@ Routed directly with the same calls `headroom` makes: **all 687 are routable by 
 | `polycentric-mixed` | 423 | 162 | 0 | 140 (70 %) | **111** |
 
 Against 78 improvable journeys, none of them crossing a town, on `LADDER_VERSION` 4. **The link modes now differ in what they make improvable**, which they could not while the link never reached scoring. 162 journeys per region still need integration to route at all and are left out, as before, for want of a reference outcome. *Why the restricted policy still cannot route them has not been measured.*
+
+---
+
+## 67. At an instant holding both, a plan was answered before the tick — `fixed 2026-09-14, in every mode`
+
+**`PLAYER-CONTRACT.md` §5.6 and §9.3 say a tick at an obligation's instant is delivered first**, so the player answers with the freshest data it could have had, and the harness comment beside the tick handler said the same. The queue breaks a tie at one instant by insertion order, and the harness queued every plan *before* it queued the ticks — so at every such instant the plan went first. On the committed world that is 47 of 98 plans.
+
+**Found building P2M2**, where a closed-loop replan is queued mid-run and the order of a tie becomes something the loop relies on rather than something it happens to do.
+
+**Measured before fixing: no traveller's outcome changed**, on the committed world, `R3a` and `R4a`. A tick at a plan's own instant tells the player what a plan thirty minutes ahead rarely needs, so the defect was real and inert. **Fixed by queueing the plans after the ticks**, which is the whole of the rule; anything queued later, a closed-loop replan included, lands behind the tick at its instant for the same reason. `walking-skeleton.test.ts` requires the tick first at every shared instant, and requires that such an instant exists, so the check cannot pass by never being exercised. The log's record order changed with it, so open-loop golden hashes taken before 2026-09-14 do not match.
+
+---
+
+## 68. A non-arrival costs less than a long journey, so stranding a traveller can raise capture — `open, needs a decision`
+
+**`SCORING.md` §4: a non-arrival enters capture "at a heavy fixed cost, so that a solution cannot buy a good mean journey time by stranding the difficult cases".** `scorecard.ts` charges it `NON_ARRIVAL_PENALTY_S` = 3600 s of generalised time. That is heavy against a twenty-minute journey and light against a long one: wherever a traveller's generalised journey exceeds an hour, not arriving scores *better* than arriving.
+
+**Measured on the committed world**, over the 89 journeys capture is taken on: **20 have a `P1` journey above the penalty, 9 a `P0a` journey, and 6 a `P0` journey** — for those six, advising `abandon` beats the clairvoyant oracle's own route. The longest `P1` is 6862 s.
+
+**Found at P2M2**, and not as an exploit. On the clock, `competent` got a traveller it had stranded in open loop to its destination — `trv-g198`, abandoned after three replans before and arriving at 8298 s generalised after, against `P1`'s 5825 — and the scorer counted the arrival as a loss. The `abandon` status exists (`PLAYER-CONTRACT.md` §5.5) and no reference player uses it to game this, but §11's anti-gaming principle is that a strategy the scorer rewards will be found.
+
+**Why it is not fixed here.** Every recorded capture moves with the penalty, which is a decision about what §4's "heavy" means rather than a correction to make in passing. A penalty relative to the traveller's own references — a multiple of its `P1` journey, say — scales with the journey it replaces, which an absolute penalty cannot; whether it must also dominate *every* arrival, however late, is part of the same decision.
