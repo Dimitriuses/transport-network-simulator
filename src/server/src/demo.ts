@@ -150,6 +150,19 @@ async function main(): Promise<number> {
 main().then(
   (code) => process.exit(code),
   (err) => {
+    // A port somebody else holds — 9000 is a Jupyter kernel's default — is the
+    // commonest way this fails, and a stack trace does not say what to do.
+    const e = err as { code?: string; port?: number };
+    if (e.code === "EADDRINUSE") {
+      const which =
+        e.port === CONTROL_PORT
+          ? "the control API — set TNS_CONTROL_PORT to a free port, e.g. TNS_CONTROL_PORT=7430"
+          : e.port === PLAYER_PORT
+            ? "the reference player — stop whatever holds it (a player left running?)"
+            : "an operator API (one port per operator from 9101) — stop whatever holds it";
+      console.error(`port ${e.port} is already in use by another program; it is ${which}.`);
+      process.exit(1);
+    }
     console.error(err);
     process.exit(1);
   },
