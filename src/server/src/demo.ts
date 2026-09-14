@@ -16,13 +16,15 @@ import { fileURLToPath } from "node:url";
 import { loadWorld } from "@tns/core";
 import { scoreRun, renderScorecard, auditInformationSets } from "@tns/scoring";
 import { runOpenLoop, hashLog } from "./harness.ts";
+import { openRunFile } from "./runfile.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..", "..");
 const worldPath = join(repoRoot, "worlds", "m1.world.db");
 
 const OPERATOR_PORT = 9101;
-const CONTROL_PORT = 9000;
+// 9000 is also a Jupyter kernel's default, so it can be moved (`KNOWN-ISSUES.md` #60).
+const CONTROL_PORT = Number(process.env["TNS_CONTROL_PORT"] ?? 9000);
 const PLAYER_PORT = 8080;
 
 /** `TNS_TIME_MODE=realtime`, or `TNS_TIME_MODE=scaled TNS_SPEED=60` (TIME-MODEL.md §2). */
@@ -45,6 +47,22 @@ function loopOptions(): { loop?: "open" | "closed"; appUserFraction?: number } {
   }
   const fraction = process.env["TNS_APP_USER_FRACTION"];
   return { loop, ...(fraction ? { appUserFraction: Number(fraction) } : {}) };
+}
+
+/**
+ * `TNS_LOG_LEVEL=verbatim` inlines response bodies, capped (OBSERVABILITY.md §7);
+ * `TNS_DISCLOSURE=full|attributed|outcome` is what a viewer may show (§8).
+ */
+function logOptions(): { logLevel: "trace" | "verbatim"; disclosure: "full" | "attributed" | "outcome" } {
+  const level = process.env["TNS_LOG_LEVEL"] ?? "trace";
+  if (level !== "trace" && level !== "verbatim") {
+    throw new Error(`TNS_LOG_LEVEL must be trace or verbatim, not ${level}`);
+  }
+  const disclosure = process.env["TNS_DISCLOSURE"] ?? "attributed";
+  if (disclosure !== "full" && disclosure !== "attributed" && disclosure !== "outcome") {
+    throw new Error(`TNS_DISCLOSURE must be full, attributed or outcome, not ${disclosure}`);
+  }
+  return { logLevel: level, disclosure };
 }
 
 async function main(): Promise<number> {
@@ -83,6 +101,13 @@ async function main(): Promise<number> {
   );
   player.stderr.on("data", (d: Buffer) => process.stderr.write(`[player] ${d}`));
 
+  const logging = logOptions();
+  // A file name, not a model input: wall time is fine at the boundary.
+  const runName = `${world.manifest.seed}-${process.env["TNS_PLAYER_MODE"] ?? "naive"}-${new Date()
+    .toISOString()
+    .replace(/[:.]/g, "-")}`;
+  const runFile = openRunFile(process.env["TNS_RUN_DIR"] ?? join(repoRoot, "runs"), runName, logging.logLevel);
+
   try {
     // The operator API must be up before the player can ingest, and the player
     // must be ready before the run starts — the lifecycle in
@@ -94,7 +119,10 @@ async function main(): Promise<number> {
       controlPort: CONTROL_PORT,
       ...timeOptions(),
       ...loopOptions(),
+      ...logging,
+      stream: runFile.stream,
     });
+    runFile.finish(log);
 
     const card = scoreRun(log, { profile: process.env["TNS_PROFILE"] ?? "balanced", tier: world.manifest.tier });
     // The forensic pass. Cheap here, and the only check that holds when the
@@ -103,11 +131,17 @@ async function main(): Promise<number> {
 
     console.log(renderScorecard(card, audit));
     console.log(`  run log: ${log.length} records · hash ${hashLog(log)}`);
+    console.log(`           ${runFile.path}`);
+    console.log(`  explain it:  npm run view -- ${runFile.path} ${worldPath}`);
     console.log("");
 
     return audit.clean ? 0 : 0; // a leak is reported, not a build failure here
 
     return 0;
+  } catch (err) {
+    // Keep what the run did: the partial file is the evidence (OBSERVABILITY.md §7).
+    runFile.abandon();
+    throw err;
   } finally {
     player.kill();
   }

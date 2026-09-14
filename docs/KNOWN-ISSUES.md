@@ -3015,3 +3015,36 @@ Against 78 improvable journeys, none of them crossing a town, on `LADDER_VERSION
 **Found at P2M2**, and not as an exploit. On the clock, `competent` got a traveller it had stranded in open loop to its destination — `trv-g198`, abandoned after three replans before and arriving at 8298 s generalised after, against `P1`'s 5825 — and the scorer counted the arrival as a loss. The `abandon` status exists (`PLAYER-CONTRACT.md` §5.5) and no reference player uses it to game this, but §11's anti-gaming principle is that a strategy the scorer rewards will be found.
 
 **Why it is not fixed here.** Every recorded capture moves with the penalty, which is a decision about what §4's "heavy" means rather than a correction to make in passing. A penalty relative to the traveller's own references — a multiple of its `P1` journey, say — scales with the journey it replaces, which an absolute penalty cannot; whether it must also dominate *every* arrival, however late, is part of the same decision.
+
+---
+
+## 69. The simulator never sent `traceparent`, though contract v0.3 says it does — `fixed 2026-09-14`
+
+**`PLAYER-CONTRACT.md` v0.3 and `OBSERVABILITY.md` §6: "the simulator sends a W3C `traceparent` header on every obligation."** The harness sent none. Nothing broke, because temporal attribution (§3.1) needs no player cooperation and credited 99.7–99.9 % of feed reads to an obligation on both measured worlds; but a player that declared `tracing` had nothing to echo, and §3.2 exists for the cases where temporal attribution degrades — `realtime`, where the clock does not pause.
+
+**Found building P2M3**, while reading what the viewer's API request view could attribute. **Fixed**: every plan, replan and tick carries a `traceparent` derived from the run and request id rather than drawn, so the header an obligation carries is the same on every replay. The reference player does not echo it yet, and the harness does not read an echo yet; attribution stays temporal until a player needs more.
+
+---
+
+## 70. A traveller who did not arrive was recorded with the wait and transfers of an earlier moment — `fixed 2026-09-14`
+
+**Found by P2M3's timeline test**, which requires a traveller's regenerated steps to reproduce its recorded wait and transfers. Two causes, both in what the run log *reports* and neither in capture, which charges a non-arrival the fixed penalty whatever it waited:
+
+* **A player's plan that failed partway recorded the wait from before it set out.** `simulateFrom`'s failure path returned the `Progress` it was *called* with, so `trv-g529` — who waited 831 s on a platform and rode a bus to a quay with no walk to its destination — was recorded as waiting 0 s. On the committed world, 5 of `naive`'s travellers and 4 of `competent`'s.
+* **`P1` reported rides as transfers when it did not arrive**, and `resumeUnderReference` added one execution's transfers to another's, which cannot be done: two executions of one ride each are one transfer, not zero. The router now reports `legsRidden` beside `transfers`.
+
+**Measured before and after**: every capture unchanged on the committed world and `R3a` for both players (−0.2534, 0.0303, −0.7351, 0.4822). Mean wait on the committed world rose from 948.5 s to 987.8 s for `naive` and from 945.4 s to 984.8 s for `competent`; mean transfers moved by 0.010 in two of the four runs. Open-loop golden hashes change for runs holding such a traveller.
+
+---
+
+## 71. The Information family counts events no warning could have served, at a decision point placed too early — `open, needs a decision`
+
+**Found by P2M3's knowledge band**, which draws a material event's knowable instant beside its last decision point — and on `trv-g198` drew the decision point *before* anything was knowable, with the warning credited "in time" anyway.
+
+**Three things, measured on the committed world and on `R3a`, `naive` and `competent`:**
+
+1. **The decision point is the journey's start at its first stop, not its departure from the traveller's.** The harness records `journey.startS`; its own comment, and `SCORING.md` §5 — *"the moment at which they must commit to the affected leg"* — mean the departure from where the traveller stands. It equals a terminus start for 40 of 40 of `competent`'s events on the committed world and 95 of 96 on `R3a`, where the departure from the traveller's stop is a median 216 s later.
+2. **Events knowable only after the decision point count against recall.** As recorded: 12 of 28 and 17 of 40 events on the committed world, 43 of 82 and 41 of 99 on `R3a` — so `naive`'s recall on `R3a` could not have exceeded about 0.48 however it played. At the boarding stop, 11, 13, 3 and 31 of the events the diagnostic could locate. §5 says *"a player is never penalised for failing to know something no feed had yet published"*, and it is.
+3. **A traveller's earliest warning is credited to every event, whatever it was about.** Twice per `competent` run a warning sent before the event was knowable scored it in time.
+
+**Why it is not fixed here.** The first is a defect against a spec that is clear, and fixing it moves every Information score and so every headline, which is what Gate 2's ordering and the clearance bar read. The second and third are what the family should count, which `SCORING.md` holds OPEN. The viewer shows the scorer's decision point, and says so where it matters.

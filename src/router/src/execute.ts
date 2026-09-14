@@ -15,7 +15,7 @@
 // of the next failure. That is precisely the experience a working integration
 // layer exists to prevent, and it is what a player is competing against.
 
-import type { World } from "@tns/schema";
+import type { MovementObserver, World } from "@tns/schema";
 import type { Disruption } from "@tns/core";
 import { route, type Access, type RouterIndex, type TransferPolicy } from "./raptor.ts";
 
@@ -24,7 +24,14 @@ export interface Execution {
   /** Door-to-door seconds, or null if the traveller never got there. */
   readonly journeyS: number | null;
   readonly waitS: number;
+  /** Vehicles changed between: one fewer than `legsRidden`, and never negative. */
   readonly transfers: number;
+  /**
+   * Vehicles actually ridden, arrived or not. Carried because `transfers` cannot
+   * be added across a replan — two executions of one ride each are one transfer,
+   * not zero — and a traveller resumed under the reference policy is exactly that.
+   */
+  readonly legsRidden: number;
   /** How many times the plan collapsed and had to be remade. */
   readonly replans: number;
   readonly failureReason: string | null;
@@ -64,6 +71,11 @@ export function executeReactively(
   destinations: readonly Access[],
   departAfterS: number,
   policy: TransferPolicy,
+  /**
+   * Told each step as it is walked, for the viewer. It cannot change the result:
+   * nothing here reads what it does (`@tns/schema` movement.ts).
+   */
+  observe?: MovementObserver,
 ): Execution {
   const cancelled = new Set(
     disruptions.filter((d) => d.kind === "cancellation").map((d) => d.journeyId),
@@ -79,7 +91,9 @@ export function executeReactively(
 
   let cursor = departAfterS;
   let waitS = 0;
+  // Rides so far. Reported as transfers only through `changes`.
   let transfers = 0;
+  const changes = (): number => Math.max(0, transfers - 1);
   let replans = 0;
   const disruptedEncountered: string[] = [];
   // Where the traveller currently stands. Null means still at the origin.
@@ -89,11 +103,13 @@ export function executeReactively(
     const from: Access[] = atQuay === null ? [...origins] : [{ quayId: atQuay, seconds: 0 }];
     const plan = route(scheduleIx, from, destinations, cursor, policy);
     if (!plan) {
+      observe?.({ kind: "give_up", atS: cursor, reason: attempt === 0 ? "no_route" : "stranded_after_replan" });
       return {
         arrived: false,
         journeyS: null,
         waitS,
-        transfers,
+        transfers: changes(),
+        legsRidden: transfers,
         replans,
         failureReason: attempt === 0 ? "no_route" : "stranded_after_replan",
         disruptedEncountered,
@@ -105,6 +121,7 @@ export function executeReactively(
     for (const leg of plan.legs) {
       if (leg.mode === "walk") {
         // Access and transfer walks are charged by the plan's own timings.
+        const walkFrom = cursor;
         if (leg.fromQuay === null) cursor += leg.arriveS - leg.departS;
         else if (leg.toQuay !== null) {
           const link = world.walkLinks.find(
@@ -113,19 +130,24 @@ export function executeReactively(
           cursor += link ? Math.ceil(link.metres / walkSpeed) : leg.arriveS - leg.departS;
           atQuay = leg.toQuay;
         }
+        if (cursor > walkFrom || leg.fromQuay === null) {
+          observe?.({ kind: "walk", fromS: walkFrom, toS: cursor, fromQuay: leg.fromQuay, toQuay: leg.toQuay });
+        }
         continue;
       }
 
       const journey = journeyById.get(leg.journeyId);
       const pattern = journey ? patternById.get(journey.patternId) : undefined;
       if (!journey || !pattern) {
-        return { arrived: false, journeyS: null, waitS, transfers, replans, failureReason: "bad_plan", disruptedEncountered };
+        observe?.({ kind: "give_up", atS: cursor, reason: "bad_plan" });
+        return { arrived: false, journeyS: null, waitS, transfers: changes(), legsRidden: transfers, replans, failureReason: "bad_plan", disruptedEncountered };
       }
 
       const boardIdx = pattern.stops.findIndex((s) => s.quayId === leg.fromQuay);
       const alightIdx = pattern.stops.findIndex((s) => s.quayId === leg.toQuay);
       if (boardIdx < 0 || alightIdx <= boardIdx) {
-        return { arrived: false, journeyS: null, waitS, transfers, replans, failureReason: "bad_plan", disruptedEncountered };
+        observe?.({ kind: "give_up", atS: cursor, reason: "bad_plan" });
+        return { arrived: false, journeyS: null, waitS, transfers: changes(), legsRidden: transfers, replans, failureReason: "bad_plan", disruptedEncountered };
       }
 
       atQuay = leg.fromQuay;
@@ -136,7 +158,9 @@ export function executeReactively(
         // It simply never comes. They waited for it, and that time is gone.
         const scheduled = journey.startS + pattern.stops[boardIdx]!.departOffsetS;
         waitS += Math.max(0, scheduled - cursor);
+        if (scheduled > cursor) observe?.({ kind: "wait", fromS: cursor, toS: scheduled, quay: leg.fromQuay });
         cursor = Math.max(cursor, scheduled);
+        observe?.({ kind: "break", atS: cursor, quay: leg.fromQuay, journeyId: leg.journeyId, reason: "vehicle_cancelled" });
         replans++;
         broke = true;
         break;
@@ -149,12 +173,23 @@ export function executeReactively(
       if (departS < cursor) {
         // An earlier delay cost them this connection.
         if (delay > 0) disruptedEncountered.push(leg.journeyId);
+        observe?.({ kind: "break", atS: cursor, quay: leg.fromQuay, journeyId: leg.journeyId, reason: "missed_connection" });
         replans++;
         broke = true;
         break;
       }
 
       waitS += departS - cursor;
+      if (departS > cursor) observe?.({ kind: "wait", fromS: cursor, toS: departS, quay: leg.fromQuay });
+      observe?.({
+        kind: "ride",
+        fromS: departS,
+        toS: arriveS,
+        journeyId: leg.journeyId,
+        fromQuay: leg.fromQuay,
+        toQuay: leg.toQuay,
+        delayS: delay,
+      });
       cursor = arriveS;
       atQuay = leg.toQuay;
       transfers++;
@@ -164,25 +199,31 @@ export function executeReactively(
 
     const finalWalk = atQuay !== null ? destBy.get(atQuay) : undefined;
     if (finalWalk === undefined) {
-      return { arrived: false, journeyS: null, waitS, transfers, replans, failureReason: "bad_plan", disruptedEncountered };
+      observe?.({ kind: "give_up", atS: cursor, reason: "bad_plan" });
+      return { arrived: false, journeyS: null, waitS, transfers: changes(), legsRidden: transfers, replans, failureReason: "bad_plan", disruptedEncountered };
     }
 
+    observe?.({ kind: "walk", fromS: cursor, toS: cursor + finalWalk, fromQuay: atQuay, toQuay: null });
+    observe?.({ kind: "arrive", atS: cursor + finalWalk });
     return {
       arrived: true,
       journeyS: cursor + finalWalk - departAfterS,
       waitS,
-      transfers: Math.max(0, transfers - 1),
+      transfers: changes(),
+      legsRidden: transfers,
       replans,
       failureReason: null,
       disruptedEncountered,
     };
   }
 
+  observe?.({ kind: "give_up", atS: cursor, reason: "abandoned_after_replans" });
   return {
     arrived: false,
     journeyS: null,
     waitS,
-    transfers,
+    transfers: changes(),
+    legsRidden: transfers,
     replans,
     failureReason: "abandoned_after_replans",
     disruptedEncountered,

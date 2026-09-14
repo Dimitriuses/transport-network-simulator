@@ -2475,3 +2475,39 @@ At every traveller an app user, against open loop: `naive` changed no traveller 
 
 * **Plans were answered before the tick at their own instant** (`#67`). The contract says ticks first; the queue breaks ties by insertion order and the plans were queued first — 47 of 98 on the committed world. No traveller's outcome changed on three worlds; fixed in every mode, with a test that requires the shared instant to exist.
 * **A non-arrival costs less than a long journey** (`#68`, open). The penalty is 3,600 s of generalised time, and 20 of the committed world's 89 scored `P1` journeys are longer — 6 of its `P0` journeys too. `competent` got a stranded traveller home on the clock and the scorer counted it a loss. It needs a decision, because every recorded capture moves with it.
+
+
+## P2M3 — The view that explains it
+
+**Delivered 2026-09-14.** `npm run view` explains one run at the level of a single traveller: an overview, a traveller timeline with the player's knowledge band beneath it, an API request view with bodies regenerated on demand, and map replay. Run logs are written to disk, `verbatim` and its cap are built, all three disclosure levels are enforced, and `npm run attribute` gives the per-player section costs `attributed` shows.
+
+### Measured before deciding
+
+A whole day's run log is **0.3–0.9 MB** of NDJSON on the committed world and `R3a`, against `OBSERVABILITY.md` §7's estimate of ~14 MB; inlining every body would be 16–79 MB; regenerating a body takes 3–8 ms and every regenerated body matched its recorded length. 99.7–99.9 % of feed reads were already attributed to an obligation, temporally. And every material event was followed by a read of its operator's feed — on `R3a`, `naive` read 35 of 82 in time and did not warn — which is what made a band from the log alone worth building.
+
+### Four decisions
+
+* **A local page with no dependencies**, because it can regenerate a body on demand where a static export would have to embed tens of megabytes.
+* **Stream, then canonical.** A partial file while running, the canonical log at the end; SQLite compaction deferred, since nothing queries a log that size.
+* **Four marks, read from the log.** Announced, knowable, the player's first read of that operator's feed, its warning, ending at the decision point — "read" meaning *had it in hand*, because deciding whether a feed was legible would put catalogue D's answer key in the viewer.
+* **Three disclosure levels, set on the run.** The viewer narrows and never widens.
+
+### Movements are regenerated, never logged
+
+A run log records decisions, not where anyone walked. The router's reactive execution and the harness's own walk take an optional step observer, and the viewer replays the run on its recorded answers with one attached — `P1` and `P0a` included — refusing any replay that decides a traveller differently from the log. Open-loop golden hashes for `naive`, `competent` and `null` matched with the observer threaded through and nothing observing.
+
+### The timeline is held to the scorecard
+
+`src/viewer/test/timeline.test.ts`: every traveller's steps reproduce its recorded journey time, wait and transfers; the timelines together reproduce the scorecard's capture to 1e-9 and its in-time, late and silent counts, in open loop and in closed loop at half the travellers; a tampered log or another world is refused; and no canonical quay id survives in a timeline below `full`.
+
+### What building it found
+
+* **`traceparent` was never sent** (`KNOWN-ISSUES.md` #69), though contract v0.3 said it was. Now derived from the run and request id, so a replay carries the same header.
+* **A non-arrival was recorded with the wait and transfers of an earlier moment** (`#70`). The test's first failure: `trv-g529` waited 831 s and was recorded as waiting none. Capture unchanged on both worlds; mean wait on the committed world rose by about 39 s.
+* **Canonical ids leaked below `full`** through failure reasons like `destination_unreachable:q-s1` and the stage-one buckets named after them. Found by the leak scan, redacted in the viewer; the run log itself carries ground truth and is not a disclosure boundary (`OBSERVABILITY.md` §8).
+* **The Information family counts events no warning could serve** (`#71`, open). The first timeline drawn put `trv-g198`'s decision point before its cancellation was knowable, with the warning credited in time. The decision point is recorded at the journey's first stop rather than the traveller's, 41–52 % of events are knowable only after it, and a traveller's earliest warning is credited to every event. It needs a decision, because every Information score moves with it.
+* **And `#68` on screen**: the same traveller, not arriving, scored 24.9 minutes better than the best announced route.
+
+### Per-player attribution, and one number not believed
+
+`npm run attribute` runs a player `2 + conflicts` times — declared, every value-level conflict off, and each switched on alone — 3.5 minutes for `competent` on the committed world. `P1` and `P0a` do not read the projections, so every variant shares the run's scale. One row is recorded here and not as a finding: with only `A-coordinate-source:sudbahn` on, `competent` captures 0.314 against 0.105 with nothing on — a conflict that *helps* it by 0.21, on one seed. Unexplained and unchecked, and the viewer says so beside any negative row.

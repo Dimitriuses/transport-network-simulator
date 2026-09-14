@@ -99,7 +99,7 @@ Channels 1 and 3 make the player an HTTP **client**; channel 2 makes it an HTTP 
 
 **Version negotiation.** Every request in both directions carries `X-TNS-Contract: 0.3`. The player declares supported versions in `/v1/identity`. On mismatch the simulator aborts before the run starts. Negotiation never happens mid-run.
 
-**Trace context.** The simulator sends a W3C `traceparent` header on every obligation. A player declaring the `tracing` capability echoes it on the operator API calls it makes while handling that obligation, which lets the run log attribute ingestion to the handler that caused it (`OBSERVABILITY.md` §3). Optional: in `virtual` mode the simulator can attribute calls temporally without it, since the clock is paused for the handler's duration and the simulator serves both sides. Declining `tracing` costs diagnostic precision, never correctness or score.
+**Trace context.** The simulator sends a W3C `traceparent` header on every obligation. A player declaring the `tracing` capability echoes it on the operator API calls it makes while handling that obligation, which lets the run log attribute ingestion to the handler that caused it (`OBSERVABILITY.md` §3). Optional: in `virtual` mode the simulator can attribute calls temporally without it, since the clock is paused for the handler's duration and the simulator serves both sides. Declining `tracing` costs diagnostic precision, never correctness or score. *Sent since P2M3 (2026-09-14); until then the simulator sent none (`KNOWN-ISSUES.md` #69).* The trace id is derived from the run and the span id from the request id, so a replayed obligation carries the header it carried the first time.
 
 ---
 

@@ -44,7 +44,9 @@
     "leak": "node --disable-warning=ExperimentalWarning src/scoring/scripts/leak.ts",
     "information": "node --disable-warning=ExperimentalWarning src/scoring/scripts/information.ts",
     "lead": "node --disable-warning=ExperimentalWarning src/scoring/scripts/lead.ts",
-    "headroom": "node --disable-warning=ExperimentalWarning src/scoring/scripts/headroom.ts"
+    "headroom": "node --disable-warning=ExperimentalWarning src/scoring/scripts/headroom.ts",
+    "view": "node --disable-warning=ExperimentalWarning src/viewer/scripts/view.ts",
+    "attribute": "node --disable-warning=ExperimentalWarning src/viewer/scripts/attribute.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

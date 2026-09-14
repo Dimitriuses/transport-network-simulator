@@ -19,6 +19,8 @@ export interface OperatorCall {
   readonly status: number;
   readonly bytes: number;
   readonly bodyHash: string;
+  /** The body served, for a `verbatim` writer. Already built for the response, so free. */
+  readonly body: string;
 }
 
 function send(res: ServerResponse, status: number, body: unknown): number {
@@ -85,7 +87,8 @@ export function startOperatorApi(
   // documentation describes its format, and its format does not change during a
   // run. Built once so the snapshot rule holds trivially.
   const docs = operatorDocs(world, operatorId);
-  const docsHash = createHash("sha256").update(JSON.stringify(docs)).digest("hex").slice(0, 16);
+  const docsBody = JSON.stringify(docs);
+  const docsHash = createHash("sha256").update(docsBody).digest("hex").slice(0, 16);
 
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
@@ -104,6 +107,7 @@ export function startOperatorApi(
         status: 200,
         bytes: Buffer.byteLength(entry.body),
         bodyHash: entry.hash,
+        body: entry.body,
       });
       return;
     }
@@ -121,6 +125,7 @@ export function startOperatorApi(
         status: 200,
         bytes: Buffer.byteLength(entry.body),
         bodyHash: entry.hash,
+        body: entry.body,
       });
       return;
     }
@@ -134,12 +139,20 @@ export function startOperatorApi(
     // player did, and `OBSERVABILITY.md` should be able to see that it happened.
     if (req.method === "GET" && url.pathname === "/docs") {
       const bytes = send(res, 200, docs);
-      onCall({ tau, endpoint: "GET /docs", status: 200, bytes, bodyHash: docsHash });
+      onCall({ tau, endpoint: "GET /docs", status: 200, bytes, bodyHash: docsHash, body: docsBody });
       return;
     }
 
-    const bytes = send(res, 404, { title: "not found", status: 404 });
-    onCall({ tau, endpoint: `${req.method} ${url.pathname}`, status: 404, bytes, bodyHash: "" });
+    const notFound = { title: "not found", status: 404 };
+    const bytes = send(res, 404, notFound);
+    onCall({
+      tau,
+      endpoint: `${req.method} ${url.pathname}`,
+      status: 404,
+      bytes,
+      bodyHash: "",
+      body: JSON.stringify(notFound),
+    });
   });
 
   return new Promise((resolve, reject) => {

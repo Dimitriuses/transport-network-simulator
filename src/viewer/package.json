@@ -1,0 +1,18 @@
+{
+  "name": "@tns/viewer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The run viewer: traveller timelines, the knowledge band, API requests and map replay",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tns/schema": "*",
+    "@tns/core": "*",
+    "@tns/projections": "*",
+    "@tns/scoring": "*",
+    "@tns/server": "*"
+  }
+}

@@ -28,4 +28,5 @@ export * from "./published-time.ts";
 export * from "./operator-key.ts";
 export * from "./clearance.ts";
 export type * from "./world.ts";
+export type * from "./movement.ts";
 export type * from "./runlog.ts";

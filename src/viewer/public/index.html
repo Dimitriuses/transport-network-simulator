@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Run viewer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="title">
+      <strong id="run-title">Run</strong>
+      <span id="run-meta" class="muted"></span>
+    </div>
+    <div id="run-badges" class="badges"></div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+    <button role="tab" data-tab="traveller">Traveller</button>
+    <button role="tab" data-tab="api">API requests</button>
+    <button role="tab" data-tab="map">Map replay</button>
+  </nav>
+
+  <main>
+    <section id="tab-overview" class="tab">
+      <div id="tiles" class="tiles"></div>
+      <div class="columns">
+        <div class="panel">
+          <h2>Where capture went</h2>
+          <p class="muted small">Each traveller's shortfall against the clairvoyant oracle as a share of its own headroom, summed and bucketed by what happened (<code>SCORING.md</code> §10, stage one).</p>
+          <div id="buckets"></div>
+          <div id="sections"></div>
+        </div>
+        <div class="panel">
+          <h2>Information</h2>
+          <div id="information"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Travellers</h2>
+          <div id="filters" class="chips"></div>
+        </div>
+        <div class="scroll"><table id="travellers"></table></div>
+      </div>
+    </section>
+
+    <section id="tab-traveller" class="tab" hidden>
+      <div class="panel-head">
+        <div class="picker">
+          <button id="prev" aria-label="Previous traveller">‹</button>
+          <select id="traveller-select"></select>
+          <button id="next" aria-label="Next traveller">›</button>
+        </div>
+        <div id="traveller-facts" class="facts"></div>
+      </div>
+      <div class="panel">
+        <div class="scroll"><svg id="timeline" role="img" aria-label="Traveller timeline"></svg></div>
+        <div id="legend" class="legend"></div>
+      </div>
+      <div class="columns">
+        <div class="panel">
+          <h2>Why</h2>
+          <ol id="explanation" class="explanation"></ol>
+        </div>
+        <div class="panel">
+          <h2>What the player was asked</h2>
+          <div class="scroll"><table id="obligations"></table></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-api" class="tab" hidden>
+      <div class="panel-head">
+        <div class="chips">
+          <label>Obligation <input id="api-cause" placeholder="e.g. req-g529" size="16"></label>
+          <label>Operator <select id="api-operator"><option value="">all</option></select></label>
+          <span id="api-count" class="muted"></span>
+        </div>
+      </div>
+      <div class="columns api">
+        <div class="panel"><div class="scroll tall"><table id="calls"></table></div></div>
+        <div class="panel">
+          <h2 id="body-title">Response body</h2>
+          <p class="muted small">Regenerated from <code>(operator, endpoint, τ)</code> and checked against the hash the run recorded (<code>PLAYER-CONTRACT.md</code> §6.4).</p>
+          <pre id="body" class="body"></pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-map" class="tab" hidden>
+      <div id="map-refused" class="panel" hidden></div>
+      <div id="map-ui" hidden>
+        <div class="panel-head">
+          <div class="chips">
+            <button id="map-play">Play</button>
+            <label>Speed <select id="map-speed"><option value="30">30×</option><option value="120" selected>120×</option><option value="600">600×</option></select></label>
+            <input id="map-slider" type="range" min="0" max="1" step="1">
+            <strong id="map-clock"></strong>
+            <label>Follow <select id="map-follow"><option value="">nobody</option></select></label>
+          </div>
+        </div>
+        <div class="panel"><svg id="map" role="img" aria-label="Map replay"></svg></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="tip" class="tip" hidden></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

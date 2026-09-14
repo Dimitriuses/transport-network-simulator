@@ -34,6 +34,13 @@ export interface RunHeader {
   readonly loop?: "closed";
   /** Closed loop only: the share of scored travellers who use the player (REFERENCE-POLICY.md §3). */
   readonly appUserFraction?: number;
+  /**
+   * What a viewer of this run may show (OBSERVABILITY.md §8). Absent means
+   * `attributed`, the default, so a default header is what it always was.
+   */
+  readonly disclosure?: "full" | "outcome";
+  /** Recorded only at `verbatim`, whose ingestion records carry `body` inline (OBSERVABILITY.md §7). */
+  readonly logLevel?: "verbatim";
   readonly latencyMode: "none" | "sim" | "wall";
   readonly referenceCompetence: "habitual" | "timetable" | "single_operator_rt";
   readonly hardwareProfile: string | null;
@@ -51,6 +58,23 @@ export interface IngestionRecord {
   readonly bodyHash: string;
   /** The obligation this call was made while handling, where attributable. */
   readonly cause: string | null;
+  /**
+   * `verbatim` files only: the response body, regenerated at write time. Never
+   * in an in-memory log and never hashed — the snapshot rule makes it derivable
+   * from `(operator, endpoint, τ)`, which is why `trace` omits it.
+   */
+  readonly body?: string;
+}
+
+/**
+ * Something about the log itself rather than the run: at present only that a
+ * `verbatim` log reached its cap and carried on at `trace` (OBSERVABILITY.md §7).
+ * Written to files, never to the in-memory log.
+ */
+export interface LogNoteRecord {
+  readonly kind: "log_note";
+  readonly tau: number;
+  readonly note: string;
 }
 
 export type ObligationOutcome =
@@ -170,6 +194,7 @@ export interface MaterialEventRecord {
 }
 
 export type RunRecord =
+  | LogNoteRecord
   | RunHeader
   | IngestionRecord
   | ObligationRecord

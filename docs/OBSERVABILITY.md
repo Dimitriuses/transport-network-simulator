@@ -171,6 +171,15 @@ The number is chosen to be roughly a short demo run and unambiguously not a full
 
 **Format:** newline-delimited JSON while running — append-only, streamable, and a crashed run still leaves a usable log — compacted to SQLite at run end for analysis. SQLite matches the world-bundle choice in `DATA-MODEL.md` §6, so one query tool serves both.
 
+### Built at P2M3 (2026-09-14), and measured first
+
+**The estimates above were an order of magnitude high.** A whole day's run log is **0.3–0.9 MB** of NDJSON on the committed world and on a calibrated `metro-city` world, for `naive` and `competent` alike — not ~14 MB. Inlining every body would be **16–79 MB**, inside the cap, and regenerating one takes 3–8 ms.
+
+* **`trace` and `verbatim` are built** (`src/server/src/runfile.ts`). While a run goes, every record is appended to `<name>.partial.ndjson` as it happens; at the end the canonical log — the harness's record order, the one the golden hash is taken over — is written to `<name>.ndjson` and the partial file removed. **A partial file left behind is a run that did not finish.** Material events are derived at the end and appear only in the canonical file.
+* **`verbatim` inlines `body` on ingestion records and enforces the 250 MB cap** as decided: past it, calls are still recorded, bodies stop, and a `log_note` record says where. A verbatim log hashes as its trace log does.
+* **`score` and `replay` are not separate levels.** The log at `trace` already records every player response, which is what replay needs (`SCORING.md` §12), and `score` would save nothing worth a level at this size.
+* **SQLite compaction is not built.** Nothing yet queries a run log, and a viewer loads one whole.
+
 ---
 
 ## 8. Disclosure policy — the part that needs a decision
@@ -192,6 +201,25 @@ The middle level is the one that took working out. Naming *"stop-matching errors
 
 That distinction is exactly the difference between a hint and a solution, and it is also why `attributed` is the default rather than `full`: a player who is told the section learns the lesson, and one who is told the setting learns nothing except how to patch one world.
 
+### How the viewer reads the three levels — P2M3 (2026-09-14)
+
+The level is set on the run (`TNS_DISCLOSURE`) and recorded in its header, absent meaning `attributed`; the viewer may narrow it and refuses to widen it.
+
+| | `full` | `attributed` | `outcome` |
+|---|---|---|---|
+| the player's obligations, answers, feed reads, warnings | yes | yes | yes |
+| the traveller's steps: walk, wait, ride, delay, break, arrival | with places | **no places** | **no places** |
+| its knowledge band: announced, knowable | yes | yes | no |
+| its knowledge band: read the feed, warned, decision point | yes | yes | yes |
+| `P1` and `P0a`: totals / routes | both | totals | totals |
+| costs by catalogue section (`npm run attribute`) | yes | yes | no |
+| costs by conflict — operator and setting | yes | no | no |
+| map replay: true positions and the day's disruption stream | yes | no | no |
+
+**No places below `full`, and the reason was found by a test rather than foreseen.** A canonical quay or journey id is the private resolution table (`DATA-MODEL.md` §4), and a true coordinate is what catalogue C's conflicts disagree about; either hands over the answer key. They leaked through places nobody drew as places — failure reasons such as `destination_unreachable:q-s1`, and stage-one attribution buckets named after them — and `src/viewer/test/timeline.test.ts` now scans a redacted timeline for every canonical quay id.
+
+**The run log is not a disclosure boundary.** It is the simulator's record and carries ground truth — material events name canonical journeys — so what §8 governs is what a viewer shows. An assessment that must not disclose should not hand over the log, which is Phase 4's assessment mode.
+
 ---
 
 ## 9. Visualisation
@@ -205,6 +233,12 @@ Two views worth building first:
 
 Tooling, not specification. Worth deferring until the simulator runs, then worth building early, because it will find bugs in the simulator faster than tests will.
 
+### Built at P2M3 (2026-09-14) — and it did
+
+`npm run view -- <run.ndjson> <world.db>` serves both views, plus an overview and an API request view, from `src/viewer` with no dependencies. **Movements are regenerated, not logged**: the viewer replays the run on its recorded answers with an observer on the router and the harness, and refuses a replay that decides any traveller differently from the log. Bodies are regenerated from `(operator, endpoint, τ)` and refused if they do not match the recorded hash.
+
+**The timeline is held to the scorecard by a test**: every traveller's steps reproduce its recorded journey time, wait and transfers, and the timelines together give back the scorecard's capture and Information counts. That test found three defects in its first hour, and looking at its first page found a fourth — `KNOWN-ISSUES.md` #69–#71, and #68 on screen: *a non-arrival scored as better than the best announced route*.
+
 ---
 
 ## 10. What this closes
@@ -214,6 +248,6 @@ Tooling, not specification. Worth deferring until the simulator runs, then worth
 * **The size concern: 13.7 MB rather than 3.4 GB**, because the snapshot rule makes response bodies regenerable and determinism makes trajectories regenerable. *Log inputs and decisions, never derived state.*
 * A mechanical procedure for diagnosing `capture > 1` — the information-set audit — that most often catches our own projection bugs.
 
-**Open:** none. Both closed at P0M6 — three disclosure levels rather than two (§8), and a 250 MB enforced cap that downgrades rather than truncates (§7).
+**Open:** none. Both closed at P0M6 — three disclosure levels rather than two (§8), and a 250 MB enforced cap that downgrades rather than truncates (§7). Both built at P2M3, with the viewer of §9.
 
 **Contract impact:** v0.3, additive, applied.

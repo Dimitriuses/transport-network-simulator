@@ -15,6 +15,8 @@ import type {
   Leg,
   ReplanPosition,
   ReplanTrigger,
+  Movement,
+  MovementObserver,
   RunRecord,
   World,
 } from "@tns/schema";
@@ -113,6 +115,33 @@ export interface HarnessOptions {
    * diverged, and throws.
    */
   readonly replay?: readonly RunRecord[];
+  /**
+   * Told every step each traveller takes, and every step `P1` and `P0a` take
+   * for its query. For the viewer, which regenerates movements by replaying a
+   * run rather than reading them from a log (`OBSERVABILITY.md` §10). Nothing
+   * the harness decides reads what an observer does.
+   */
+  readonly observe?: RunObserver;
+  /**
+   * Told each record as it happens, for a run file that survives a crash
+   * (OBSERVABILITY.md §7). An ingestion record comes with its response body, for
+   * a `verbatim` writer; a writer at `trace` ignores it. Material events are
+   * derived at the end and arrive only in the returned log.
+   */
+  readonly stream?: RunStream;
+  /** Recorded in the header when not the default `attributed` (OBSERVABILITY.md §8). */
+  readonly disclosure?: "full" | "attributed" | "outcome";
+  /** Recorded in the header at `verbatim`; the writer is what enforces it. */
+  readonly logLevel?: "trace" | "verbatim";
+}
+
+export interface RunStream {
+  record(record: RunRecord, body?: string): void;
+}
+
+export interface RunObserver {
+  traveller(travellerRef: string, movement: Movement): void;
+  reference(queryId: string, policy: "P1" | "P0a", movement: Movement): void;
 }
 
 type Obligation =
@@ -133,6 +162,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
   const { world } = opts;
   const anchor = parseEpoch(world.manifest.worldEpochIso);
   const log: RunRecord[] = [];
+  const emit = (record: RunRecord, body?: string): void => opts.stream?.record(record, body);
 
   // The day that actually happens. Drawn from the world seed, so it is the
   // same day on every machine and for every player.
@@ -160,6 +190,8 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       p1: number | null;
       p1Exec: ReturnType<typeof executeReactively>;
       p0aExec: ReturnType<typeof executeReactively>;
+      /** P1's steps, kept only when observed: a traveller who falls back takes exactly these. */
+      p1Moves: readonly Movement[];
     }
   >();
   for (const q of world.queries) {
@@ -168,7 +200,18 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
     const p0 = route(oracleIx, o, d, q.departAfterS, "all");
     // P1 is *executed*, not merely planned: it discovers each failure by
     // standing on a platform and replanning (REFERENCE-POLICY.md §4.3).
-    const p1 = executeReactively(world, scheduleIx, disruptions, o, d, q.departAfterS, "obvious");
+    const p1Moves: Movement[] = [];
+    const p1 = executeReactively(
+      world,
+      scheduleIx,
+      disruptions,
+      o,
+      d,
+      q.departAfterS,
+      "obvious",
+      opts.observe ? (m) => p1Moves.push(m) : undefined,
+    );
+    for (const m of p1Moves) opts.observe?.reference(q.id, "P1", m);
 
     // P0a — the best a perfect integrator could have done knowing only what had
     // been announced when it planned (REFERENCE-POLICY.md §2.1). Computed
@@ -191,6 +234,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       d,
       q.departAfterS,
       "all",
+      opts.observe ? (m) => opts.observe?.reference(q.id, "P0a", m) : undefined,
     );
     baselines.set(q.id, {
       p0: p0 ? p0.arriveS - q.departAfterS : null,
@@ -198,6 +242,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       p1: p1.journeyS,
       p1Exec: p1,
       p0aExec,
+      p1Moves,
     });
   }
 
@@ -229,7 +274,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
   const player = opts.replay ? replayPlayer(opts.replay) : httpPlayer(opts.playerBaseUrl);
 
   let state: "preparation" | "running" | "paused" | "ended" = "preparation";
-  const ingestion: (OperatorCall & { operator: string; cause: string | null })[] = [];
+  const ingestion: (Omit<OperatorCall, "body"> & { operator: string; cause: string | null })[] = [];
   // The obligation currently being handled, for temporal attribution.
   let attributeTo: string | null = null;
   const notifications: NotificationRecord[] = [];
@@ -239,7 +284,8 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
   const operatorUrls = new Map<string, string>();
   const servers: Server[] = [];
 
-  for (const [i, op] of world.manifest.operators.entries()) {
+  // A replay has no player to call them: its answers are already written down.
+  for (const [i, op] of opts.replay ? [] : world.manifest.operators.entries()) {
     const port = opts.operatorPort + i;
     operatorUrls.set(op.id, `http://127.0.0.1:${port}`);
     servers.push(
@@ -248,19 +294,38 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         op.id,
         disruptions,
         () => pacer.tau(),
-        (call: OperatorCall) => ingestion.push({ ...call, operator: op.id, cause: attributeTo }),
+        ({ body, ...call }: OperatorCall) => {
+          const record = { ...call, operator: op.id, cause: attributeTo };
+          ingestion.push(record);
+          emit(
+            {
+              kind: "ingestion",
+              tau: call.tau,
+              operator: op.id,
+              endpoint: call.endpoint,
+              status: call.status,
+              bytes: call.bytes,
+              bodyHash: call.bodyHash,
+              cause: record.cause,
+            },
+            body,
+          );
+        },
         port,
       ),
     );
   }
 
-  servers.push(
+  if (!opts.replay) servers.push(
     await startControlApi(
       world,
       () => pacer.tau(),
       () => state,
       operatorUrls,
-      (n) => notifications.push(n),
+      (n) => {
+        notifications.push(n);
+        emit({ kind: "notification", tau: n.tau, travellerRef: n.travellerRef, notificationKind: n.kind, message: n.message });
+      },
       opts.controlPort,
       { mode: timeMode, speed: pacer.speed },
       { mode: loop, appUserFraction },
@@ -283,10 +348,13 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       // The same rule for the loop: absent means open, so an open-loop log is
       // what it was before closed loop existed.
       ...(loop === "closed" ? { loop: "closed" as const, appUserFraction } : {}),
+      ...(opts.disclosure && opts.disclosure !== "attributed" ? { disclosure: opts.disclosure } : {}),
+      ...(opts.logLevel === "verbatim" ? { logLevel: "verbatim" as const } : {}),
       latencyMode: "none",
       referenceCompetence: "timetable",
       hardwareProfile: null,
     });
+    emit(log[0]!);
 
     // ---- lifecycle -------------------------------------------------------
     const identity = await player.ready();
@@ -334,8 +402,21 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
     const resolution = mergeResolutions(world, pacer.tau());
     const outcomes: RunRecord[] = [];
     const queryById = new Map(world.queries.map((q) => [q.id, q]));
+    const settleOutcome = (record: RunRecord): void => {
+      outcomes.push(record);
+      emit(record);
+    };
 
-    const contextFor = (queryId: string): ReplanContext => ({
+    // One traveller's observer, or none — so an unobserved run allocates nothing.
+    const observerFor = (travellerRef: string): MovementObserver | undefined =>
+      opts.observe ? (m) => opts.observe?.traveller(travellerRef, m) : undefined;
+    // A traveller who falls back to P1 takes P1's steps, which were walked once already.
+    const replayReference = (queryId: string, travellerRef: string): void => {
+      const observe = observerFor(travellerRef);
+      if (observe) for (const m of baselines.get(queryId)!.p1Moves) observe(m);
+    };
+
+    const contextFor = (queryId: string, travellerRef: string): ReplanContext => ({
       world,
       resolution,
       table,
@@ -347,6 +428,8 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       clock,
       pacer,
       log,
+      observe: observerFor(travellerRef),
+      emit,
     });
 
     const travellerRecord = (
@@ -401,10 +484,11 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       attempt: number,
     ): void => {
       if (step.kind === "settled") {
-        outcomes.push(travellerRecord(query, travellerRef, settled(step), false, true));
+        settleOutcome(travellerRecord(query, travellerRef, settled(step), false, true));
       } else if (attempt > MAX_REPLANS) {
         // The budget P1 gets, as in open loop.
-        outcomes.push(
+        observerFor(travellerRef)?.({ kind: "give_up", atS: step.progress.cursorS, reason: "abandoned_after_replans" });
+        settleOutcome(
           travellerRecord(query, travellerRef, gaveUp(step, "abandoned_after_replans"), false, true),
         );
       } else {
@@ -425,6 +509,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
     if (appUsers) {
       for (const q of world.queries) {
         if (appUsers.has(q.id)) continue;
+        replayReference(q.id, `trv-${q.id}`);
         const p1 = baselines.get(q.id)!.p1Exec;
         const simulated: Simulated = {
           arrived: p1.arrived,
@@ -433,7 +518,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
           transfers: p1.transfers,
           failureReason: p1.failureReason,
         };
-        outcomes.push(travellerRecord(q, `trv-${q.id}`, simulated, false, false));
+        settleOutcome(travellerRecord(q, `trv-${q.id}`, simulated, false, false));
       }
     }
 
@@ -482,6 +567,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
           itinerary: null,
           ...lag,
         });
+        emit(log.at(-1)!);
         continue;
       }
 
@@ -489,11 +575,11 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         // Closed loop: the traveller is standing where the plan broke, and τ is
         // there too — so the player reads the world as it is now (#66).
         const query = queryById.get(ob.queryId)!;
-        const ctx = contextFor(query.id);
+        const ctx = contextFor(query.id, ob.travellerRef);
         const answer = await askReplan(ctx, ob.travellerRef, ob.baseRequestId, ob.attempt, ob.brk, lag);
         const after = afterReplan(ctx, query, ob.brk, answer);
         if (after.kind === "done") {
-          outcomes.push(travellerRecord(query, ob.travellerRef, after.simulated, false, true));
+          settleOutcome(travellerRecord(query, ob.travellerRef, after.simulated, false, true));
         } else {
           advance(query, ob.travellerRef, ob.baseRequestId, after.step, ob.attempt + 1);
         }
@@ -565,20 +651,38 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
 
       if (loop === "open") {
         // The whole journey is walked now, replans included, ahead of the clock.
+        if (forgone) replayReference(query.id, ob.travellerRef);
         const simulated = forgone
           ? fallbackToReference(base.p1Exec)
-          : await drivePlan(contextFor(query.id), query, ob.travellerRef, ob.requestId, answer.itinerary.legs);
+          : await drivePlan(
+              contextFor(query.id, ob.travellerRef),
+              query,
+              ob.travellerRef,
+              ob.requestId,
+              answer.itinerary.legs,
+            );
         log.push(planRecord);
-        outcomes.push(travellerRecord(query, ob.travellerRef, simulated, forgone));
+        emit(planRecord);
+        settleOutcome(travellerRecord(query, ob.travellerRef, simulated, forgone));
         continue;
       }
 
       log.push(planRecord);
+      emit(planRecord);
       if (forgone) {
-        outcomes.push(travellerRecord(query, ob.travellerRef, fallbackToReference(base.p1Exec), true, true));
+        replayReference(query.id, ob.travellerRef);
+        settleOutcome(travellerRecord(query, ob.travellerRef, fallbackToReference(base.p1Exec), true, true));
       } else {
         // Walked only as far as its first break; the rest happens on the clock.
-        const step = simulateFrom(world, resolution, table, answer.itinerary.legs, query, setOut(query));
+        const step = simulateFrom(
+          world,
+          resolution,
+          table,
+          answer.itinerary.legs,
+          query,
+          setOut(query),
+          observerFor(ob.travellerRef),
+        );
         advance(query, ob.travellerRef, ob.requestId, step, 1);
       }
     }
@@ -812,13 +916,26 @@ async function readIdentity(baseUrl: string): Promise<PlayerIdentity> {
   }
 }
 
-async function sendTick(baseUrl: string, body: unknown): Promise<boolean> {
+/**
+ * W3C Trace Context for one obligation (`OBSERVABILITY.md` §3.2, contract v0.3).
+ *
+ * Derived from the run and the request id rather than drawn, so the header an
+ * obligation carries is the same on every run and every machine — a trace id
+ * that changed between replays would make two identical runs look unrelated.
+ * The trace id names the run; the span id names the obligation.
+ */
+export function traceparentFor(runId: string, requestId: string): string {
+  const hex = (s: string, n: number) => createHash("sha256").update(s).digest("hex").slice(0, n);
+  return `00-${hex(`trace:${runId}`, 32)}-${hex(`span:${runId}:${requestId}`, 16)}-01`;
+}
+
+async function sendTick(baseUrl: string, requestId: string, body: unknown): Promise<boolean> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), GUARD_WALL_S * 1000);
   try {
     const res = await fetch(`${baseUrl}/v1/tick`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", traceparent: traceparentFor(RUN_ID, requestId) },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
@@ -850,6 +967,7 @@ interface PlayerAnswer {
 
 async function askPlayer(
   baseUrl: string,
+  requestId: string,
   request: unknown,
   endpoint: "plan" | "replan" = "plan",
   /** The guard in `virtual`; in the wall-driven modes, no longer than the deadline allows. */
@@ -860,7 +978,7 @@ async function askPlayer(
   try {
     const res = await fetch(`${baseUrl}/v1/${endpoint}`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", traceparent: traceparentFor(RUN_ID, requestId) },
       body: JSON.stringify(request),
       signal: controller.signal,
     });
@@ -987,15 +1105,26 @@ function simulateFrom(
   legs: readonly Leg[] | null,
   query: { id: string; departAfterS: number },
   start: Progress,
+  /** Told each step as it is walked; never read back (`@tns/schema` movement.ts). */
+  observe?: MovementObserver,
 ): StepOutcome {
-  const fail = (reason: string): StepOutcome => ({
-    kind: "settled",
-    arrived: false,
-    journeyS: null,
-    waitS: start.waitS,
-    transfers: Math.max(0, start.transitLegsTaken - 1),
-    failureReason: reason,
-  });
+  let cursor = start.cursorS;
+  let waitS = start.waitS;
+  let taken = start.transitLegsTaken;
+  // What the traveller had waited and ridden by the time it failed, not by the
+  // time this walk began: a plan that strands someone after two rides and a
+  // quarter of an hour on a platform cost them both (`KNOWN-ISSUES.md` #70).
+  const fail = (reason: string): StepOutcome => {
+    observe?.({ kind: "give_up", atS: cursor, reason });
+    return {
+      kind: "settled",
+      arrived: false,
+      journeyS: null,
+      waitS,
+      transfers: Math.max(0, taken - 1),
+      failureReason: reason,
+    };
+  };
 
   if (!legs) return fail("no_itinerary");
 
@@ -1019,9 +1148,6 @@ function simulateFrom(
   const transitLegs = legs.filter((l) => l.mode === "transit");
   if (transitLegs.length === 0) return fail("no_transit_legs");
 
-  let cursor = start.cursorS;
-  let waitS = start.waitS;
-  let taken = start.transitLegsTaken;
   let atQuay: string | null = start.atQuay;
 
   for (let i = 0; i < legs.length; i++) {
@@ -1030,14 +1156,17 @@ function simulateFrom(
 
     // Everything from this leg onward, for the replan payload.
     const remaining = legs.slice(i);
-    const at = (trigger: ReplanTrigger, journeyId: string): PlanBreak => ({
-      kind: "break",
-      trigger,
-      position: { kind: "at_stop", operator: leg.operator, stop: leg.from_stop },
-      progress: { cursorS: cursor, atQuay, waitS, transitLegsTaken: taken },
-      remaining,
-      journeyId,
-    });
+    const at = (trigger: ReplanTrigger, journeyId: string): PlanBreak => {
+      observe?.({ kind: "break", atS: cursor, quay: atQuay, journeyId, reason: trigger });
+      return {
+        kind: "break",
+        trigger,
+        position: { kind: "at_stop", operator: leg.operator, stop: leg.from_stop },
+        progress: { cursorS: cursor, atQuay, waitS, transitLegsTaken: taken },
+        remaining,
+        journeyId,
+      };
+    };
 
     // Identifiers are only meaningful *within* an operator: two of them number
     // their stops from 1, so `7` denotes a different place depending on who
@@ -1071,6 +1200,7 @@ function simulateFrom(
     if (atQuay === null) {
       const access = accessSeconds("origin", fromQuay);
       if (access === null) return fail(`origin_unreachable:${leg.from_stop}`);
+      observe?.({ kind: "walk", fromS: cursor, toS: cursor + access, fromQuay: null, toQuay: fromQuay });
       cursor += access;
     } else {
       const walk = walkBetween(atQuay, fromQuay);
@@ -1078,6 +1208,7 @@ function simulateFrom(
       // somewhere real and cannot get to the next boarding point. They are
       // stranded, which is something they can perceive and report.
       if (walk === null) return at("stranded", journey.id);
+      if (walk > 0) observe?.({ kind: "walk", fromS: cursor, toS: cursor + walk, fromQuay: atQuay, toQuay: fromQuay });
       cursor += walk;
     }
     atQuay = fromQuay;
@@ -1088,6 +1219,7 @@ function simulateFrom(
       // The wait is real and is charged (REFERENCE-POLICY.md §4.3).
       const scheduled = journey.startS + pattern.stops[boardIdx]!.departOffsetS;
       waitS += Math.max(0, scheduled - cursor);
+      if (scheduled > cursor) observe?.({ kind: "wait", fromS: cursor, toS: scheduled, quay: fromQuay });
       cursor = Math.max(cursor, scheduled);
       return at("vehicle_cancelled", journey.id);
     }
@@ -1098,6 +1230,8 @@ function simulateFrom(
     if (departS < cursor) return at("missed_connection", journey.id);
 
     waitS += departS - cursor;
+    if (departS > cursor) observe?.({ kind: "wait", fromS: cursor, toS: departS, quay: fromQuay });
+    observe?.({ kind: "ride", fromS: departS, toS: arriveS, journeyId: journey.id, fromQuay, toQuay, delayS });
     cursor = arriveS;
     atQuay = toQuay;
     taken++;
@@ -1105,7 +1239,9 @@ function simulateFrom(
 
   const finalWalk = accessSeconds("destination", atQuay!);
   if (finalWalk === null) return fail(`destination_unreachable:${atQuay}`);
+  observe?.({ kind: "walk", fromS: cursor, toS: cursor + finalWalk, fromQuay: atQuay, toQuay: null });
   cursor += finalWalk;
+  observe?.({ kind: "arrive", atS: cursor });
 
   return {
     kind: "settled",
@@ -1131,6 +1267,13 @@ function simulateFrom(
  */
 export function hashLog(log: readonly RunRecord[]): string {
   const deterministic = log.map((record) => {
+    if (record.kind === "ingestion" && record.body !== undefined) {
+      // A `verbatim` file's bodies are regenerable and would make a verbatim
+      // log hash differently from the trace log of the same run.
+      const withoutBody: Record<string, unknown> = { ...record };
+      delete withoutBody["body"];
+      return withoutBody;
+    }
     if (record.kind !== "obligation") return record;
     // `lagS` is wall-derived too, and absent from `virtual` records, so
     // dropping it leaves every `virtual` hash exactly what it was.
@@ -1157,12 +1300,14 @@ function resumeUnderReference(
   brk: PlanBreak,
   query: { id: string; departAfterS: number },
   reason: string,
+  observe?: MovementObserver,
 ): Simulated {
   const spentS = brk.progress.cursorS - query.departAfterS;
   const priorWaitS = brk.progress.waitS;
   const priorLegs = brk.progress.transitLegsTaken;
 
   if (brk.progress.atQuay === null) {
+    observe?.({ kind: "give_up", atS: brk.progress.cursorS, reason });
     return {
       arrived: false,
       journeyS: null,
@@ -1180,13 +1325,16 @@ function resumeUnderReference(
     destinations,
     brk.progress.cursorS,
     "obvious",
+    observe,
   );
 
   return {
     arrived: exec.arrived,
     journeyS: exec.journeyS === null ? null : spentS + exec.journeyS,
     waitS: priorWaitS + exec.waitS,
-    transfers: Math.max(0, priorLegs + exec.transfers - 1),
+    // Rides before the break and rides after it: counted as rides, because
+    // transfers do not add across a replan (`KNOWN-ISSUES.md` #70).
+    transfers: Math.max(0, priorLegs + exec.legsRidden - 1),
     failureReason: exec.arrived ? reason : `${reason}_then_${exec.failureReason}`,
   };
 }
@@ -1203,6 +1351,8 @@ interface ReplanContext {
   readonly clock: ReturnType<typeof makeVirtualClock>;
   readonly pacer: Pacer;
   readonly log: RunRecord[];
+  readonly observe: MovementObserver | undefined;
+  readonly emit: (record: RunRecord) => void;
 }
 
 /** Where a traveller stands before setting out: at the origin, at its departure time. */
@@ -1291,6 +1441,7 @@ async function askReplan(
     attempt,
     ...lag,
   });
+  ctx.emit(ctx.log.at(-1)!);
   return answer;
 }
 
@@ -1306,7 +1457,15 @@ function afterReplan(
   if (answer.outcome === "ok" && answer.itinerary) {
     return {
       kind: "step",
-      step: simulateFrom(ctx.world, ctx.resolution, ctx.table, answer.itinerary.legs, query, brk.progress),
+      step: simulateFrom(
+        ctx.world,
+        ctx.resolution,
+        ctx.table,
+        answer.itinerary.legs,
+        query,
+        brk.progress,
+        ctx.observe,
+      ),
     };
   }
 
@@ -1314,7 +1473,10 @@ function afterReplan(
   // be charged for failing to route them. Advising abandonment to a traveller
   // who could still have arrived is a real cost, which is what stops
   // `abandon` becoming a cheap way out of a hard reroute.
-  if (answer.outcome === "abandon") return { kind: "done", simulated: gaveUp(brk, "advised_abandon") };
+  if (answer.outcome === "abandon") {
+    ctx.observe?.({ kind: "give_up", atS: brk.progress.cursorS, reason: "advised_abandon" });
+    return { kind: "done", simulated: gaveUp(brk, "advised_abandon") };
+  }
 
   // `continue`, `no_route`, `declined`, an error or a timeout all leave the
   // traveller standing where they are with no usable advice. `continue`
@@ -1330,6 +1492,7 @@ function afterReplan(
       brk,
       query,
       `replan_${answer.outcome}`,
+      ctx.observe,
     ),
   };
 }
@@ -1356,13 +1519,16 @@ async function drivePlan(
   baseRequestId: string,
   initialLegs: readonly Leg[],
 ): Promise<Simulated> {
-  let step = simulateFrom(ctx.world, ctx.resolution, ctx.table, initialLegs, query, setOut(query));
+  let step = simulateFrom(ctx.world, ctx.resolution, ctx.table, initialLegs, query, setOut(query), ctx.observe);
 
   for (let attempt = 1; step.kind === "break"; attempt++) {
     // The same budget the reference policy gets. A player allowed more
     // attempts than P1 would be compared against a traveller held to a
     // stricter rule than itself.
-    if (attempt > MAX_REPLANS) return gaveUp(step, "abandoned_after_replans");
+    if (attempt > MAX_REPLANS) {
+      ctx.observe?.({ kind: "give_up", atS: step.progress.cursorS, reason: "abandoned_after_replans" });
+      return gaveUp(step, "abandoned_after_replans");
+    }
 
     // In open loop a traveller's journey is walked when its plan is answered,
     // so a replan is asked then, ahead of the clock: its deadline lies in the
@@ -1430,8 +1596,8 @@ function httpPlayer(baseUrl: string): PlayerPort {
       return readIdentity(baseUrl);
     },
     notify: (path, body) => post(baseUrl, path, body),
-    tick: (_requestId, body) => sendTick(baseUrl, body),
-    ask: (_requestId, request, endpoint, timeoutMs) => askPlayer(baseUrl, request, endpoint, timeoutMs),
+    tick: (requestId, body) => sendTick(baseUrl, requestId, body),
+    ask: (requestId, request, endpoint, timeoutMs) => askPlayer(baseUrl, requestId, request, endpoint, timeoutMs),
   };
 }
 
