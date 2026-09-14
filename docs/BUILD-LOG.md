@@ -2411,3 +2411,32 @@ The clearance ladder needed no re-derivation at all — bars stated as positions
 
 8. ~~**Re-sweep the ladder**~~ — **done at `metro-city` and `towns-and-rail`.** Every gate and calibration figure in P1M8 was measured against the broken floor and none of it stands. `npm run wall` makes this affordable — two calibrations per seed instead of the ablation's 145 — and `npm run gates` then runs only on the rungs it flags. The first calibrations on the new generator found the offsetless-timestamp seam; the rebuild on the UTC player found that neither pair matched within seed noise, and why (`#58`). **Now being rebuilt on the fixed counts**: `towns-and-rail` and `metro-city` at two city seeds each, then the wall screen, `npm run profile` on both pairs at five seeds, both transfers, and the full gates on one world per rung. *On the UTC player, before the count was fixed*, `towns-and-rail`'s calibrated world passed every gate — 1b at 0.100, Gate 3 at 45 % of headroom — and `metro-city` sat on Gate 1b's bar, with three of its six draws easy. The pair figures once recorded here as matching were two-seed verification runs; the profile instrument did not agree. **On the fixed counts** both pairs still failed the profile — `towns-and-rail` on `competent` alone, by 1.2 and then 1.4 times noise; `metro-city` on `blind` and `naive`, with one world easy — and the cause was each city's bus timetable, which the seed drew (`#61`). **On declared headways** both pairs match at ten seeds, every world is a rung, and both ten-seed transfers hold. The full gates then ran on one world at each rung that carries conflict and **all three pass every gate**. `metro-town` (R2a): ambiguity 0 % of headroom, 1b at 0.487 — thirteen thousandths under the easy bar — four distinct scores, and Gate 3 at **25 %** of headroom (2.17m of 8.80m) measured on 131/200 journeys. `metro-city` (R3a): 1a with unresolvable ambiguity at 0 % of headroom against a 25 % bar, 1b at 0.158 with 60/200 given up, four distinct scores, and Gate 3 at **58 %** of headroom (6.23m of 10.69m) measured on 146/200 journeys. `towns-and-rail` (R4a): 2 %, 0.094 with 58/200 given up, four distinct scores, **62 %** (6.72m of 10.78m) on 142/200. `B-time-encoding` is the largest single conflict in both ablations, which is `#58`'s count doing the work. The audit column reads `LEAK` for `blind` and `naive` on the `metro-city` world and `clean` for all four on the other. That is `#40`'s diagnostic bound rather than a gate: the scorecard verdict is `scored`, no traveller beat `P0`, the one finding is 0.0m, and the blind-hit statistic is **0 where an optimal planner with the same information would have taken 4**.
 9. ~~Then, and only then, the transfer runs~~ — **done at `metro-city` and `towns-and-rail`, ten seeds each, both halves holding**: a memorised solution is worth testing against a ladder whose rungs mean something. **Now measurable**: on each single-centre pair, `npm run tune` on one world and `npm run transfer` to the other, with the memoriser keyed by kind and rank.
+
+
+## P2M1 — `realtime`
+
+**Delivered 2026-09-14.** `realtime` (1×) and `scaled` (N×) time modes, paced by one scheduler with injected wall timing; both OPEN items in `TIME-MODEL.md` closed in the specifications; and the exit checked at 60× rather than by a 12.5-hour run.
+
+### Four decisions, each on a measurement
+
+* **Answers land at their deadline in every mode.** Contract §9.2 already said so, and `TIME-MODEL.md` §10 said the opposite for `realtime`. A reference player answers in 1–7 ms against a twenty-second deadline, so effects on arrival would have bought nothing anyone could observe.
+* **Free-running ingestion is permitted in the wall-driven modes and required nowhere** (`TIME-MODEL.md` §6); ticks stay the path that behaves identically everywhere.
+* **τ stays at one second** (§8). No measured handler takes longer than 76 ms, and the never-implemented *store milliseconds* is withdrawn.
+* **One sequential scheduler at a speed factor** (§2.3). Obligations cluster — up to 269 at one instant — but handlers are fast enough that concurrent issuance can wait for the closed loop.
+
+### What `virtual` kept
+
+Nothing wall-derived reaches a `virtual` log. `lagS` and `speed` are written only in the other modes and `hashLog` drops `lagS`, so the byte-identical repeat test and every recorded hash stand. 169 tests pass, including seven that drive the scheduler with a fake clock and a 3600× run that proves the wiring end to end.
+
+### Measured: the same world at 60×
+
+| player | travellers identical | obligation answers differing | headline, `virtual` / 60× |
+|---|---|---|---|
+| `naive` | 98 of 98 | 0 of 494 | 0.0577 / 0.0584 |
+| `competent` | 98 of 98 | 0 of 874 | 0.2548 / 0.2449, and on a second run 0.2548 / 0.2549 |
+
+**The headline moves and the outcomes do not**, and the second `competent` run says why. The service family is identical to four places. Information's timeliness moved from 0.9247 to 0.9253, because 32 of 33 warnings were stamped at a different τ — up to 59 simulated seconds — since the simulator stamps a notification when it arrives and in a wall-driven mode τ keeps moving. Cost moved by 32 bytes of 32.6 MB, because 1,163 of 2,205 feed reads happened a second later and returned a different body. Two runs of the same player differed in headline by 0.0099 for exactly these reasons. **That is what *not comparable* means, measured rather than asserted.**
+
+### Found while building it
+
+**In open loop a replan is answered with the world as it stood when the plan was** (`KNOWN-ISSUES.md` #66). The harness walks a traveller's whole journey when its plan is answered, so replans are asked with the clock still at plan time. It is a handicap on every recorded replan and never a leak, it is why only a plan's deadline can bind in wall time, and it belongs to the closed loop.

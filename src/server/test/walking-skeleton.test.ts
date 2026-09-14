@@ -28,6 +28,7 @@ const skip = hasWorld ? false : "no world bundle; run: npm run world:build";
 async function runOnce(
   ports: { operator: number; control: number; player: number },
   mode: "naive" | "null" = "naive",
+  time: { timeMode?: "virtual" | "realtime" | "scaled"; speed?: number } = {},
 ) {
   const world = loadWorld(worldPath);
   const player = spawn(
@@ -53,6 +54,7 @@ async function runOnce(
       playerBaseUrl: `http://127.0.0.1:${ports.player}`,
       operatorPort: ports.operator,
       controlPort: ports.control,
+      ...time,
     });
   } finally {
     player.kill();
@@ -69,6 +71,13 @@ test("the walking skeleton crosses every layer", { skip }, async () => {
   assert.ok(kinds.has("obligation"), "the player was never asked anything");
   assert.ok(kinds.has("ingestion"), "the player never called the operator API");
   assert.ok(kinds.has("traveller"), "no traveller outcomes were produced");
+
+  // P2M1 added pacing fields, and a `virtual` log must carry none of them: that
+  // is what keeps every golden hash recorded before it valid (TIME-MODEL.md §2.3).
+  assert.ok(
+    log.every((r) => !("lagS" in r) && !("speed" in r)),
+    "a virtual run log carries a wall-derived pacing field",
+  );
 });
 
 test("the run is byte-identical when repeated", { skip }, async () => {
@@ -151,3 +160,28 @@ test("a naive player is now actively harmful", { skip }, async () => {
 function world() {
   return loadWorld(worldPath);
 }
+
+
+test("a scaled run paces every issued obligation and records how fast it ran", { skip }, async () => {
+  // TIME-MODEL.md §2.3. Structural only, and deliberately so: at 3600× a
+  // twenty-second deadline is under six wall milliseconds, so which answers land
+  // depends on the machine — which is exactly why `scaled` never compares with
+  // `virtual`.
+  const log = await runOnce({ operator: 9360, control: 9369, player: 8360 }, "naive", {
+    timeMode: "scaled",
+    speed: 3600,
+  });
+
+  const header = log.find((r) => r.kind === "run_header") as Extract<RunRecord, { kind: "run_header" }>;
+  assert.equal(header.timeMode, "scaled");
+  assert.equal(header.speed, 3600);
+
+  const issued = log.filter(
+    (r): r is Extract<RunRecord, { kind: "obligation" }> => r.kind === "obligation" && r.obligation !== "replan",
+  );
+  assert.ok(issued.length > 0, "nothing was issued");
+  for (const o of issued) {
+    assert.ok(typeof o.lagS === "number" && o.lagS >= 0, `${o.requestId} carries no lag`);
+  }
+  assert.equal(log.filter((r) => r.kind === "traveller").length, 98, "a traveller went missing");
+});

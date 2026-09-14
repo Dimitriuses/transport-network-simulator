@@ -23,6 +23,8 @@ export interface RunHeader {
   readonly scorerVersion: string;
   readonly contractVersion: string;
   readonly timeMode: "virtual" | "realtime" | "scaled";
+  /** Simulated seconds per wall second. Recorded outside `virtual` only (TIME-MODEL.md §2.3). */
+  readonly speed?: number;
   readonly latencyMode: "none" | "sim" | "wall";
   readonly referenceCompetence: "habitual" | "timetable" | "single_operator_rt";
   readonly hardwareProfile: string | null;
@@ -64,6 +66,13 @@ export interface ObligationRecord {
   readonly outcome: ObligationOutcome;
   /** Wall-clock latency. Diagnostic only; inert in `virtual` mode. */
   readonly latencyMs: number;
+  /**
+   * `realtime` and `scaled` only: how many simulated seconds past its scheduled
+   * instant the obligation was issued, because a slow handler had carried τ
+   * beyond it. Wall-derived, absent in `virtual`, and excluded from the golden
+   * hash (TIME-MODEL.md §2.3).
+   */
+  readonly lagS?: number;
   readonly itinerary: Itinerary | null;
   /** `replan` only: what the traveller could perceive going wrong. */
   readonly trigger?: string;

@@ -163,6 +163,11 @@ export function startControlApi(
   operatorBaseUrls: ReadonlyMap<string, string>,
   onNotify: (n: NotificationRecord) => void,
   port: number,
+  /** What the brief and `/v1/clock` report. The run's own, never assumed (TIME-MODEL.md §2). */
+  pacing: { readonly mode: "virtual" | "realtime" | "scaled"; readonly speed: number } = {
+    mode: "virtual",
+    speed: 1,
+  },
 ): Promise<Server> {
   const anchor = parseEpoch(world.manifest.worldEpochIso);
 
@@ -188,7 +193,7 @@ export function startControlApi(
           mode: "open_loop",
           cold_start: true,
           tier: world.manifest.tier,
-          time_mode: "virtual",
+          time_mode: pacing.mode,
           latency_mode: "none",
         },
         // Where the operators are and how to reach them. Nothing about their
@@ -228,8 +233,8 @@ export function startControlApi(
       return void send(res, 200, {
         sim_time: renderSimTime(anchor, readTau()),
         state: readState(),
-        time_mode: "virtual",
-        speed: 1.0,
+        time_mode: pacing.mode,
+        speed: pacing.speed,
       });
     }
 

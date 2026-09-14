@@ -25,6 +25,17 @@ const OPERATOR_PORT = 9101;
 const CONTROL_PORT = 9000;
 const PLAYER_PORT = 8080;
 
+/** `TNS_TIME_MODE=realtime`, or `TNS_TIME_MODE=scaled TNS_SPEED=60` (TIME-MODEL.md §2). */
+function timeOptions(): { timeMode?: "virtual" | "realtime" | "scaled"; speed?: number } {
+  const mode = process.env["TNS_TIME_MODE"];
+  if (!mode) return {};
+  if (mode !== "virtual" && mode !== "realtime" && mode !== "scaled") {
+    throw new Error(`TNS_TIME_MODE must be virtual, realtime or scaled, not ${mode}`);
+  }
+  const speed = process.env["TNS_SPEED"];
+  return { timeMode: mode, ...(speed ? { speed: Number(speed) } : {}) };
+}
+
 async function main(): Promise<number> {
   if (!existsSync(worldPath)) {
     console.error(
@@ -70,6 +81,7 @@ async function main(): Promise<number> {
       playerBaseUrl: `http://127.0.0.1:${PLAYER_PORT}`,
       operatorPort: OPERATOR_PORT,
       controlPort: CONTROL_PORT,
+      ...timeOptions(),
     });
 
     const card = scoreRun(log, { profile: process.env["TNS_PROFILE"] ?? "balanced", tier: world.manifest.tier });

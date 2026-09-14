@@ -75,6 +75,20 @@ Under those conditions this is a legitimate second leaderboard. Without them it 
 
 ---
 
+## 2.3 Pacing the wall-driven modes — decided at P2M1 (2026-09-14)
+
+**One scheduler serves `realtime` and `scaled`, because `realtime` is `scaled` at 1×.** `src/server/src/pacing.ts` is the only place the harness reads a wall clock to move τ, and in `virtual` it reads none.
+
+* **τ is wall time since the run began, times the speed**, in whole seconds from the first event: `τ = τ₀ + ⌊elapsed · N⌋`. The operator and control APIs read that τ, so feeds keep advancing while a handler runs — which is the difference between these modes and `virtual`, and the whole of it.
+* **An event is issued when τ reaches it.** If a slow handler has already carried τ past, it is issued at once, *as of* its scheduled instant: its `issued_at` and `deadline` are where they always were, and the obligation record gains `lagS`, the simulated seconds it ran late. `lagS` and the header's `speed` are recorded only outside `virtual` and never enter the golden hash, so every `virtual` log is byte-identical to one written before these modes existed.
+* **Issuance stays sequential.** Measured on the committed world and on a generated `metro-city` world, a reference player answers a plan or replan in 1–7 ms and a tick in 13–76 ms, against gaps of one simulated second or more between distinct obligations; at 60× the slowest tick still costs under five simulated seconds. Issuing concurrently and applying responses in `request_id` order (contract §9.1) waits for the closed loop, P2M2, which will need it.
+* **A request's wall budget** is `guard_wall_s` or the wall time left before τ passes its simulated deadline, whichever is shorter. An answer that arrives after it is not an answer: the request is abandoned, logged `player_timeout`, and the traveller falls back as for any unanswered obligation. In `virtual` the budget is the guard alone, because response speed cannot touch the world.
+* **Only a plan's deadline can bind in wall time, for now.** In open loop a traveller's whole journey is walked when its plan is answered, so each replan is asked then, with an `issued_at` hours ahead of τ, and its deadline lies in the simulated future. Until the closed loop puts travellers on the clock, a replan cannot miss its deadline in a wall-driven run (`KNOWN-ISSUES.md` #66).
+
+**Measured at 60× on the committed world** (2026-09-14): for both reference players, every traveller's outcome and every obligation's answer matched `virtual`. What moved was when warnings were stamped — a notification is stamped at the τ it arrives, and here τ keeps moving — and which second a feed was read at, so Information's timeliness and the response bytes differed slightly, and two runs of one player differed in headline by 0.0001 and 0.0099. **Traveller outcomes are what §4 and contract §9.2 fix; the rest is the non-comparability §2 declares, measured rather than asserted.**
+
+---
+
 ## 3. Q13 — The clock pauses, and the pause is only safe under one condition
 
 In `virtual` mode the simulated clock stops while a player request is outstanding. That is what makes results machine-independent.
@@ -155,6 +169,8 @@ The alternative — landing at `issued_at + δ` for a seeded app-response delay 
 
 The lifelike version of this question is *operator* latency, not app latency, and that is §2.1's optional axis where it belongs.
 
+**And in every mode — decided at P2M1** (2026-09-14). `realtime` and `scaled` apply an answer at its deadline too, as `PLAYER-CONTRACT.md` §9.2 already required of every mode. What differs in them is that the clock keeps running while the player answers, and that an answer later than its deadline in wall time is no answer (§2.3). Applying answers on arrival was the alternative, and the one §10 first described. At the 1–7 ms a reference player takes to answer, it would buy a realism nobody could observe except by answering slowly, at the price of scores that depend on answer speed.
+
 ### Does the deadline scale with acceleration?
 
 In `virtual`, the question does not arise. In `scaled` at `N×`, the simulated deadline stays fixed by the world while the real time available becomes `deadline_sim / N`. **That is precisely the trap in Q11**, which is why `scaled` is opt-in and separately scored, never merged with `virtual` results.
@@ -204,7 +220,9 @@ What this buys:
 * the same player code runs unchanged in `virtual` and `realtime`;
 * polling cadence becomes a legible strategic choice — poll often and pay in API cost, or poll rarely and pay in staleness. That is a good decision to put in front of a player.
 
-What it costs: the player can no longer poll on its own initiative between ticks. **OPEN:** whether to allow free-running ingestion *in addition* to ticks in `realtime` mode. I lean yes — it costs nothing there and it is more natural — but it means two code paths for the player, so possibly not worth it.
+What it costs: the player can no longer poll on its own initiative between ticks.
+
+**Decided at P2M1** (2026-09-14): **free-running ingestion is permitted in `realtime` and `scaled`, and required nowhere.** The operator APIs are up for the whole run, so there is nothing to enforce: a call between handlers is served against the running clock, counted in API cost like any other call, and attributed to no obligation. **Ticks remain the only ingestion path that behaves identically in every mode**, and in `virtual` free-running polling stays unsupported, because the clock outruns it. A player written against ticks runs unchanged in all three modes; one that also polls on its own initiative has chosen a second code path for the modes that allow it.
 
 > **Landed in `PLAYER-CONTRACT.md` v0.2 §5.6.** The contract adds the `tick` obligation and capability, `interval_sim_s` bounded by `brief.limits.min_tick_interval_sim_s`, tick-before-obligation ordering at equal instants, and an optional `next_interval_sim_s` in the response so a player can adapt its cadence mid-run. The §3 snapshot rule is stated there as a published guarantee (contract §6.4), since it is really a property of the operator APIs.
 
@@ -227,7 +245,7 @@ Not a policy anyone has to remember; four mechanisms:
 * This matters specifically because the world contains DST transitions and past-midnight service days (catalogue §2.1 B). A monotonic counter orders correctly through a duplicated 02:30; a local timestamp does not.
 * Local time, offsets, `25:10:00` and the rest are **rendering concerns at the operator API boundary** — which is exactly where the interesting defects live.
 * The contract surface renders `τ` as RFC 3339 with explicit offset; the brief declares the world timezone.
-* **Resolution: one second.** **OPEN:** whether sub-second resolution is ever needed. I do not think it is — transit does not care — but the integer representation should leave room, so store milliseconds and expose seconds.
+* **Resolution: one second — closed at P2M1** (2026-09-14). No case needs finer τ. Timetables and announcements are second-granular at most; ordering within one second is already fixed by `request_id` and by ticks preceding obligations (contract §9); and the slowest measured reference handler takes 76 ms, well inside a second. τ is an integer count of seconds in the clock, the world bundle and the rendered contract alike. *The earlier intention to store milliseconds and expose seconds was never implemented, and is withdrawn.*
 
 ---
 
@@ -260,9 +278,10 @@ virtual    τ 08:12:00  request issued, clock PAUSES
                        → identical on any machine. Comparable. Scored.
 
 realtime   τ 08:12:00  request issued, clock runs with w
-           τ 08:12:01.4 answer arrives, applied on arrival
-           τ 08:12:20  (deadline unused — answered in time)
-                       → alive; a 25-second answer would have missed. Not comparable.
+           τ 08:12:01  answer arrives; the clock never stopped
+           τ 08:12:20  answer applied at the deadline, as in every mode
+                       → alive; a 25-second answer would have missed and fallen back.
+                         Not comparable.
 
 scaled 60× τ 08:12:00  request issued; 20 sim-seconds = 333 ms real
            w +1.4 s    → MISSED. Fallback fires.
@@ -285,7 +304,7 @@ The third line is the whole argument for keeping `virtual` the default.
 
 **Optional, default off:** modelled operator latency (§2.1) and controlled-hardware performance runs (§2.2). Both measure something real; neither is MVP.
 
-**Open items:** free-running ingestion in `realtime` (§6); sub-second resolution (§8). The modelled response delay (§4) was closed at P0M4: answers land at the deadline.
+**Open items:** none. Free-running ingestion (§6) and sub-second resolution (§8) were closed at P2M1, which also decided that answers land at the deadline in every mode (§4) and specified how the wall-driven modes are paced (§2.3). The modelled response delay (§4) was closed at P0M4.
 
 **Landed in `PLAYER-CONTRACT.md` v0.2:** `/v1/tick` with the `tick` capability, `interval_sim_s` and adaptive `next_interval_sim_s`; the §3 snapshot rule published as a player-facing guarantee (contract §6.4); `paused` in `/v1/clock` with FIFO queuing and `503` on overflow, `/v1/clock` exempt; `run.wall_budget_s` and `run.pause_queue_depth` in the brief; `time_mode`, `latency_mode` and `hardware_profile` in the run tuple.
 

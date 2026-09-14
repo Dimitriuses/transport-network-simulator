@@ -11,3 +11,4 @@ export const PACKAGE_NAME = "@tns/server";
 
 export * from "./apis.ts";
 export * from "./harness.ts";
+export * from "./pacing.ts";

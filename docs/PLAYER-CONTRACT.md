@@ -264,7 +264,7 @@ The player performs its operator polling **inside this handler**. The simulated 
 
 **Ordering.** When a tick and an obligation fall at the same simulated instant, **the tick is delivered first**, so the player is asked questions with the freshest data it could have had. Deterministic and sensible.
 
-**OPEN (`TIME-MODEL.md` §6):** whether free-running ingestion is *also* permitted between ticks in `realtime` mode. Natural there, but it means two code paths for the player.
+**Free-running ingestion — decided at P2M1** (`TIME-MODEL.md` §6): permitted between ticks in `realtime` and `scaled`, and required nowhere. A call between handlers is served against the running clock and counted in API cost like any other. Ticks are the one path that behaves identically in every mode; in `virtual` free-running polling is unsupported, because the clock outruns it.
 
 ### 5.7 `POST /v1/run-start` and `POST /v1/run-end`
 
@@ -321,7 +321,7 @@ What *does* vary is documentation **quality**, which is already catalogue §2.1 
   "speed": 1.0 }
 ```
 
-Lets the player schedule against **simulated** time and observe run state (**Q14**). Cheap, unmetered, and excluded from API-cost scoring.
+Lets the player schedule against **simulated** time and observe run state (**Q14**). Cheap, unmetered, and excluded from API-cost scoring. `time_mode` and `speed` are the run's own: `speed` is 1 in `virtual` and `realtime`, and the factor in `scaled` (`TIME-MODEL.md` §2.3).
 
 **`/v1/clock` is exempt from pause queuing** (§6.4) — it must answer during a manual pause, or the player cannot discover why its other calls have stalled.
 
@@ -442,7 +442,7 @@ Errors use RFC 9457 `application/problem+json` in both directions.
 These exist so the contract cannot quietly break the guarantees in `TECHNICAL-RESEARCH.md` §4.
 
 1. **The simulator may issue requests concurrently, but MUST apply responses in `request_id` order, never arrival order.** Without this, HTTP concurrency alone destroys reproducibility.
-2. **Every effect of a response lands at a deterministic simulated timestamp**, fixed by the request, not by when the answer came back.
+2. **Every effect of a response lands at a deterministic simulated timestamp**, fixed by the request, not by when the answer came back. This holds in every time mode (decided at P2M1, `TIME-MODEL.md` §4); in `realtime` and `scaled` an answer arriving after its deadline in wall time is not applied at all.
 3. **Ticks precede obligations at the same simulated instant** (§5.6).
 4. **Operator responses obey the snapshot rule** (§6.4) — pure functions of `τ`, never of wall time or call count. This is enforced structurally by the projection signature in `DATA-MODEL.md` §1, not by discipline.
 5. **The player may be internally non-deterministic. The world may not.** A player answering differently on identical input produces a different but individually valid run; the world's response to a *given* answer is fixed.

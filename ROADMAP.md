@@ -38,7 +38,7 @@ The record of both closings is in [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md), unde
 **What Phase 1 leaves Phase 2**, stated plainly because it shapes the milestones below:
 
 * **The exit holds on single-centre worlds, and regions are not rungs.** Three rungs match on every reference at ten seeds and transfer both ways; no region agrees with its city or screens as a rung. P2M1–P2M4 run on single-centre worlds, and regions wait for P2M5 (`KNOWN-ISSUES.md` #65).
-* **The documentation's numbers span five ladder versions.** Only the figures taken at P1M8 and at P1M7's re-measurement were measured on the current generator. P2M0's second clause is that debt, and it is not re-ticked until it is paid.
+* **The documentation's numbers span five ladder versions.** Only the figures taken at P1M8 and at P1M7's re-measurement were measured on the current generator. P2M0's second clause was that debt, and it was paid on 2026-09-13: every figure describing a current generated world was re-measured, and the rest are dated.
 * **Profile and transfer judge `competent` by two rules** (`#62`). At three seeds a transfer can call worlds of equal difficulty different tiers; every exit figure above was taken at ten.
 * **The router underneath every number is not optimal** (`#40`). No comparison is invalidated, because everything is handicapped identically, but headroom is understated and Phase 2 builds a live world on top of it.
 * **Gate 1c is still a decision rather than a measurement.** The playtest has been owed since P1M0, and it is P2M4.
@@ -108,7 +108,7 @@ Phase 1 ended with one defect and two measurement debts, and all three get worse
 
 ---
 
-### P2M1 — `realtime`
+### P2M1 — `realtime` — **delivered 2026-09-14**
 
 The clock tracks wall time and the world feels alive.
 
@@ -120,6 +120,17 @@ The clock tracks wall time and the world feels alive.
 * **§8 — sub-second resolution.** Currently one second, with milliseconds stored and seconds exposed. Transit does not care; say so and close it, or produce the case that does.
 
 **Exit:** a run in `realtime` produces the same scorecard as the same world in `sim`, up to the disruptions it draws; the golden-trajectory test still reproduces byte-for-byte; and both OPEN items are closed in the specifications rather than in a code comment.
+
+**Decided 2026-09-14**, with the measurements that decided them:
+
+* **An answer lands at its deadline in every mode**, as contract §9.2 already required; `TIME-MODEL.md` §10's *applied on arrival* is corrected. A reference player answers in 1–7 ms against a twenty-second deadline, so effects on arrival would buy nothing observable.
+* **§6 — free-running ingestion is permitted in `realtime` and `scaled`, and required nowhere**; ticks stay the path that behaves identically in every mode.
+* **§8 — resolution is closed at one second**, and the never-implemented *store milliseconds* is withdrawn.
+* **One speed-factor scheduler** paces `realtime` (1×) and `scaled` (N×), sequentially, with wall timing injected so it can be tested without waiting on the wall (`TIME-MODEL.md` §2.3). A late event is issued at once as of its scheduled instant, and records its lag outside the golden hash.
+
+**Exit, restated 2026-09-14.** The default mode is `virtual`, not `sim`, and a whole-day run at 1× takes about 12.5 hours of wall time, so the equivalence is checked at 60×: a `scaled` run of the committed world produces the same traveller outcomes as `virtual`, or each difference is attributed; the golden trajectory still reproduces byte-for-byte, and a `virtual` log carries no pacing field; and both OPEN items are closed in the specifications. *Found while building it:* in open loop a replan is asked ahead of the clock, so only plan deadlines can bind in wall time (`KNOWN-ISSUES.md` #66).
+
+**Delivered 2026-09-14 — the exit met.** At 60× on the committed world both reference players produced the same outcome for every traveller as `virtual` — 98 of 98 each, with no obligation answered differently — and every headline difference is attributed: warnings stamped at the τ they arrived, and feeds read a second later, moving Information's timeliness and the response bytes (`TIME-MODEL.md` §2.3). The golden trajectory reproduces byte-for-byte, a `virtual` log carries no pacing field, 169 tests pass, and both OPEN items are closed in `TIME-MODEL.md` and `PLAYER-CONTRACT.md`.
 
 ---
 
@@ -192,8 +203,8 @@ Map replay, vehicle and passenger flows, an API request view, and the traveller 
 
 | Item | Source | Owner |
 |---|---|---|
-| Free-running ingestion between ticks in `realtime` | `TIME-MODEL.md` §6, `PLAYER-CONTRACT.md` §5.6 | **P2M1** |
-| Sub-second time resolution | `TIME-MODEL.md` §8 | **P2M1** |
+| Free-running ingestion between ticks in `realtime` | `TIME-MODEL.md` §6, `PLAYER-CONTRACT.md` §5.6 | **P2M1** — decided 2026-09-14: permitted in `realtime` and `scaled`, required nowhere |
+| Sub-second time resolution | `TIME-MODEL.md` §8 | **P2M1** — closed 2026-09-14 at one second |
 | Ghost-rider capacity denial — needs a background population | `REFERENCE-POLICY.md` §9 | **P2M2** |
 | Trajectory in-bundle vs regenerated from seed | `DATA-MODEL.md` §6 | **P2M2** |
 | What `capture` normalises against once the day is no longer fixed | `SCORING.md` §2 | **P2M2**, before the first scored closed-loop run |

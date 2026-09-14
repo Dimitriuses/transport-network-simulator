@@ -2926,6 +2926,20 @@ Each world calibrated at tier 4 over six conflict draws of city seed 481516; `np
 
 ---
 
+## 66. In open loop a replan is answered with the world as it stood when the plan was — `open, owned by P2M2`
+
+**Found while building P2M1's `realtime` mode.** The harness answers a traveller's plan and then, in the same breath, walks that traveller's whole journey through the day: `drivePlan` simulates each leg and, wherever the plan breaks, asks the player for a replan. Every one of those replans is asked while the clock still stands at the **plan's** issue time — thirty minutes before departure, and hours before a traveller stranded in the afternoon — while each carries an `issued_at` at the simulated moment of the break.
+
+**So the player answers a replan with data too old for it.** The operator feeds it can call from inside the handler are frozen at the plan's τ, and no tick scheduled between the plan and the break has fired yet. An announcement made in that interval — often the very disruption that broke the plan — is invisible to the replan meant to recover from it.
+
+**It handicaps; it never leaks.** A player sees less than it should, never more, so no score is inflated and the information-set audit's bound still holds; and every reference solution is handicapped identically, so no comparison is invalidated. **But it understates what replanning is worth**, which is the competence P0M7 introduced `replan` to measure, and every replan outcome recorded so far was produced under it.
+
+**In `realtime` and `scaled` it has a second consequence**: a replan's deadline lies in the simulated future, so it never binds in wall time, and only a plan can miss its deadline in a wall-driven run (`TIME-MODEL.md` §2.3).
+
+**Why it is not fixed here.** Putting each traveller on the clock — asking a replan when τ reaches the break — is what the closed loop, P2M2, builds. Doing it in open loop would change every replan outcome and every score that depends on one, which is a measured change to make deliberately rather than a side effect of adding a time mode.
+
+---
+
 ## 64. A region's scored set holds almost none of the journeys a region is for — `fixed 2026-09-13: each town gives a declared way onto its railway`
 
 **`npm run headroom` calls a journey unroutable when *either* policy fails to route it, and prints that group as *"journeys no policy can route at all"*.** `gainS` is null whenever `restricted` or `open` is null. In a region the station beside each town's hub sits in its own Site — an undeclared interchange, by design (P1M7) — so the restricted policy, `P1`, can never board a train, and every journey between towns lands in that group.

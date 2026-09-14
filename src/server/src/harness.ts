@@ -25,6 +25,7 @@ import {
   generateDisruptions,
   DisruptionTable,
   type Disruption,
+  type TimeMode,
 } from "@tns/core";
 import {
   buildIndex,
@@ -40,6 +41,7 @@ import {
   type NotificationRecord,
   type OperatorCall,
 } from "./apis.ts";
+import { makePacer, systemTimer, type Pacer, type WallTimer } from "./pacing.ts";
 
 const RUN_ID = "m1-demo";
 /**
@@ -71,6 +73,18 @@ export interface HarnessOptions {
   /** First operator port; each operator gets the next one. */
   readonly operatorPort: number;
   readonly controlPort: number;
+  /**
+   * How τ advances (TIME-MODEL.md §2). `virtual` — the default, and the only
+   * mode whose scores compare — jumps from event to event and stops while the
+   * player answers. `realtime` tracks wall time 1:1 and `scaled` runs at
+   * `speed`×; both keep the clock running during handlers and enforce plan
+   * deadlines in wall time.
+   */
+  readonly timeMode?: TimeMode;
+  /** `scaled` only: simulated seconds per wall second. `realtime` is 1 by definition. */
+  readonly speed?: number;
+  /** The wall clock, injectable so pacing can be tested without waiting on it. */
+  readonly timer?: WallTimer;
 }
 
 type Obligation =
@@ -154,6 +168,11 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
   // run starts earlier than the earliest departure.
   const firstTau = Math.min(...world.queries.map((q) => q.departAfterS - PLAN_LEAD_S));
   const clock = makeVirtualClock(firstTau);
+  // When τ may advance. In `virtual` this is the clock itself; in `realtime`
+  // and `scaled` it is wall time, and nothing downstream can tell which
+  // (`pacing.ts`, TIME-MODEL.md §2.3).
+  const timeMode: TimeMode = opts.timeMode ?? "virtual";
+  const pacer = makePacer(timeMode, clock, opts.speed, opts.timer ?? systemTimer);
   const queue = new EventQueue<Obligation>();
 
   for (const q of world.queries) {
@@ -184,7 +203,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         world,
         op.id,
         disruptions,
-        () => clock.now(),
+        () => pacer.tau(),
         (call: OperatorCall) => ingestion.push({ ...call, operator: op.id, cause: attributeTo }),
         port,
       ),
@@ -194,11 +213,12 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
   servers.push(
     await startControlApi(
       world,
-      () => clock.now(),
+      () => pacer.tau(),
       () => state,
       operatorUrls,
       (n) => notifications.push(n),
       opts.controlPort,
+      { mode: timeMode, speed: pacer.speed },
     ),
   );
 
@@ -211,7 +231,10 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       engineVersion: world.manifest.engineVersion,
       scorerVersion: SCORER_VERSION,
       contractVersion: CONTRACT_VERSION,
-      timeMode: "virtual",
+      timeMode,
+      // Recorded only where it means something, so a `virtual` log is
+      // byte-identical to one written before the other modes existed.
+      ...(timeMode === "virtual" ? {} : { speed: pacer.speed }),
       latencyMode: "none",
       referenceCompetence: "timetable",
       hardwareProfile: null,
@@ -222,6 +245,8 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
     const identity = await readIdentity(opts.playerBaseUrl);
     await post(opts.playerBaseUrl, "/v1/run-start", { run_id: RUN_ID });
     state = "running";
+    // Wall time starts counting here, not at preparation (PLAYER-CONTRACT.md §4).
+    pacer.start();
 
     // Ingestion cadence is simulator-driven. In `virtual` mode the clock
     // outruns any player-side polling loop, so a player that slept between
@@ -241,22 +266,28 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
     // The resolution table, merged across operators. Private: it is how the
     // simulator reads a player's operator-scoped references back into
     // canonical entities, and it is never served (DATA-MODEL.md §4).
-    const resolution = mergeResolutions(world, clock.now());
+    const resolution = mergeResolutions(world, pacer.tau());
     const outcomes: RunRecord[] = [];
 
     for (;;) {
       const next = queue.pop();
       if (!next) break;
 
-      clock.advanceTo(next.tau);
-      const issuedAt = clock.now();
+      // `virtual` moves the clock to the event. `realtime` and `scaled` wait on
+      // the wall until τ reaches it — or, if a slow handler has already carried
+      // τ past, issue it at once. Either way it is issued *as of* its scheduled
+      // instant, so its deadline is where it always was; the lag is recorded as
+      // a wall diagnostic and kept out of the golden hash.
+      const lagS = await pacer.waitFor(next.tau);
+      const issuedAt = next.tau;
+      const lag = timeMode === "virtual" ? {} : { lagS };
       // Bind once so the discriminant narrows across the early return below.
       const ob = next.payload;
 
       // Ticks come first at an equal instant, so the player is asked questions
       // with the freshest data it could have had (PLAYER-CONTRACT.md §5.6).
       if (ob.kind === "tick") {
-        clock.pause();
+        if (pacer.pausesForHandlers) clock.pause();
         // Everything the player fetches from here until resume happens at this
         // τ, and the clock is frozen — so those calls are *provably* part of
         // this handler, whether or not the player propagates trace context
@@ -269,7 +300,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
           sim_time: renderSimTime(anchor, issuedAt),
           guard_wall_s: GUARD_WALL_S,
         });
-        clock.resume();
+        if (pacer.pausesForHandlers) clock.resume();
         attributeTo = null;
         log.push({
           kind: "obligation",
@@ -281,6 +312,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
           outcome: ok ? "ok" : "player_error",
           latencyMs: Date.now() - t0,
           itinerary: null,
+          ...lag,
         });
         continue;
       }
@@ -289,8 +321,9 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       const query = world.queries.find((q) => q.id === ob.queryId)!;
 
       // The clock stops while the player thinks. Safe only because operator
-      // responses are pure functions of τ (TIME-MODEL.md §3).
-      clock.pause();
+      // responses are pure functions of τ (TIME-MODEL.md §3). The wall-driven
+      // modes keep it running: that is what makes them alive.
+      if (pacer.pausesForHandlers) clock.pause();
 
       const startedMs = Date.now();
       const answer = await askPlayer(opts.playerBaseUrl, {
@@ -309,10 +342,10 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
             arrive_by: null,
           },
         ],
-      });
+      }, "plan", pacer.timeoutMs(deadline, GUARD_WALL_S * 1000));
       const latencyMs = Date.now() - startedMs;
 
-      clock.resume();
+      if (pacer.pausesForHandlers) clock.resume();
 
       const base = baselines.get(query.id)!;
 
@@ -340,6 +373,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
               anchor,
               playerBaseUrl: opts.playerBaseUrl,
               clock,
+              pacer,
               log,
             },
             query,
@@ -360,6 +394,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         // influence the world, so it cannot influence the score.
         latencyMs,
         itinerary: answer.itinerary,
+        ...lag,
       });
 
       outcomes.push({
@@ -649,9 +684,11 @@ async function askPlayer(
   baseUrl: string,
   request: unknown,
   endpoint: "plan" | "replan" = "plan",
+  /** The guard in `virtual`; in the wall-driven modes, no longer than the deadline allows. */
+  timeoutMs: number = GUARD_WALL_S * 1000,
 ): Promise<PlayerAnswer> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), GUARD_WALL_S * 1000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${baseUrl}/v1/${endpoint}`, {
       method: "POST",
@@ -925,9 +962,14 @@ function simulateFrom(
  * must be excluded here too, or this test becomes noise and gets deleted.
  */
 export function hashLog(log: readonly RunRecord[]): string {
-  const deterministic = log.map((record) =>
-    record.kind === "obligation" ? { ...record, latencyMs: null } : record,
-  );
+  const deterministic = log.map((record) => {
+    if (record.kind !== "obligation") return record;
+    // `lagS` is wall-derived too, and absent from `virtual` records, so
+    // dropping it leaves every `virtual` hash exactly what it was.
+    const deterministicRecord: Record<string, unknown> = { ...record, latencyMs: null };
+    delete deterministicRecord["lagS"];
+    return deterministicRecord;
+  });
   return createHash("sha256").update(JSON.stringify(deterministic)).digest("hex").slice(0, 16);
 }
 
@@ -991,6 +1033,7 @@ interface ReplanContext {
   readonly anchor: ReturnType<typeof parseEpoch>;
   readonly playerBaseUrl: string;
   readonly clock: ReturnType<typeof makeVirtualClock>;
+  readonly pacer: Pacer;
   readonly log: RunRecord[];
 }
 
@@ -1048,7 +1091,10 @@ async function drivePlan(
     const deadline = issuedAt + PLAN_DEADLINE_S;
     const requestId = `${baseRequestId}-r${attempt}`;
 
-    ctx.clock.pause();
+    // In open loop a traveller's journey is walked when its plan is answered,
+    // so a replan is asked then, ahead of the clock: its deadline lies in the
+    // simulated future and never binds in wall time (KNOWN-ISSUES.md #66).
+    if (ctx.pacer.pausesForHandlers) ctx.clock.pause();
     const startedMs = Date.now();
     const answer = await askPlayer(
       ctx.playerBaseUrl,
@@ -1071,9 +1117,10 @@ async function drivePlan(
         ],
       },
       "replan",
+      ctx.pacer.timeoutMs(deadline, GUARD_WALL_S * 1000),
     );
     const latencyMs = Date.now() - startedMs;
-    ctx.clock.resume();
+    if (ctx.pacer.pausesForHandlers) ctx.clock.resume();
 
     ctx.log.push({
       kind: "obligation",
