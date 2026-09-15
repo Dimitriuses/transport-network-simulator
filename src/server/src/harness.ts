@@ -20,7 +20,14 @@ import type {
   RunRecord,
   World,
 } from "@tns/schema";
-import { renderSimTime, parseEpoch, CONTRACT_VERSION, SCORER_VERSION } from "@tns/schema";
+import {
+  renderSimTime,
+  parseEpoch,
+  CONTRACT_VERSION,
+  SCORER_VERSION,
+  PlanResponse,
+  ReplanResponse,
+} from "@tns/schema";
 import {
   EventQueue,
   makeVirtualClock,
@@ -40,6 +47,7 @@ import {
 } from "@tns/router";
 import { projectOperator } from "@tns/projections";
 import {
+  MIN_TICK_INTERVAL_S,
   startControlApi,
   startOperatorApi,
   type NotificationRecord,
@@ -65,11 +73,11 @@ const RUN_ID = "m1-demo";
  * genuinely unannounced when the plan is made, and a warning sent later has
  * somewhere to land.
  */
-const PLAN_LEAD_S = 1800;
+export const PLAN_LEAD_S = 1800;
 /** Simulated seconds a traveller will wait for a plan before acting alone. */
-const PLAN_DEADLINE_S = 20;
+export const PLAN_DEADLINE_S = 20;
 /** Wall-clock anti-hang guard. Generous, and never scored (TIME-MODEL.md §4). */
-const GUARD_WALL_S = 30;
+export const GUARD_WALL_S = 30;
 
 export interface HarnessOptions {
   readonly world: World;
@@ -367,7 +375,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
     // outruns any player-side polling loop, so a player that slept between
     // fetches would poll once for the whole day (TIME-MODEL.md §6).
     const tickInterval = identity.capabilities.includes("tick")
-      ? Math.max(5, identity.tickIntervalS ?? 60)
+      ? Math.max(MIN_TICK_INTERVAL_S, identity.tickIntervalS ?? 60)
       : 0;
     if (tickInterval > 0) {
       const lastTau = Math.max(...world.queries.map((q) => q.departAfterS)) + 3600;
@@ -984,10 +992,13 @@ async function askPlayer(
     });
     if (!res.ok) return { outcome: "player_error", itinerary: null };
 
-    const body = (await res.json()) as {
-      results?: { status?: string; itinerary?: Itinerary | null }[];
-    };
-    const first = body.results?.[0];
+    // **An answer is held to the published schema** (`contract/player-api.yaml`,
+    // P2M7). Until then anything with a `results` array was read field by field,
+    // so the contract described a shape nothing enforced. A response that does
+    // not parse is a transport-level failure, and the traveller falls back.
+    const parsed = (endpoint === "plan" ? PlanResponse : ReplanResponse).safeParse(await res.json());
+    if (!parsed.success) return { outcome: "player_error", itinerary: null };
+    const first = parsed.data.results[0] as { status: string; itinerary: Itinerary | null } | undefined;
     if (!first) return { outcome: "player_error", itinerary: null };
 
     if (first.status === "ok" && first.itinerary) {

@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import type { IngestionRecord, World } from "@tns/schema";
 import type { Disruption } from "@tns/core";
 import { operatorDocs, projectOperator, projectRealtime } from "@tns/projections";
+import { operatorSite } from "@tns/portal";
 
 export type RegeneratedBody =
   | { readonly ok: true; readonly body: string; readonly source: "verbatim" | "regenerated" }
@@ -31,6 +32,9 @@ export function bodyOf(world: World, day: readonly Disruption[], call: Ingestion
     body = JSON.stringify(projectOperator(world, call.operator, call.tau).timetable);
   } else if (call.endpoint === "GET /docs") {
     body = JSON.stringify(operatorDocs(world, call.operator));
+  } else if (/^GET \/docs(\/\w+)? \(html\)$/.test(call.endpoint)) {
+    const subpage = /^GET \/docs(?:\/(\w+))? \(html\)$/.exec(call.endpoint)?.[1] ?? "";
+    body = operatorSite(world, call.operator, subpage);
   } else {
     return { ok: false, reason: `${call.endpoint} returned ${call.status}; there is no body worth regenerating` };
   }

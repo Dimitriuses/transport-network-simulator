@@ -9,9 +9,25 @@
 import { createServer, type Server, type ServerResponse } from "node:http";
 import { createHash } from "node:crypto";
 import type { World } from "@tns/schema";
-import { renderSimTime, parseEpoch, CONTRACT_VERSION } from "@tns/schema";
+import { renderSimTime, parseEpoch, CONTRACT_VERSION, NotifyRequest } from "@tns/schema";
 import { projectOperator, projectRealtime, operatorDocs, type Projection } from "@tns/projections";
 import type { Disruption } from "@tns/core";
+import { operatorSite } from "@tns/portal";
+
+/** The fastest a player may ask for ticks (PLAYER-CONTRACT.md §5.6). Published in the brief. */
+export const MIN_TICK_INTERVAL_S = 5;
+
+/**
+ * Whether a request wants pages rather than JSON: a browser does, an HTTP
+ * client asking for JSON or naming nothing does not. JSON stays the default, so
+ * nothing that read `/docs` before P2M7 reads anything different.
+ */
+export function wantsHtml(accept: string | undefined): boolean {
+  if (!accept) return false;
+  const html = accept.indexOf("text/html");
+  const json = accept.indexOf("application/json");
+  return html >= 0 && (json < 0 || html < json);
+}
 
 export interface OperatorCall {
   readonly tau: number;
@@ -137,7 +153,29 @@ export function startOperatorApi(
     //
     // Logged like any other call: reading the documentation is part of what a
     // player did, and `OBSERVABILITY.md` should be able to see that it happened.
-    if (req.method === "GET" && url.pathname === "/docs") {
+    // Pages for a browser, the same content the JSON carries (P2M7). Logged under
+    // their own endpoint names, so a run log can say which a player read and the
+    // viewer can regenerate either. Both are independent of τ.
+    const docsPage = /^\/docs(?:\/(\w+))?$/.exec(url.pathname);
+    if (req.method === "GET" && docsPage && (docsPage[1] !== undefined || wantsHtml(req.headers.accept))) {
+      const subpage = docsPage[1] ?? "";
+      let html: string;
+      try {
+        html = operatorSite(world, operatorId, subpage);
+      } catch {
+        const bytes = send(res, 404, { title: "not found", status: 404 });
+        onCall({ tau, endpoint: `GET ${url.pathname}`, status: 404, bytes, bodyHash: "", body: "" });
+        return;
+      }
+      const bytes = Buffer.byteLength(html);
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-length": bytes });
+      res.end(html);
+      const hash = createHash("sha256").update(html).digest("hex").slice(0, 16);
+      onCall({ tau, endpoint: `GET ${url.pathname} (html)`, status: 200, bytes, bodyHash: hash, body: html });
+      return;
+    }
+
+    if (req.method === "GET" && (url.pathname === "/docs" || url.pathname === "/docs/openapi.json")) {
       const bytes = send(res, 200, docs);
       onCall({ tau, endpoint: "GET /docs", status: 200, bytes, bodyHash: docsHash, body: docsBody });
       return;
@@ -243,7 +281,7 @@ export function startControlApi(
         // `origin_unreachable` — 49 of 132 travellers once the city grew, at
         // which point declining every obligation outscored trying.
         limits: {
-          min_tick_interval_sim_s: 5,
+          min_tick_interval_sim_s: MIN_TICK_INTERVAL_S,
           max_walk_m: world.manifest.maxWalkM,
           walk_speed_mps: world.manifest.walkSpeedMps,
         },
@@ -269,23 +307,24 @@ export function startControlApi(
       let body = "";
       req.on("data", (c) => (body += c));
       req.on("end", () => {
+        let json: unknown;
         try {
-          const n = JSON.parse(body) as {
-            traveller_ref?: string;
-            kind?: string;
-            message?: string;
-          };
-          if (!n.traveller_ref) return void send(res, 400, { title: "traveller_ref required", status: 400 });
-          onNotify({
-            tau: readTau(),
-            travellerRef: n.traveller_ref,
-            kind: n.kind ?? "info",
-            message: n.message ?? "",
-          });
-          send(res, 202, { accepted: true });
+          json = JSON.parse(body);
         } catch {
-          send(res, 400, { title: "malformed body", status: 400 });
+          return void send(res, 400, { title: "malformed body", status: 400 });
         }
+        // The published schema, not a reading of it (`contract/control-api.yaml`).
+        const n = NotifyRequest.safeParse(json);
+        if (!n.success) {
+          const issue = n.error.issues[0];
+          return void send(res, 400, {
+            title: "not a notification",
+            status: 400,
+            detail: issue ? `${issue.path.join(".") || "body"}: ${issue.message}` : undefined,
+          });
+        }
+        onNotify({ tau: readTau(), travellerRef: n.data.traveller_ref, kind: n.data.kind, message: n.data.message });
+        send(res, 202, { accepted: true });
       });
       return;
     }

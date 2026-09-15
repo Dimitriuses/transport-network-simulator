@@ -9,6 +9,24 @@ const SimTime = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
 
+/**
+ * A leg's stated time: unread, so unvalidated.
+ *
+ * Optional was not enough. A reference player writes its operator's own epoch
+ * seconds here (`"16200"`), and a field the simulator never reads cannot
+ * honestly reject an answer for its format — that would score a player for a
+ * value with no effect on any traveller. RFC 3339 in simulated time is the
+ * convention, and the only promise is that nothing reads it.
+ */
+const AdvisoryTime = z
+  .union([z.string(), z.number()])
+  .optional()
+  .describe(
+    "Advisory and unread. A journey is charged from the trips and stops named, never from " +
+      "the times stated here; RFC 3339 in simulated time is conventional, and a leg without " +
+      "them is a complete answer.",
+  );
+
 export const Place = z.object({
   lat: z.number().min(-90).max(90),
   lon: z.number().min(-180).max(180),
@@ -51,12 +69,21 @@ export const OperatorStopRef = z.object({
   stop: z.string().min(1),
 });
 
+/**
+ * **Leg times are advisory, and have been since the first harness** (P2M7).
+ * The simulator walks a plan against the world from the trips and stops it
+ * names and never reads a stated time — which is why a reference player
+ * publishing `"16200"` there went unnoticed on 69 of 98 plans, and why another
+ * wrote `00:00:00` into every leg and matched this schema while meaning
+ * nothing. Required and unread, the field was a rule nobody kept; optional and
+ * stated as ignored, it is true.
+ */
 export const WalkLeg = z.object({
   mode: z.literal("walk"),
   from: z.union([Place, OperatorStopRef]),
   to: z.union([Place, OperatorStopRef]),
-  depart: SimTime,
-  arrive: SimTime,
+  depart: AdvisoryTime,
+  arrive: AdvisoryTime,
 });
 
 export const TransitLeg = z.object({
@@ -66,8 +93,8 @@ export const TransitLeg = z.object({
   trip: z.string().min(1),
   from_stop: z.string().min(1),
   to_stop: z.string().min(1),
-  depart: SimTime,
-  arrive: SimTime,
+  depart: AdvisoryTime,
+  arrive: AdvisoryTime,
 });
 
 export const Leg = z.discriminatedUnion("mode", [WalkLeg, TransitLeg]);

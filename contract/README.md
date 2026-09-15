@@ -26,4 +26,10 @@ These two are one-per-contract-version and identical for every world, so players
 
 ## Coverage
 
-M0 defines only `/identity` and `/health` — the smallest fully-specified shapes in the contract, enough to prove the schema → JSON Schema → OpenAPI pipeline end to end. The remaining endpoints arrive with the milestones that need them.
+**Every endpoint of both APIs, since P2M7** — `/identity`, `/health`, `/plan`, `/replan`, `/tick`, `/run-start` and `/run-end` on the player; `/brief`, `/clock` and `/notify` on the control API. Until then these files described only the first two (`KNOWN-ISSUES.md` #74).
+
+**What the simulator does, not what it one day will.** A field the contract specifies and the simulator does not honour yet is left out of the schema and listed in each document's description instead (`KNOWN-ISSUES.md` #72).
+
+**Resolvable, and tested so.** `src/schema/test/openapi.test.ts` follows every `$ref` from the document root. `contract:check` cannot: it compares these files with the generator's output, and the generator's output was unresolvable from P0M0 until P2M7.
+
+The same documents are rendered as pages by `npm run portal`.

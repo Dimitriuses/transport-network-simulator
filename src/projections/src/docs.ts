@@ -35,9 +35,17 @@
 // Applied to the catalogue this lands as:
 //
 //   documented      A-granularity, A-id-scheme, A-coordinate-source,
-//                   B-time-encoding, C-delay-unit, D-no-delays
+//                   B-time-encoding, C-delay-unit, C-cancellation-token,
+//                   D-no-delays
 //   not documented  A-naming, A-coordinate-precision, C-coordinate-offset,
-//                   C-latlon-order, D-staleness, D-silent-cancellation
+//                   C-latlon-order, D-staleness, D-silent-cancellation,
+//                   B-dst-offset
+//
+// `C-cancellation-token` joined the documented side on 2026-09-15 (P2M7): an
+// operator's status vocabulary is something it chose, exactly as its delay unit
+// is. An operator that silently drops cancellations still documents the word
+// it *means* to use — the dropping is a truthfulness defect, and documenting it
+// would be the operator admitting it.
 //
 // So sections A and B become *readable* rather than archaeological, while every
 // conflict about whether the data is **true** — which is where §2.1 says the
@@ -106,17 +114,19 @@ function geometryNotes(m: OperatorManifest): OperatorNote[] {
 
 function timeNotes(m: OperatorManifest): OperatorNote[] {
   const text: Record<string, string> = {
+    // "Times in this feed", not "departure times": the same encoding carries
+    // arrivals and the instant a timetable or realtime picture describes.
     iso_offset:
-      "Departure times are ISO 8601 with an explicit UTC offset, e.g. " +
+      "Times in this feed are ISO 8601 with an explicit UTC offset, e.g. " +
       "`2026-01-01T08:14:00+02:00`.",
-    epoch_s: "Departure times are integer seconds since the Unix epoch, UTC.",
-    epoch_ms: "Departure times are integer milliseconds since the Unix epoch, UTC.",
+    epoch_s: "Times in this feed are integer seconds since the Unix epoch, UTC.",
+    epoch_ms: "Times in this feed are integer milliseconds since the Unix epoch, UTC.",
     local_naive:
-      "Departure times are ISO 8601 local time with no offset, e.g. " +
+      "Times in this feed are ISO 8601 local time with no offset, e.g. " +
       "`2026-01-01T08:14:00`. The applicable offset is not part of this feed.",
   };
   return [
-    { title: "Time format", text: text[m.time.encoding] ?? "Departure times are ISO 8601." },
+    { title: "Time format", text: text[m.time.encoding] ?? "Times in this feed are ISO 8601." },
   ];
 }
 
@@ -143,6 +153,29 @@ function realtimeNotes(m: OperatorManifest): OperatorNote[] {
   ];
 }
 
+/** The words this feed's `status` field takes. */
+export function statusVocabulary(m: OperatorManifest): {
+  readonly onTime: string;
+  readonly delayed: string | null;
+  readonly cancelled: string;
+} {
+  return {
+    onTime: "on_time",
+    delayed: m.realtime.publishes_delays ? "delayed" : null,
+    cancelled: m.realtime.cancelled_token ?? "cancelled",
+  };
+}
+
+function statusNotes(m: OperatorManifest): OperatorNote[] {
+  const v = statusVocabulary(m);
+  const values = [
+    `\`${v.onTime}\` for a service running to its timetable`,
+    ...(v.delayed ? [`\`${v.delayed}\` for one running late, with \`delay\``] : []),
+    `\`${v.cancelled}\` for a service that will not run`,
+  ];
+  return [{ title: "Service status", text: `\`status\` takes one of these values: ${values.join("; ")}.` }];
+}
+
 function manifestOf(world: World, operatorId: string): OperatorManifest {
   const info = world.manifest.operators.find((o) => o.id === operatorId);
   if (!info) throw new Error(`no such operator: ${operatorId}`);
@@ -152,7 +185,13 @@ function manifestOf(world: World, operatorId: string): OperatorManifest {
 /** Everything this operator says about itself, in the order a reader wants it. */
 export function operatorNotes(world: World, operatorId: string): OperatorNote[] {
   const m = manifestOf(world, operatorId);
-  return [...identityNotes(m), ...geometryNotes(m), ...timeNotes(m), ...realtimeNotes(m)];
+  return [
+    ...identityNotes(m),
+    ...geometryNotes(m),
+    ...timeNotes(m),
+    ...realtimeNotes(m),
+    ...statusNotes(m),
+  ];
 }
 
 /**
@@ -160,39 +199,93 @@ export function operatorNotes(world: World, operatorId: string): OperatorNote[] 
  *
  * A plain object rather than YAML, so the boundary can serve it as JSON without
  * a serialiser and tests can assert on it directly.
+ *
+ * **The schema is the projection's own shape** (`Timetable`, `RealtimeFeed`),
+ * and `docs.test.ts` compares every key path a real response carries with the
+ * ones documented here. Until P2M7 it documented a `departures` array no
+ * operator has ever served and left out routes, trips and stop times — the
+ * whole timetable — on every operator of every world (`KNOWN-ISSUES.md` #73).
  */
 export function operatorDocs(world: World, operatorId: string): Record<string, unknown> {
   const info = world.manifest.operators.find((o) => o.id === operatorId)!;
   const m = manifestOf(world, operatorId);
   const notes = operatorNotes(world, operatorId);
   const noteText = (title: string): string => notes.find((n) => n.title === title)?.text ?? "";
+  const v = statusVocabulary(m);
 
-  const departure =
+  const time = (what: string): Record<string, unknown> =>
     m.time.encoding === "epoch_s" || m.time.encoding === "epoch_ms"
-      ? { type: "integer", description: noteText("Time format") }
+      ? { type: "integer", description: `${what} ${noteText("Time format")}` }
       : {
           type: "string",
           ...(m.time.encoding === "iso_offset" ? { format: "date-time" } : {}),
-          description: noteText("Time format"),
+          description: `${what} ${noteText("Time format")}`,
         };
+
+  const stop = {
+    type: "object",
+    required: ["stop_id", "stop_name", "lat", "lon"],
+    properties: {
+      stop_id: { type: "string", description: noteText("Identifier format") },
+      stop_name: { type: "string" },
+      lat: { type: "number", description: noteText("Positions") },
+      lon: { type: "number", description: noteText("Positions") },
+    },
+  };
+
+  const route = {
+    type: "object",
+    required: ["route_id", "route_name"],
+    properties: {
+      route_id: { type: "string", description: "Unique within this API." },
+      route_name: { type: "string" },
+    },
+  };
+
+  const trip = {
+    type: "object",
+    required: ["trip_id", "route_id", "heading", "stop_times"],
+    properties: {
+      trip_id: { type: "string", description: "One run of a vehicle along a route. Unique within this API." },
+      route_id: { type: "string", description: "The route this trip runs on, as listed in `routes`." },
+      heading: { type: "string", description: "Where the vehicle is heading, as shown to passengers." },
+      stop_times: {
+        type: "array",
+        description: "The stops this trip calls at, in calling order.",
+        items: {
+          type: "object",
+          required: ["stop_id", "seq", "arrive", "depart"],
+          properties: {
+            stop_id: { type: "string", description: "A stop listed in `stops`." },
+            seq: { type: "integer", description: "Calling order." },
+            arrive: time("Scheduled arrival."),
+            depart: time("Scheduled departure."),
+          },
+        },
+      },
+    },
+  };
 
   const update = {
     type: "object",
+    required: ["trip_id", "status"],
     properties: {
-      trip_id: { type: "string" },
+      trip_id: { type: "string", description: "A trip listed in `/timetable`." },
+      status: {
+        type: "string",
+        enum: [v.onTime, ...(v.delayed ? [v.delayed] : []), v.cancelled],
+        description: noteText("Service status"),
+      },
       ...(m.realtime.publishes_delays
         ? {
             delay: {
               type: "integer",
-              description: `Deviation from the timetable, in ${m.realtime.delay_unit}.`,
+              description: `Present when \`status\` is \`${v.delayed}\`. ${noteText("Delays")}`,
             },
           }
         : {}),
     },
   };
-
-  const stopIdNote = noteText("Identifier format");
-  const granularityNote = notes[0]!.text;
 
   return {
     openapi: "3.1.0",
@@ -216,27 +309,14 @@ export function operatorDocs(world: World, operatorId: string): Record<string, u
                 "application/json": {
                   schema: {
                     type: "object",
+                    required: ["operator", "operator_name", "published_at", "stops", "routes", "trips"],
                     properties: {
-                      stops: {
-                        type: "array",
-                        items: {
-                          type: "object",
-                          properties: {
-                            stop_id: { type: "string", description: stopIdNote },
-                            stop_name: { type: "string" },
-                            lat: { type: "number", description: noteText("Positions") },
-                            lon: { type: "number", description: noteText("Positions") },
-                          },
-                        },
-                        description: granularityNote,
-                      },
-                      departures: {
-                        type: "array",
-                        items: {
-                          type: "object",
-                          properties: { stop_id: { type: "string" }, departure },
-                        },
-                      },
+                      operator: { type: "string", description: "This operator's identifier." },
+                      operator_name: { type: "string" },
+                      published_at: time("The moment this timetable describes."),
+                      stops: { type: "array", items: stop, description: notes[0]!.text },
+                      routes: { type: "array", items: route },
+                      trips: { type: "array", items: trip },
                     },
                   },
                 },
@@ -257,11 +337,24 @@ export function operatorDocs(world: World, operatorId: string): Record<string, u
                 "application/json": {
                   schema: {
                     type: "object",
-                    properties: { updates: { type: "array", items: update } },
+                    required: ["operator", "as_of", "updates"],
+                    properties: {
+                      operator: { type: "string", description: "This operator's identifier." },
+                      as_of: time("The moment this picture describes."),
+                      updates: { type: "array", items: update, description: "One entry per trip." },
+                    },
                   },
                 },
               },
             },
+          },
+        },
+      },
+      "/docs": {
+        get: {
+          summary: "This document.",
+          responses: {
+            "200": { description: "OpenAPI 3.1 as JSON, or the same content as pages when a browser asks for HTML." },
           },
         },
       },

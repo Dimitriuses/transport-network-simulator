@@ -2511,3 +2511,32 @@ A run log records decisions, not where anyone walked. The router's reactive exec
 ### Per-player attribution, and one number not believed
 
 `npm run attribute` runs a player `2 + conflicts` times — declared, every value-level conflict off, and each switched on alone — 3.5 minutes for `competent` on the committed world. `P1` and `P0a` do not read the projections, so every variant shares the run's scale. One row is recorded here and not as a finding: with only `A-coordinate-source:sudbahn` on, `competent` captures 0.314 against 0.105 with nothing on — a conflict that *helps* it by 0.21, on one seed. Unexplained and unchecked, and the viewer says so beside any negative row.
+
+## P2M7 — A portal to read before writing a solution
+
+**Delivered 2026-09-15.** A standing per-world site — `npm run portal` — with a guide, the world's rules, both APIs' reference and each operator's pages; the same operator pages at `/docs` during a run; a complete, resolvable, validated player contract; and operator schemas that describe what operators serve.
+
+### Measured before rendering anything
+
+**What would have been rendered was wrong.** Comparing each operator's documented schema with the key paths of real responses: `/timetable` documented 8 paths and served 20 on all seven operators of the committed world and `R3a`, with a phantom `departures` array and no trips; `/realtime` left out `status`. The committed contract described `/identity` and `/health` and nothing else. And a validating proxy between the harness and the reference players found `naive` writing epoch seconds into a leg's required RFC 3339 `depart` on 69 of 98 plans, echoed back by the simulator inside 22 replan requests — while `competent` passed only by writing `00:00:00` into every leg.
+
+### Three decisions
+
+* **Leg times advisory and unvalidated.** Optional was not enough, because `naive` sends them in the wrong format; a field the simulator never reads cannot reject an answer for its format. Everything else in a response is validated, and a response that does not parse is `player_error`.
+* **The cancellation token is documented**, under the rule every other setting is: an operator documents what it chose. `B-dst-offset`, unclassified since P2M0 like the token, is not.
+* **A standing server**, plus HTML at `/docs` for a browser, with JSON the default for everything else.
+
+### What it holds itself to
+
+* **An operator's pages say nothing its document does not**, checked word by word on three worlds, with a test that injects *"Cancelled services may be silently dropped"* and requires the check to catch it.
+* **An operator's schema describes its responses**: every key path, JSON type and status word, at every hour of the scored day on four worlds, and the pre-P2M7 schema rejected by name.
+* **The contract resolves**: every `$ref` followed from the document root, and both shapes the contract has actually shipped rejected.
+* **The guide quotes the harness** — lead time, deadline, guard, replan budget, non-arrival cost — from exported constants, and lists every unbuilt contract item from one list.
+* **Nothing moved**: all four reference players' traffic matches the published contract in both directions, and the open-loop golden hashes of `naive`, `competent` and `null` are identical to the committed code's.
+
+### Found while building it
+
+* **Operator schemas did not describe operator responses** (`KNOWN-ISSUES.md` #73). Nothing had ever checked, because no reference player reads documentation.
+* **The contract was two endpoints of nine, and unresolvable since P0M0** (`#74`). `contract:check` compares files with a generator, never with validity. The first fix made every component a reference to itself, which a dangling-reference scan passes; the portal's empty tables showed it.
+* **Five more contract items the simulator has never done** — capability gating of plans, `preferences`, adaptive tick cadence, the brief digest and `run-end` reasons, notification itineraries — joined `#72`.
+* **A solution could not be run at all without editing the demo.** `TNS_PLAYER_URL` fixes that minimally; connecting solutions properly is P2M8.

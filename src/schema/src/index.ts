@@ -18,6 +18,8 @@ export const SCORER_VERSION = "0.1.0";
 export * from "./contract/identity.ts";
 export * from "./contract/plan.ts";
 export * from "./contract/replan.ts";
+export * from "./contract/session.ts";
+export * from "./openapi.ts";
 export * from "./simtime.ts";
 // Values, not only types: the generator and the probe both read these.
 export * from "./ladder.ts";

@@ -85,25 +85,36 @@ async function main(): Promise<number> {
     console.log("       no declared conflicts (Tier 0 — see docs/PHASES.md)");
   }
 
-  const player = spawn(
-    process.execPath,
-    ["--disable-warning=ExperimentalWarning", join(repoRoot, "src", "refplayer", "scripts", "serve.ts")],
-    {
-      cwd: repoRoot,
-      stdio: ["ignore", "pipe", "pipe"],
-      env: {
-        ...process.env,
-        TNS_PLAYER_PORT: String(PLAYER_PORT),
-        TNS_CONTROL_URL: `http://127.0.0.1:${CONTROL_PORT}`,
-        ...(process.env["TNS_PLAYER_MODE"] ? { TNS_PLAYER_MODE: process.env["TNS_PLAYER_MODE"] } : {}),
-      },
-    },
-  );
-  player.stderr.on("data", (d: Buffer) => process.stderr.write(`[player] ${d}`));
+  // `TNS_PLAYER_URL` runs the demo against your own solution instead of a
+  // reference player: start it first, pointed at the control API below, and
+  // the demo calls it. A session you can connect solutions to from a dashboard
+  // is P2M8's; this is the smallest thing that lets a solution be run at all.
+  const ownPlayer = process.env["TNS_PLAYER_URL"];
+  const playerBaseUrl = ownPlayer ?? `http://127.0.0.1:${PLAYER_PORT}`;
+  if (ownPlayer) {
+    console.log(`player: ${ownPlayer} (yours) · control API http://127.0.0.1:${CONTROL_PORT}`);
+  }
+  const player = ownPlayer
+    ? null
+    : spawn(
+        process.execPath,
+        ["--disable-warning=ExperimentalWarning", join(repoRoot, "src", "refplayer", "scripts", "serve.ts")],
+        {
+          cwd: repoRoot,
+          stdio: ["ignore", "pipe", "pipe"],
+          env: {
+            ...process.env,
+            TNS_PLAYER_PORT: String(PLAYER_PORT),
+            TNS_CONTROL_URL: `http://127.0.0.1:${CONTROL_PORT}`,
+            ...(process.env["TNS_PLAYER_MODE"] ? { TNS_PLAYER_MODE: process.env["TNS_PLAYER_MODE"] } : {}),
+          },
+        },
+      );
+  player?.stderr?.on("data", (d: Buffer) => process.stderr.write(`[player] ${d}`));
 
   const logging = logOptions();
   // A file name, not a model input: wall time is fine at the boundary.
-  const runName = `${world.manifest.seed}-${process.env["TNS_PLAYER_MODE"] ?? "naive"}-${new Date()
+  const runName = `${world.manifest.seed}-${ownPlayer ? "own" : (process.env["TNS_PLAYER_MODE"] ?? "naive")}-${new Date()
     .toISOString()
     .replace(/[:.]/g, "-")}`;
   const runFile = openRunFile(process.env["TNS_RUN_DIR"] ?? join(repoRoot, "runs"), runName, logging.logLevel);
@@ -114,7 +125,7 @@ async function main(): Promise<number> {
     // PLAYER-CONTRACT.md §4, in its smallest honest form.
     const log = await runOpenLoop({
       world,
-      playerBaseUrl: `http://127.0.0.1:${PLAYER_PORT}`,
+      playerBaseUrl,
       operatorPort: OPERATOR_PORT,
       controlPort: CONTROL_PORT,
       ...timeOptions(),
@@ -143,7 +154,7 @@ async function main(): Promise<number> {
     runFile.abandon();
     throw err;
   } finally {
-    player.kill();
+    player?.kill();
   }
 }
 
@@ -157,7 +168,7 @@ main().then(
       const which =
         e.port === CONTROL_PORT
           ? "the control API — set TNS_CONTROL_PORT to a free port, e.g. TNS_CONTROL_PORT=7430"
-          : e.port === PLAYER_PORT
+          : e.port === PLAYER_PORT && !process.env["TNS_PLAYER_URL"]
             ? "the reference player — stop whatever holds it (a player left running?)"
             : "an operator API (one port per operator from 9101) — stop whatever holds it";
       console.error(`port ${e.port} is already in use by another program; it is ${which}.`);

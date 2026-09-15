@@ -187,7 +187,7 @@ Map replay, vehicle and passenger flows, an API request view, and the traveller 
 
 ---
 
-### P2M7 — A portal to read before writing a solution
+### P2M7 — A portal to read before writing a solution — **delivered 2026-09-15**
 
 **A standing, per-world, multi-page site**, served without a run, holding what a player reads before writing a line: how a solution is built and what it is asked (the obligations and their schemas, the brief, the lifecycle, the snapshot rule), and each operator's documentation as its own set of pages.
 
@@ -196,6 +196,12 @@ Map replay, vehicle and passenger flows, an API request view, and the traveller 
 **What it is not.** Not documentation *defects* — a wiki is worth building for its ability to contradict itself (`CORECONCEPT.md`, *Why a multi-page wiki*), and those defects stay in Phase 3 behind `KNOWN-ISSUES.md` #12. And not per-operator *presentation* — one site design for every operator here; wiki against Swagger remains Phase 3's decorative variety.
 
 **Exit:** a player can read, for a given world and without starting a run, everything the contract says they may rely on and everything each operator documents — and the site cannot say anything the JSON does not.
+
+**Decided 2026-09-15, on measurements taken first:** leg times optional and stated as unread, with responses validated against the schema; an operator's cancellation token documented, by the rule every other setting is classified under; and a standing server, `npm run portal`, plus pages at each operator's `/docs` for a browser.
+
+**Delivered 2026-09-15 — the exit met, and held by tests.** `npm run portal -- [world.db]` serves a guide (a run step by step, answering plans and replans, reading the operators, warning travellers, how you are scored, running your solution, and what is not yet honoured), this world's rules, both APIs' reference, and each operator's own pages: 21 pages on the committed world. During a run each operator's `/docs` serves the same pages to a browser and JSON to everything else. **Every word on an operator's pages must come from its OpenAPI document**, and a test that injects a quality claim requires the check to fail; every link resolves; the guide's numbers are the harness's own constants; and every item the simulator does not yet honour is on the last page. `TNS_PLAYER_URL` lets `npm run demo` call a solution of your own rather than a reference player, which is what the guide tells a player to do.
+
+**Building it found that neither thing it renders was true.** Every operator's schema described a `departures` array nobody served and left out the timetable's trips (`KNOWN-ISSUES.md` #73). The committed contract described two endpoints of nine, had been unresolvable since P0M0, and required a leg format a reference player broke on 69 of 98 plans without anything noticing (`#74`). Both are fixed, the simulator now validates what players send, and no open-loop golden hash moved. Five more unbuilt contract items joined `#72`, which P2M8 owns.
 
 ---
 

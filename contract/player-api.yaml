@@ -9,7 +9,20 @@ info:
   title: Player API
   version: "0.3"
   summary: Endpoints the simulator calls on the player's service.
-  description: The player's surface is small, fixed, and — unlike the operator APIs — documented exactly and honestly. That contrast is pedagogical and should be preserved. See PLAYER-CONTRACT.md §5.
+  description: |-
+    The player's surface is small, fixed, and — unlike the operator APIs — documented exactly and honestly. That contrast is pedagogical and should be preserved. See PLAYER-CONTRACT.md §5.
+
+    **Specified and not yet honoured** (KNOWN-ISSUES.md #72):
+
+    * The run token: `Authorization: Bearer <run token>` between simulator, player and control API, and `TNS_TOKEN`. Nothing is authenticated. (PLAYER-CONTRACT.md §3)
+    * `X-TNS-Contract` on every request, and an abort before the run on a version mismatch. (PLAYER-CONTRACT.md §3)
+    * Capabilities gate plans and replans. Only `tick` is gated: a player that does not claim `plan` is still sent plans. (PLAYER-CONTRACT.md §5.2)
+    * `preferences` on a plan request. (PLAYER-CONTRACT.md §5.4)
+    * `next_interval_sim_s` in a tick response: the cadence declared in `/v1/identity` is used for the whole run. (PLAYER-CONTRACT.md §5.6)
+    * The brief's digest on `run-start`, and any `run-end` reason other than `completed`. (PLAYER-CONTRACT.md §5.7)
+    * `wall_budget_s`, `pause_queue_depth` and `preparation.wall_budget_s` in the brief, and per-operator auth schemes other than `none`. (PLAYER-CONTRACT.md §6.1)
+    * `itinerary` on a notification: it is accepted and ignored. (PLAYER-CONTRACT.md §6.3)
+    * Manual pause: `state` never becomes `paused`, and nothing queues. (PLAYER-CONTRACT.md §6.4)
   license:
     name: MIT
     identifier: MIT
@@ -55,98 +68,1075 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+  /plan:
+    post:
+      operationId: plan
+      summary: Plan journeys for travellers about to set out
+      description: Issued half an hour before a traveller departs. An answer takes effect at `deadline`, in simulated time, however fast it arrived. A response that does not match this schema is recorded as `player_error`, and the traveller falls back to the reference policy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanRequest"
+      responses:
+        "200":
+          description: One result per request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanResponse"
+  /replan:
+    post:
+      operationId: replan
+      summary: A plan broke in front of a traveller
+      description: "Carries what the traveller perceived and where they stand, in the operator's own identifiers, and the part of the plan not yet travelled. Not the destination: you were told it when you planned."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplanRequest"
+      responses:
+        "200":
+          description: One result per request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReplanResponse"
+  /tick:
+    post:
+      operationId: tick
+      summary: Fetch from the operators now
+      description: Sent at the cadence you declare in `/v1/identity`, and only if you claim `tick`. At an instant holding both a tick and an obligation, the tick comes first.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TickRequest"
+      responses:
+        "200":
+          description: Acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TickResponse"
+  /run-start:
+    post:
+      operationId: runStart
+      summary: The run has started
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RunStartNotice"
+      responses:
+        2XX:
+          description: Ignored
+  /run-end:
+    post:
+      operationId: runEnd
+      summary: The run has ended
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RunEndNotice"
+      responses:
+        2XX:
+          description: Ignored
 components:
   schemas:
+    TickDeclaration:
+      type: object
+      properties:
+        interval_sim_s:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+      required:
+        - interval_sim_s
+      additionalProperties: false
+      description: Requested ingestion cadence, in simulated seconds.
     Identity:
-      $ref: "#/$defs/Identity"
-      $defs:
-        Identity:
-          type: object
-          properties:
-            name:
-              type: string
-              minLength: 1
-              maxLength: 64
-            version:
-              type: string
-              minLength: 1
-              maxLength: 32
-            contract_versions:
-              minItems: 1
-              type: array
-              items:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        version:
+          type: string
+          minLength: 1
+          maxLength: 32
+        contract_versions:
+          minItems: 1
+          type: array
+          items:
+            type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+            enum:
+              - plan
+              - replan
+              - tick
+              - notify
+              - tracing
+        tick:
+          $ref: "#/components/schemas/TickDeclaration"
+      required:
+        - name
+        - version
+        - contract_versions
+        - capabilities
+      additionalProperties: false
+      description: Who the player is, which contract versions it speaks, and what it implements. Read once, before the run starts.
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - ready
+            - starting
+            - unavailable
+        detail:
+          type: string
+          maxLength: 256
+      required:
+        - status
+      additionalProperties: false
+      description: Readiness. Polled only before the run, with a bounded budget from the brief.
+    Problem:
+      type: object
+      properties:
+        type:
+          default: about:blank
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+      required:
+        - type
+        - title
+        - status
+      additionalProperties: false
+      description: RFC 9457 problem details.
+    PlanRequest:
+      type: object
+      properties:
+        contract_version:
+          type: string
+        run_id:
+          type: string
+        issued_at:
+          type: string
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$
+        deadline:
+          type: string
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$
+        guard_wall_s:
+          type: number
+          exclusiveMinimum: 0
+        requests:
+          minItems: 1
+          type: array
+          items:
+            type: object
+            properties:
+              request_id:
                 type: string
-            capabilities:
-              type: array
-              items:
+                minLength: 1
+              traveller_ref:
+                type: string
+                minLength: 1
+              origin:
+                type: object
+                properties:
+                  lat:
+                    type: number
+                    minimum: -90
+                    maximum: 90
+                  lon:
+                    type: number
+                    minimum: -180
+                    maximum: 180
+                required:
+                  - lat
+                  - lon
+                additionalProperties: false
+              destination:
+                type: object
+                properties:
+                  lat:
+                    type: number
+                    minimum: -90
+                    maximum: 90
+                  lon:
+                    type: number
+                    minimum: -180
+                    maximum: 180
+                required:
+                  - lat
+                  - lon
+                additionalProperties: false
+              depart_after:
+                default: null
+                anyOf:
+                  - type: string
+                    pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$
+                  - type: "null"
+              arrive_by:
+                default: null
+                anyOf:
+                  - type: string
+                    pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$
+                  - type: "null"
+            required:
+              - request_id
+              - traveller_ref
+              - origin
+              - destination
+              - depart_after
+              - arrive_by
+            additionalProperties: false
+      required:
+        - contract_version
+        - run_id
+        - issued_at
+        - deadline
+        - guard_wall_s
+        - requests
+      additionalProperties: false
+    PlanResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              request_id:
+                type: string
+                minLength: 1
+              status:
                 type: string
                 enum:
-                  - plan
-                  - replan
-                  - tick
-                  - notify
-                  - tracing
-            tick:
-              $ref: "#/$defs/TickDeclaration"
-          required:
-            - name
-            - version
-            - contract_versions
-            - capabilities
-          additionalProperties: false
-          description: Who the player is, which contract versions it speaks, and what it implements. Read once, before the run starts.
-        TickDeclaration:
+                  - ok
+                  - no_route
+                  - declined
+              itinerary:
+                default: null
+                anyOf:
+                  - type: object
+                    properties:
+                      legs:
+                        minItems: 1
+                        type: array
+                        items:
+                          oneOf:
+                            - type: object
+                              properties:
+                                mode:
+                                  type: string
+                                  const: walk
+                                from:
+                                  anyOf:
+                                    - type: object
+                                      properties:
+                                        lat:
+                                          type: number
+                                          minimum: -90
+                                          maximum: 90
+                                        lon:
+                                          type: number
+                                          minimum: -180
+                                          maximum: 180
+                                      required:
+                                        - lat
+                                        - lon
+                                      additionalProperties: false
+                                    - type: object
+                                      properties:
+                                        operator:
+                                          type: string
+                                          minLength: 1
+                                        stop:
+                                          type: string
+                                          minLength: 1
+                                      required:
+                                        - operator
+                                        - stop
+                                      additionalProperties: false
+                                to:
+                                  anyOf:
+                                    - type: object
+                                      properties:
+                                        lat:
+                                          type: number
+                                          minimum: -90
+                                          maximum: 90
+                                        lon:
+                                          type: number
+                                          minimum: -180
+                                          maximum: 180
+                                      required:
+                                        - lat
+                                        - lon
+                                      additionalProperties: false
+                                    - type: object
+                                      properties:
+                                        operator:
+                                          type: string
+                                          minLength: 1
+                                        stop:
+                                          type: string
+                                          minLength: 1
+                                      required:
+                                        - operator
+                                        - stop
+                                      additionalProperties: false
+                                depart:
+                                  description: Advisory and unread. A journey is charged from the trips and stops named, never from the times stated here; RFC 3339 in simulated time is conventional, and a leg without them is a complete answer.
+                                  type:
+                                    - string
+                                    - number
+                                arrive:
+                                  description: Advisory and unread. A journey is charged from the trips and stops named, never from the times stated here; RFC 3339 in simulated time is conventional, and a leg without them is a complete answer.
+                                  type:
+                                    - string
+                                    - number
+                              required:
+                                - mode
+                                - from
+                                - to
+                              additionalProperties: false
+                            - type: object
+                              properties:
+                                mode:
+                                  type: string
+                                  const: transit
+                                operator:
+                                  type: string
+                                  minLength: 1
+                                route:
+                                  type: string
+                                  minLength: 1
+                                trip:
+                                  type: string
+                                  minLength: 1
+                                from_stop:
+                                  type: string
+                                  minLength: 1
+                                to_stop:
+                                  type: string
+                                  minLength: 1
+                                depart:
+                                  description: Advisory and unread. A journey is charged from the trips and stops named, never from the times stated here; RFC 3339 in simulated time is conventional, and a leg without them is a complete answer.
+                                  type:
+                                    - string
+                                    - number
+                                arrive:
+                                  description: Advisory and unread. A journey is charged from the trips and stops named, never from the times stated here; RFC 3339 in simulated time is conventional, and a leg without them is a complete answer.
+                                  type:
+                                    - string
+                                    - number
+                              required:
+                                - mode
+                                - operator
+                                - route
+                                - trip
+                                - from_stop
+                                - to_stop
+                              additionalProperties: false
+                    required:
+                      - legs
+                    additionalProperties: false
+                  - type: "null"
+            required:
+              - request_id
+              - status
+              - itinerary
+            additionalProperties: false
+      required:
+        - results
+      additionalProperties: false
+    ReplanRequest:
+      type: object
+      properties:
+        contract_version:
+          type: string
+        run_id:
+          type: string
+        issued_at:
+          type: string
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$
+        deadline:
+          type: string
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$
+        guard_wall_s:
+          type: number
+          exclusiveMinimum: 0
+        requests:
+          minItems: 1
+          type: array
+          items:
+            type: object
+            properties:
+              request_id:
+                type: string
+                minLength: 1
+              traveller_ref:
+                type: string
+                minLength: 1
+              trigger:
+                type: string
+                enum:
+                  - missed_connection
+                  - vehicle_cancelled
+                  - stranded
+                  - stop_closed
+                  - traveller_initiated
+              position:
+                oneOf:
+                  - type: object
+                    properties:
+                      kind:
+                        type: string
+                        const: at_stop
+                      operator:
+                        type: string
+                        minLength: 1
+                      stop:
+                        type: string
+                        minLength: 1
+                    required:
+                      - kind
+                      - operator
+                      - stop
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      kind:
+                        type: string
+                        const: aboard
+                      operator:
+                        type: string
+                        minLength: 1
+                      trip:
+                        type: string
+                        minLength: 1
+                      next_stop:
+                        type: string
+                        minLength: 1
+                    required:
+                      - kind
+                      - operator
+                      - trip
+                      - next_stop
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      kind:
+                        type: string
+                        const: walking
+                      towards:
+                        anyOf:
+                          - type: object
+                            properties:
+                              lat:
+                                type: number
+                                minimum: -90
+                                maximum: 90
+                              lon:
+                                type: number
+                                minimum: -180
+                                maximum: 180
+                            required:
+                              - lat
+                              - lon
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              operator:
+                                type: string
+                                minLength: 1
+                              stop:
+                                type: string
+                                minLength: 1
+                            required:
+                              - operator
+                              - stop
+                            additionalProperties: false
+                    required:
+                      - kind
+                      - towards
+                    additionalProperties: false
+              remaining_itinerary:
+                default: null
+                anyOf:
+                  - type: object
+                    properties:
+                      legs:
+                        minItems: 1
+                        type: array
+                        items:
+                          oneOf:
+                            - type: object
+                              properties:
+                                mode:
+                                  type: string
+                                  const: walk
+                                from:
+                                  anyOf:
+                                    - type: object
+                                      properties:
+                                        lat:
+                                          type: number
+                                          minimum: -90
+                                          maximum: 90
+                                        lon:
+                                          type: number
+                                          minimum: -180
+                                          maximum: 180
+                                      required:
+                                        - lat
+                                        - lon
+                                      additionalProperties: false
+                                    - type: object
+                                      properties:
+                                        operator:
+                                          type: string
+                                          minLength: 1
+                                        stop:
+                                          type: string
+                                          minLength: 1
+                                      required:
+                                        - operator
+                                        - stop
+                                      additionalProperties: false
+                                to:
+                                  anyOf:
+                                    - type: object
+                                      properties:
+                                        lat:
+                                          type: number
+                                          minimum: -90
+                                          maximum: 90
+                                        lon:
+                                          type: number
+                                          minimum: -180
+                                          maximum: 180
+                                      required:
+                                        - lat
+                                        - lon
+                                      additionalProperties: false
+                                    - type: object
+                                      properties:
+                                        operator:
+                                          type: string
+                                          minLength: 1
+                                        stop:
+                                          type: string
+                                          minLength: 1
+                                      required:
+                                        - operator
+                                        - stop
+                                      additionalProperties: false
+                                depart:
+                                  description: Advisory and unread. A journey is charged from the trips and stops named, never from the times stated here; RFC 3339 in simulated time is conventional, and a leg without them is a complete answer.
+                                  type:
+                                    - string
+                                    - number
+                                arrive:
+                                  description: Advisory and unread. A journey is charged from the trips and stops named, never from the times stated here; RFC 3339 in simulated time is conventional, and a leg without them is a complete answer.
+                                  type:
+                                    - string
+                                    - number
+                              required:
+                                - mode
+                                - from
+                                - to
+                              additionalProperties: false
+                            - type: object
+                              properties:
+                                mode:
+                                  type: string
+                                  const: transit
+                                operator:
+                                  type: string
+                                  minLength: 1
+                                route:
+                                  type: string
+                                  minLength: 1
+                                trip:
+                                  type: string
+                                  minLength: 1
+                                from_stop:
+                                  type: string
+                                  minLength: 1
+                                to_stop:
+                                  type: string
+                                  minLength: 1
+                                depart:
+                                  description: Advisory and unread. A journey is charged from the trips and stops named, never from the times stated here; RFC 3339 in simulated time is conventional, and a leg without them is a complete answer.
+                                  type:
+                                    - string
+                                    - number
+                                arrive:
+                                  description: Advisory and unread. A journey is charged from the trips and stops named, never from the times stated here; RFC 3339 in simulated time is conventional, and a leg without them is a complete answer.
+                                  type:
+                                    - string
+                                    - number
+                              required:
+                                - mode
+                                - operator
+                                - route
+                                - trip
+                                - from_stop
+                                - to_stop
+                              additionalProperties: false
+                    required:
+                      - legs
+                    additionalProperties: false
+                  - type: "null"
+            required:
+              - request_id
+              - traveller_ref
+              - trigger
+              - position
+              - remaining_itinerary
+            additionalProperties: false
+      required:
+        - contract_version
+        - run_id
+        - issued_at
+        - deadline
+        - guard_wall_s
+        - requests
+      additionalProperties: false
+    ReplanResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              request_id:
+                type: string
+                minLength: 1
+              status:
+                type: string
+                enum:
+                  - ok
+                  - continue
+                  - abandon
+                  - no_route
+                  - declined
+              itinerary:
+                default: null
+                anyOf:
+                  - type: object
+                    properties:
+                      legs:
+                        minItems: 1
+                        type: array
+                        items:
+                          oneOf:
+                            - type: object
+                              properties:
+                                mode:
+                                  type: string
+                                  const: walk
+                                from:
+                                  anyOf:
+                                    - type: object
+                                      properties:
+                                        lat:
+                                          type: number
+                                          minimum: -90
+                                          maximum: 90
+                                        lon:
+                                          type: number
+                                          minimum: -180
+                                          maximum: 180
+                                      required:
+                                        - lat
+                                        - lon
+                                      additionalProperties: false
+                                    - type: object
+                                      properties:
+                                        operator:
+                                          type: string
+                                          minLength: 1
+                                        stop:
+                                          type: string
+                                          minLength: 1
+                                      required:
+                                        - operator
+                                        - stop
+                                      additionalProperties: false
+                                to:
+                                  anyOf:
+                                    - type: object
+                                      properties:
+                                        lat:
+                                          type: number
+                                          minimum: -90
+                                          maximum: 90
+                                        lon:
+                                          type: number
+                                          minimum: -180
+                                          maximum: 180
+                                      required:
+                                        - lat
+                                        - lon
+                                      additionalProperties: false
+                                    - type: object
+                                      properties:
+                                        operator:
+                                          type: string
+                                          minLength: 1
+                                        stop:
+                                          type: string
+                                          minLength: 1
+                                      required:
+                                        - operator
+                                        - stop
+                                      additionalProperties: false
+                                depart:
+                                  description: Advisory and unread. A journey is charged from the trips and stops named, never from the times stated here; RFC 3339 in simulated time is conventional, and a leg without them is a complete answer.
+                                  type:
+                                    - string
+                                    - number
+                                arrive:
+                                  description: Advisory and unread. A journey is charged from the trips and stops named, never from the times stated here; RFC 3339 in simulated time is conventional, and a leg without them is a complete answer.
+                                  type:
+                                    - string
+                                    - number
+                              required:
+                                - mode
+                                - from
+                                - to
+                              additionalProperties: false
+                            - type: object
+                              properties:
+                                mode:
+                                  type: string
+                                  const: transit
+                                operator:
+                                  type: string
+                                  minLength: 1
+                                route:
+                                  type: string
+                                  minLength: 1
+                                trip:
+                                  type: string
+                                  minLength: 1
+                                from_stop:
+                                  type: string
+                                  minLength: 1
+                                to_stop:
+                                  type: string
+                                  minLength: 1
+                                depart:
+                                  description: Advisory and unread. A journey is charged from the trips and stops named, never from the times stated here; RFC 3339 in simulated time is conventional, and a leg without them is a complete answer.
+                                  type:
+                                    - string
+                                    - number
+                                arrive:
+                                  description: Advisory and unread. A journey is charged from the trips and stops named, never from the times stated here; RFC 3339 in simulated time is conventional, and a leg without them is a complete answer.
+                                  type:
+                                    - string
+                                    - number
+                              required:
+                                - mode
+                                - operator
+                                - route
+                                - trip
+                                - from_stop
+                                - to_stop
+                              additionalProperties: false
+                    required:
+                      - legs
+                    additionalProperties: false
+                  - type: "null"
+            required:
+              - request_id
+              - status
+              - itinerary
+            additionalProperties: false
+      required:
+        - results
+      additionalProperties: false
+    TickRequest:
+      type: object
+      properties:
+        contract_version:
+          type: string
+        run_id:
+          type: string
+        sim_time:
+          type: string
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$
+          description: RFC 3339 with an explicit offset, in simulated time.
+        guard_wall_s:
+          type: number
+          exclusiveMinimum: 0
+      required:
+        - contract_version
+        - run_id
+        - sim_time
+        - guard_wall_s
+      additionalProperties: false
+      description: "Fetch from the operators now. The simulated clock is paused while you do, so every call inside this handler sees the world as of `sim_time`. No simulated deadline: only `guard_wall_s` applies."
+    TickResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          const: ok
+      required:
+        - status
+      additionalProperties: false
+      description: Any 2xx acknowledges the tick; any other status is recorded as `player_error`.
+    RunStartNotice:
+      type: object
+      properties:
+        run_id:
+          type: string
+      required:
+        - run_id
+      additionalProperties: false
+      description: The run has started. Responses are ignored and never scored.
+    RunEndNotice:
+      type: object
+      properties:
+        run_id:
+          type: string
+        reason:
+          type: string
+          enum:
+            - completed
+            - aborted
+            - player_failure
+            - invalid
+      required:
+        - run_id
+        - reason
+      additionalProperties: false
+      description: The run has ended. Responses are ignored and never scored.
+    Brief:
+      type: object
+      properties:
+        contract_version:
+          type: string
+        run_id:
+          type: string
+        world:
           type: object
           properties:
-            interval_sim_s:
+            seed:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+            engine_version:
+              type: string
+            timezone:
+              type: string
+              description: IANA name of the world's zone.
+            utc_offset:
+              type: string
+              pattern: ^[+-]\d{2}:\d{2}$
+              description: The world's offset from UTC. Stated here and nowhere else.
+          required:
+            - seed
+            - engine_version
+            - timezone
+            - utc_offset
+          additionalProperties: false
+        run:
+          type: object
+          properties:
+            mode:
+              type: string
+              enum:
+                - open_loop
+                - closed_loop
+            app_user_fraction:
+              description: "Closed loop only: the share of scored travellers who consult you."
+              type: number
+              minimum: 0
+              maximum: 1
+            cold_start:
+              type: boolean
+            tier:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+            time_mode:
+              type: string
+              enum:
+                - virtual
+                - realtime
+                - scaled
+            latency_mode:
+              type: string
+              enum:
+                - none
+                - sim
+                - wall
+          required:
+            - mode
+            - cold_start
+            - tier
+            - time_mode
+            - latency_mode
+          additionalProperties: false
+        operators:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              base_url:
+                type: string
+              docs_url:
+                type: string
+              auth:
+                type: object
+                properties:
+                  scheme:
+                    type: string
+                    const: none
+                required:
+                  - scheme
+                additionalProperties: false
+            required:
+              - id
+              - name
+              - base_url
+              - docs_url
+              - auth
+            additionalProperties: false
+        obligations:
+          type: array
+          items:
+            type: string
+            enum:
+              - plan
+              - replan
+              - tick
+              - notify
+        limits:
+          type: object
+          properties:
+            min_tick_interval_sim_s:
               type: integer
               exclusiveMinimum: 0
               maximum: 9007199254740991
+            max_walk_m:
+              type: number
+              exclusiveMinimum: 0
+              description: A traveller will not walk further than this to or from a stop.
+            walk_speed_mps:
+              type: number
+              exclusiveMinimum: 0
+              description: The speed every walk is charged at.
           required:
-            - interval_sim_s
+            - min_tick_interval_sim_s
+            - max_walk_m
+            - walk_speed_mps
           additionalProperties: false
-          description: Requested ingestion cadence, in simulated seconds.
-    Health:
-      $ref: "#/$defs/Health"
-      $defs:
-        Health:
-          type: object
-          properties:
-            status:
-              type: string
-              enum:
-                - ready
-                - starting
-                - unavailable
-            detail:
-              type: string
-              maxLength: 256
-          required:
-            - status
-          additionalProperties: false
-          description: Readiness. Polled only before the run, with a bounded budget from the brief.
-    Problem:
-      $ref: "#/$defs/Problem"
-      $defs:
-        Problem:
-          type: object
-          properties:
-            type:
-              default: about:blank
-              type: string
-            title:
-              type: string
-            status:
-              type: integer
-              minimum: 400
-              maximum: 599
-            detail:
-              type: string
-            instance:
-              type: string
-          required:
-            - type
-            - title
-            - status
-          additionalProperties: false
-          description: RFC 9457 problem details.
+      required:
+        - contract_version
+        - run_id
+        - world
+        - run
+        - operators
+        - obligations
+        - limits
+      additionalProperties: false
+      description: "Where the operators are and the rules of the world. Nothing about their schemas, their quality or how their data relates: discovering that is the game."
+    Clock:
+      type: object
+      properties:
+        sim_time:
+          type: string
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$
+          description: RFC 3339 with an explicit offset, in simulated time.
+        state:
+          type: string
+          enum:
+            - preparation
+            - running
+            - paused
+            - ended
+        time_mode:
+          type: string
+          enum:
+            - virtual
+            - realtime
+            - scaled
+        speed:
+          type: number
+          exclusiveMinimum: 0
+      required:
+        - sim_time
+        - state
+        - time_mode
+        - speed
+      additionalProperties: false
+      description: Simulated time and run state. Unmetered, and never queued.
+    NotifyRequest:
+      type: object
+      properties:
+        traveller_ref:
+          type: string
+          minLength: 1
+        kind:
+          default: info
+          type: string
+          enum:
+            - disruption
+            - itinerary_update
+            - info
+        message:
+          default: ""
+          type: string
+        sent_at:
+          description: Advisory only. The simulator stamps arrival itself, and that stamp is what is scored.
+          type: string
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$
+      required:
+        - traveller_ref
+        - kind
+        - message
+      additionalProperties: false
+      description: Warn a traveller. The simulator stamps arrival in simulated time; the gap between the world changing and that stamp is what the Information family scores.
+    NotifyAccepted:
+      type: object
+      properties:
+        accepted:
+          type: boolean
+          const: true
+      required:
+        - accepted
+      additionalProperties: false
+      description: Recorded. Returned with 202.

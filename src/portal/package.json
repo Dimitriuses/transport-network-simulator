@@ -1,0 +1,15 @@
+{
+  "name": "@tns/portal",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The site a player reads before writing a solution: the contract, the world's rules and each operator's documentation",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tns/schema": "*",
+    "@tns/projections": "*"
+  }
+}

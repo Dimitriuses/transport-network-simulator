@@ -312,6 +312,8 @@ The brief states *where* the operators are and how to authenticate. It says **no
 
 Withholding it would make finding the endpoint part of the challenge, and that is a different — worse — game. The difficulty of this project lives in the *data*: what an identifier denotes, where a stop really is, what instant a timestamp means. None of that becomes more interesting if the player also has to guess a URL. It would also break the agent-benchmark use case outright, where an agent with no documentation is being tested on endpoint enumeration rather than on integration.
 
+**Pages to a browser, JSON to everyone else** (P2M7). `GET {docs_url}` returns the OpenAPI document unless the request prefers `text/html`, and then the same content as pages, with `/docs/timetable` and `/docs/realtime` beneath it; the JSON stays at `/docs/openapi.json` too. Both are rendered from one document, and a test holds every word on the pages to it. The same pages are readable before any run in the player portal, `npm run portal`, beside the guide and this contract's own reference.
+
 What *does* vary is documentation **quality**, which is already catalogue §2.1 F: docs that are incomplete, that describe fields the API no longer returns, or that disagree with observed behaviour. That is the interesting version of "you cannot trust the documentation", and it keeps the challenge in the data where it belongs.
 
 ### 6.2 `GET /v1/clock`
@@ -402,6 +404,8 @@ For the same reason, `origin` and `destination` in a plan request are **coordina
 ```
 
 An itinerary the simulator cannot resolve — unknown operator, a stop that operator never published, a trip that does not serve those stops — is **not** a transport error. It is a well-formed answer that is wrong about the world, and is scored as such. Malformed JSON is a bug; an unresolvable itinerary is a modelling failure; they must never be conflated in the run log.
+
+**A leg's `depart` and `arrive` are advisory, and never read** (decided 2026-09-15, P2M7). A journey is charged from the trips and stops an itinerary names; times stated beside them change nothing, are not validated, and may be left out. Everything else in a plan or replan response is held to the published schema, and a response that does not match is `player_error` (`KNOWN-ISSUES.md` #74).
 
 **Access legs are charged whether or not the player mentions them.** An itinerary names transit legs and the transfers between them; it does not have to describe the walk from the traveller's origin to the first boarding point, or from the last alighting point to their destination. The simulator supplies and charges for both, and rejects an itinerary whose first boarding quay is not reachable from the origin at all.
 

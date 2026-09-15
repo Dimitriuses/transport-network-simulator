@@ -13,6 +13,7 @@
     "@tns/core": "*",
     "@tns/projections": "*",
     "@tns/scoring": "*",
-    "@tns/server": "*"
+    "@tns/server": "*",
+    "@tns/portal": "*"
   }
 }

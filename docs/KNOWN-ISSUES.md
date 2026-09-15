@@ -176,8 +176,10 @@ An operator can only document what it *intends*. A real agency states its time e
 | documented | not documented |
 |---|---|
 | `A-granularity`, `A-id-scheme`, `A-coordinate-source` | `A-naming`, `A-coordinate-precision` |
-| `B-time-encoding` | `C-coordinate-offset`, `C-latlon-order` |
-| `C-delay-unit`, `D-no-delays` | `D-staleness`, `D-silent-cancellation` |
+| `B-time-encoding` | `B-dst-offset`, `C-coordinate-offset`, `C-latlon-order` |
+| `C-delay-unit`, `C-cancellation-token`, `D-no-delays` | `D-staleness`, `D-silent-cancellation` |
+
+*`C-cancellation-token` and `B-dst-offset` were added at P2M0 and classified on 2026-09-15 (P2M7).* An operator's status vocabulary is its own choice, as its delay unit is, so it is documented — including by an operator that silently drops cancellations, which documents the word it means to use. A wrong offset claim is not something an operator knows it is making.
 
 Sections A and B become *readable* rather than archaeological; every conflict about whether the data is **true** stays discoverable only by measurement, which is where §2.1 says the difficulty lives.
 
@@ -3052,7 +3054,7 @@ Against 78 improvable journeys, none of them crossing a town, on `LADDER_VERSION
 
 ---
 
-## 72. Four things the player contract specifies and the simulator has never done — `open, owned by P2M8`
+## 72. What the player contract specifies and the simulator has never done — `open, owned by P2M8`
 
 **Found planning P2M8**, by checking the contract against the code before designing a dashboard on top of it. None of these is referenced anywhere in `src/`:
 
@@ -3061,4 +3063,31 @@ Against 78 improvable journeys, none of them crossing a town, on `LADDER_VERSION
 * **Manual pause** (§6.4): operator requests queue FIFO while paused, overflow returns `503`, `/v1/clock` never queues. The harness has a `paused` state the control API reports and nothing that can enter it.
 * **The brief's `wall_budget_s`, `pause_queue_depth` and `preparation.wall_budget_s`** (§6.1). The brief carries none of them.
 
+**And five more, found at P2M7** while writing the schemas the portal publishes: capabilities do not gate plans or replans, only ticks; `preferences` on a plan request is never sent; a tick response's `next_interval_sim_s` is ignored; `run-start` carries no brief digest and `run-end` no reason but `completed`; and a notification's `itinerary` is accepted and discarded. **The list lives in one place now** — `NOT_YET_HONOURED` in `src/schema/src/contract/session.ts` — rendered into both contract documents and onto the portal's *Not yet honoured* page, so a player reading the contract is told what not to rely on, and an item leaves the list by being built.
+
 **Why it did not bite.** Every run so far was a local script against a reference player, which neither checks versions nor needs guarding. **Why it must be closed before the playtest:** a stranger's player, a dashboard able to pause, and — at P2M9 — several solutions in one session each depend on at least one of them, and the last cannot attribute a call to a solution without the token.
+
+---
+
+## 73. Every operator's OpenAPI document described a timetable it did not serve — `fixed 2026-09-15`
+
+**Found building P2M7**, by comparing the key paths of real responses with the schema each operator publishes, before rendering that schema as pages. On all seven operators of the committed world and `R3a`, identically:
+
+* **`/timetable` documented 8 paths and served 20.** It described a `departures` array of `stop_id` and `departure` that no operator has ever served, and left out `operator`, `operator_name`, `published_at`, `routes` and `trips` with their `stop_times` — the whole timetable a planner needs.
+* **`/realtime` documented `updates[].trip_id` and `delay`**, and left out `operator`, `as_of` and `updates[].status`, the field that says a trip will not run.
+
+**Why nothing noticed.** `docs.test.ts` held each operator's *prose notes* to its manifest from P1M1 onwards, and the notes were right; nothing held the *schema* to a response. No reference player reads documentation (#12), so a wrong schema cost nothing any instrument could see — and it would have cost a stranger reading it before writing a solution everything.
+
+**Fixed.** The schema is built from the projection's own `Timetable` and `RealtimeFeed` shapes, `status` carries its vocabulary as an `enum`, and `docs.test.ts` checks every key path, JSON type and status word of a real response against the documented schema at every hour of the scored day on four worlds — with a test that feeds it the pre-P2M7 schema and requires both the phantom array and the missing trips to be reported.
+
+---
+
+## 74. The committed contract described two endpoints of nine, and could not be resolved — `fixed 2026-09-15`
+
+**Found building P2M7**, whose portal renders `contract/` for a player to read.
+
+* **Coverage.** `contract/player-api.yaml` and `control-api.yaml` described `/identity` and `/health` — the P0M0 pipeline proof, which `contract/README.md` said would grow "with the milestones that need them". None did. Plan and replan had Zod definitions the generator never emitted; tick, the lifecycle notices, the brief, the clock and notify had no schema at all, and their shapes lived in the harness and the control API.
+* **References.** From P0M0 every component was `$ref: "#/$defs/<name>"` with the `$defs` nested inside the component, a pointer to a document root that has no `$defs`. For an hour during P2M7 the fix made every component a `$ref` to itself. **Both passed every check there was**: `contract:check` compares the files with the generator, never with validity, and a scan for dangling references passes a self-reference because it resolves. The portal's tables came out empty, which is how it was seen.
+* **A rule nobody kept.** A leg's `depart` and `arrive` were required RFC 3339. The simulator never reads them, and `naive` wrote its operator's epoch seconds there on 69 of 98 plans, which the simulator then echoed back inside replan requests — its own contract, broken by its own messages. Nothing validated a response, so nothing noticed.
+
+**Fixed.** Every endpoint of both APIs has a Zod schema in `@tns/schema`, and `openapi.ts` builds both documents for the generator and the portal alike. `openapi.test.ts` resolves every reference from the document root and rejects the two shapes the contract has shipped. **Leg times are advisory and unvalidated, and say so** (decided 2026-09-15): a field nothing reads cannot honestly reject an answer. And the simulator now holds plan and replan responses to the schema — a response that does not parse is `player_error` — and parses warnings with the published schema. **Measured through a validating proxy: all four reference players' traffic now matches in both directions, and the open-loop golden hashes of `naive`, `competent` and `null` are unchanged.**
