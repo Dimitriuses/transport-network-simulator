@@ -324,6 +324,8 @@ The overfitted solution is therefore keyed by what survives a rename — **opera
 * **`realtime` time mode** — the clock tracks wall time; the world feels alive.
 * **Monitoring UI** — map replay, vehicle and passenger flows, API request view, and the traveller timeline from `OBSERVABILITY.md` §9 with the player's knowledge state rendered as a band beneath the world's.
 * **Closed-loop replay** — recorded player responses replayed for post-hoc debugging.
+* **A portal and a live dashboard, before the playtest** — *added 2026-09-15.* A standing per-world site to read before writing a solution, and a simulation server whose dashboard starts, pauses and re-speeds a session, connects solutions with run tokens and shows obligations and traffic live (`ROADMAP.md` P2M7, P2M8).
+* **Several solutions in one closed-loop session** — *added 2026-09-15*, after vehicle capacity, so they compete (`ROADMAP.md` P2M9).
 
 **Completion:** a player can iterate against a live world and *see* why their solution behaved as it did. The subjective test is whether it is enjoyable to work against; the objective one is whether the traveller timeline explains a scoring outcome without recourse to logs.
 

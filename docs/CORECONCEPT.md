@@ -521,6 +521,8 @@ The concept above describes roughly five separate hard products. The MVP deliber
 
 **Explicitly out of scope for the MVP:** city generation, name generation, schema generation, closed-loop passenger feedback, a monitoring UI, multiplayer, leaderboards, packaging as a product.
 
+*Out of the MVP, not out of the project. **Decided 2026-09-15:** several solutions may share one closed-loop session and are scored separately; open loop stays one solution against a fixed day. Built after vehicle capacity exists, so the solutions compete rather than merely coexist (`ROADMAP.md` P2M9).*
+
 **Purpose:** prove that the core loop is hard *and* interesting with hand-made content. Only the parts of that content that demonstrably carried the difficulty are then worth generating. Building generators first inverts the risk — it produces a large amount of machinery before anybody knows whether the game is any good.
 
 ---

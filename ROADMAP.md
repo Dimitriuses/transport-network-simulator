@@ -179,6 +179,42 @@ Map replay, vehicle and passenger flows, an API request view, and the traveller 
 
 ---
 
+### Before the playtest — decided 2026-09-15
+
+**Three milestones were added on 2026-09-15, and they are numbered after the ones they precede.** Renumbering `P2M4`–`P2M6` would have rewritten 38 references, among them dated `BUILD-LOG.md` entries that were true when written — `#20`'s mistake, made on milestones instead of rungs. **Read this roadmap by order, not by number: `P2M7`, then `P2M8`, then `P2M4`**; `P2M9` follows `P2M6`.
+
+**Why before the playtest.** A stranger's first hour is spent reading and poking. Today the only reading is each operator's JSON `/docs`, served only while a run is alive on that run's ports, and the only poking is a script that finishes a whole day in seconds — which is what the first attempt to use the closed loop from Postman ran into. A playtest run against that would measure missing tooling rather than whether the conflicts can be discovered, and an hour of a stranger's attention is spent once (`KNOWN-ISSUES.md` #3).
+
+---
+
+### P2M7 — A portal to read before writing a solution
+
+**A standing, per-world, multi-page site**, served without a run, holding what a player reads before writing a line: how a solution is built and what it is asked (the obligations and their schemas, the brief, the lifecycle, the snapshot rule), and each operator's documentation as its own set of pages.
+
+**Rendered from the models that exist, never written beside them.** Each operator's pages come from the same generated documentation `/docs` serves, which stays available as JSON for agents; the contract pages come from `contract/`. **Format and units are documented; accuracy, freshness and completeness are not** (`CORECONCEPT.md` §2.1), and `src/projections/test/docs.test.ts` holds the site to that as it holds the JSON.
+
+**What it is not.** Not documentation *defects* — a wiki is worth building for its ability to contradict itself (`CORECONCEPT.md`, *Why a multi-page wiki*), and those defects stay in Phase 3 behind `KNOWN-ISSUES.md` #12. And not per-operator *presentation* — one site design for every operator here; wiki against Swagger remains Phase 3's decorative variety.
+
+**Exit:** a player can read, for a given world and without starting a run, everything the contract says they may rely on and everything each operator documents — and the site cannot say anything the JSON does not.
+
+---
+
+### P2M8 — A simulation that stays alive, and a dashboard to drive it
+
+**A long-lived simulation server** holding a session through the contract's lifecycle — preparation, running, paused, ended — in place of a script that runs a day to completion. **A live dashboard** on it:
+
+* **Control:** start, stop, **pause** and **speed**, with every control action written to the run log. A run someone paused or re-sped still replays, and is marked non-comparable (`SCORING.md` §12, `TIME-MODEL.md` §2).
+* **Solutions:** register and remove the player base URLs a session calls. One in open loop, as scoring requires; several in closed loop is `P2M9`.
+* **Access:** issue and revoke the **run tokens** `PLAYER-CONTRACT.md` §3 specifies — `Authorization: Bearer` between simulator, player and control API. Per-operator auth schemes stay a declared catalogue E setting for later, because they are world difficulty, not a toggle.
+* **Diagnostics:** the obligation queue with latency, deadline misses and errors; operator traffic against quota; warnings as they are sent; a provisional scorecard, labelled as provisional; the live map; and "open in viewer" when the run ends.
+* **Two audiences:** a player's dashboard shows what the run's disclosure level allows (`OBSERVABILITY.md` §8); an administrator's shows ground truth.
+
+**Built as the contract already says** (`KNOWN-ISSUES.md` #72): manual pause queues operator requests FIFO and returns `503` on overflow, and `/v1/clock` never queues (`PLAYER-CONTRACT.md` §6.4).
+
+**Exit:** a player can start a session against a world, connect a solution with a token, watch its obligations and traffic live, pause it, change its speed, and open the finished run in the viewer — and the run log says every control action that was taken.
+
+---
+
 ### P2M4 — The playtest, at last
 
 **`KNOWN-ISSUES.md` #3, owed since P1M0, and deliberately scheduled at the end of this phase.** Give the world to one or two engineers who have not seen the repository. Watch. Record where they stall, what they assume, how long before their first scoring run, and what they say about it afterwards. [`docs/PLAYTEST-KIT.md`](docs/PLAYTEST-KIT.md) is the runnable form.
@@ -231,6 +267,23 @@ Map replay, vehicle and passenger flows, an API request view, and the traveller 
 
 ---
 
+### P2M9 — Several solutions in one closed loop — **decided 2026-09-15, after P2M6**
+
+**Open loop takes one solution; closed loop may take several.** Open-loop scoring rests on one player against a fixed day (`SCORING.md` §2), so that rule stands. In closed loop, travellers are split between the connected solutions by a seeded draw — each solution an app with its own users — and each is scored separately, never against the others (`SCORING.md` §12).
+
+**After P2M6, deliberately.** Without a population and vehicle capacity, several solutions in one session are independent runs sharing a clock: one cannot fill another's bus. They become competitors only when riders reach each other.
+
+**What it needs, known now:**
+
+* **Per-solution identity on every call and warning** — P2M8's run tokens. Temporal attribution cannot tell concurrent solutions apart (`OBSERVABILITY.md` §3.2).
+* **Concurrent issuance with responses applied in `request_id` order** (`PLAYER-CONTRACT.md` §9.1), so one slow solution cannot stall the rest, and a replay that records each solution's answers.
+* **`CORECONCEPT.md` lists multiplayer as out of the MVP's scope**, and that is now a recorded decision to take it up in Phase 2, not an oversight.
+
+**Exit:** two solutions connected to one closed-loop session route their own travellers, compete for the same vehicles, are scored separately, and the run replays from its recording.
+
+
+---
+
 ## Deferred, with the milestone that owns them
 
 | Item | Source | Owner |
@@ -243,6 +296,9 @@ Map replay, vehicle and passenger flows, an API request view, and the traveller 
 | `KNOWN-ISSUES.md` #68 — a non-arrival costs less than a long journey | `SCORING.md` §4 | **Needs a decision**: every recorded capture moves with it |
 | `verbatim` logging, and the three trace disclosure levels | `OBSERVABILITY.md` §7, §8 | **P2M3** — built 2026-09-14; the run log itself is not a disclosure boundary, and withholding it is Phase 4's assessment mode |
 | `KNOWN-ISSUES.md` #71 — the Information family's decision point, and events no warning could serve | `SCORING.md` §5 | **Needs a decision**: every Information score and headline moves with it |
+| Manual pause, run tokens, `X-TNS-Contract`, wall budgets — specified, never built | `PLAYER-CONTRACT.md` §3, §6.4; `KNOWN-ISSUES.md` #72 | **P2M8** |
+| Per-operator auth schemes — header key, query key, expiring tokens | `CORECONCEPT.md` §2.1 E | Phase 3, as a declared catalogue setting — decided 2026-09-15 not to make it a dashboard toggle |
+| Several solutions in one closed-loop session | `CORECONCEPT.md` MVP scope | **P2M9**, after P2M6 — decided 2026-09-15 |
 | SQLite compaction of run logs | `OBSERVABILITY.md` §7 | Deferred until something queries a run log; a whole day is 0.3–0.9 MB |
 | `KNOWN-ISSUES.md` #47 — sections B and D offer no choice of *settings* | `#43`'s invariant test | Restated against measurement at P1M8. Closing it is content work — a second drawable section-B setting — with no milestone yet |
 | `KNOWN-ISSUES.md` #48 — the top rung is memorisable | `npm run transfer` | **P1M6**–**P1M7**: the structural ladder is the answer chosen for it — decided 2026-09-11; the transfer holds at three rungs |

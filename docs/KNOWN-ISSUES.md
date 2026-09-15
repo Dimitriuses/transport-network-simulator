@@ -3048,3 +3048,17 @@ Against 78 improvable journeys, none of them crossing a town, on `LADDER_VERSION
 3. **A traveller's earliest warning is credited to every event, whatever it was about.** Twice per `competent` run a warning sent before the event was knowable scored it in time.
 
 **Why it is not fixed here.** The first is a defect against a spec that is clear, and fixing it moves every Information score and so every headline, which is what Gate 2's ordering and the clearance bar read. The second and third are what the family should count, which `SCORING.md` holds OPEN. The viewer shows the scorer's decision point, and says so where it matters.
+
+
+---
+
+## 72. Four things the player contract specifies and the simulator has never done — `open, owned by P2M8`
+
+**Found planning P2M8**, by checking the contract against the code before designing a dashboard on top of it. None of these is referenced anywhere in `src/`:
+
+* **The run token** (`PLAYER-CONTRACT.md` §3). *"Simulator → player and player → control API both use `Authorization: Bearer <run token>`"*, delivered as `TNS_TOKEN`. Nothing issues one, sends one or checks one, so any process on the machine can post a warning into a scored run — the stray caller §3 names.
+* **`X-TNS-Contract` on every request, and abort on a version mismatch before the run** (§3). Neither side sends it.
+* **Manual pause** (§6.4): operator requests queue FIFO while paused, overflow returns `503`, `/v1/clock` never queues. The harness has a `paused` state the control API reports and nothing that can enter it.
+* **The brief's `wall_budget_s`, `pause_queue_depth` and `preparation.wall_budget_s`** (§6.1). The brief carries none of them.
+
+**Why it did not bite.** Every run so far was a local script against a reference player, which neither checks versions nor needs guarding. **Why it must be closed before the playtest:** a stranger's player, a dashboard able to pause, and — at P2M9 — several solutions in one session each depend on at least one of them, and the last cannot attribute a call to a solution without the token.
