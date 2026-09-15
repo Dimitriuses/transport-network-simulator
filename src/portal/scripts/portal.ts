@@ -11,7 +11,14 @@ import { parseArgs } from "node:util";
 import { loadWorld } from "@tns/core";
 import { MAX_REPLANS } from "@tns/router";
 import { NON_ARRIVAL_PENALTY_S, WAIT_WEIGHT } from "@tns/scoring";
-import { GUARD_WALL_S, MIN_TICK_INTERVAL_S, PLAN_DEADLINE_S, PLAN_LEAD_S } from "@tns/server";
+import {
+  ABORT_AFTER_CONSECUTIVE_FAILURES,
+  GUARD_WALL_S,
+  MIN_TICK_INTERVAL_S,
+  PLAN_DEADLINE_S,
+  PLAN_LEAD_S,
+  PREPARATION_WALL_BUDGET_S,
+} from "@tns/server";
 import { buildSite } from "../src/index.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -30,6 +37,8 @@ const site = buildSite(world, {
   minTickIntervalS: MIN_TICK_INTERVAL_S,
   nonArrivalS: NON_ARRIVAL_PENALTY_S,
   waitWeight: WAIT_WEIGHT,
+  preparationS: PREPARATION_WALL_BUDGET_S,
+  abortAfterFailures: ABORT_AFTER_CONSECUTIVE_FAILURES,
 });
 
 const server = createServer((req, res) => {

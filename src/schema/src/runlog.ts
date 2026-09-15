@@ -87,7 +87,11 @@ export type ObligationOutcome =
   // refusals: the player is asserting the current plan is still best, or
   // advising the traveller to give up. Each is charged for what follows.
   | "continue"
-  | "abandon";
+  | "abandon"
+  // Never sent (P2M8): the player did not claim the capability, so the
+  // traveller acts without it and the obligation counts as forgone
+  // (PLAYER-CONTRACT.md §5.2).
+  | "unclaimed";
 
 export interface ObligationRecord {
   readonly kind: "obligation";
@@ -111,6 +115,14 @@ export interface ObligationRecord {
   readonly trigger?: string;
   /** `replan` only: which attempt this was, from 1. */
   readonly attempt?: number;
+  /** `tick` only, and only when the player asked for a different cadence (PLAYER-CONTRACT.md §5.6). */
+  readonly nextIntervalS?: number;
+  /**
+   * Recorded without asking the player: an unclaimed capability, or an
+   * obligation after the run gave up on the player (`player_failure`). Absent
+   * on everything that was sent.
+   */
+  readonly unsent?: true;
 }
 
 /** What actually happened to a scored traveller, against the fixed trajectory. */
@@ -193,7 +205,40 @@ export interface MaterialEventRecord {
   readonly lastDecisionPointS: number;
 }
 
+/**
+ * Someone drove the run from outside it (P2M8): paused it, resumed it, changed
+ * its speed or mode, or stopped it. Written at the boundary where the change
+ * landed. A run carrying one is not comparable with another, and says so.
+ */
+export interface ControlRecord {
+  readonly kind: "control";
+  readonly tau: number;
+  readonly action: "pause" | "resume" | "retime" | "stop";
+  readonly timeMode?: "virtual" | "realtime" | "scaled";
+  readonly speed?: number;
+}
+
+/**
+ * How a run ended, when it did not simply complete (PLAYER-CONTRACT.md §5.7,
+ * §8; TIME-MODEL.md §9). Absent means `completed`, so a completed run's log is
+ * what it was before this record existed.
+ *
+ * * `aborted` — stopped from outside. Kept, never scored.
+ * * `player_failure` — too many consecutive unanswered obligations. Scored: the
+ *   rest of the day ran without the player, deterministically.
+ * * `invalid` — something machine-dependent decided the outcome: a wall guard
+ *   breached in `virtual`, or the run's wall budget exhausted. Kept, never scored.
+ */
+export interface RunEndRecord {
+  readonly kind: "run_end";
+  readonly tau: number;
+  readonly reason: "aborted" | "player_failure" | "invalid";
+  readonly detail: string;
+}
+
 export type RunRecord =
+  | ControlRecord
+  | RunEndRecord
   | LogNoteRecord
   | RunHeader
   | IngestionRecord

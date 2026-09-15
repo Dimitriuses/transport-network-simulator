@@ -322,10 +322,17 @@ export function scoreRun(log: readonly RunRecord[], opts: ScoreOptions = {}): Sc
 
   let verdict: Verdict = "scored";
   let verdictReason: string | null = null;
+  // How the run ended, when it did not complete (PLAYER-CONTRACT.md §8, TIME-MODEL.md §9).
+  const runEnd = log.find((r) => r.kind === "run_end");
 
   if (opts.invalidReason) {
     verdict = "invalid";
     verdictReason = opts.invalidReason;
+  } else if (runEnd && runEnd.kind === "run_end" && runEnd.reason !== "player_failure") {
+    // Stopped from outside, or decided by something machine-dependent: kept and
+    // explained, never scored. The numbers above cover only what had happened.
+    verdict = "invalid";
+    verdictReason = `${runEnd.reason === "aborted" ? "stopped before it finished" : "invalid"}: ${runEnd.detail}`;
     // **The trigger is beating P0, not beating `capture`'s own denominator.**
     // Since 2026-09-04 capture normalises against P0a, which a real solution
     // may legitimately exceed (KNOWN-ISSUES.md #15) — quarantining on that
@@ -345,6 +352,9 @@ export function scoreRun(log: readonly RunRecord[], opts: ScoreOptions = {}): Sc
     verdictReason =
       "a traveller arrived sooner than perfect information allows; " +
       "run the information-set audit before trusting this score";
+  } else if (runEnd && runEnd.kind === "run_end" && runEnd.reason === "player_failure") {
+    // Scored: deterministic in `virtual`, and the rest of the day ran without the player.
+    verdictReason = `player_failure: ${runEnd.detail}`;
   } else if (!cost.withinBudget) {
     verdictReason = `over the API call budget (${cost.apiCalls}/${callBudget})`;
   }
@@ -375,9 +385,11 @@ export function scoreRun(log: readonly RunRecord[], opts: ScoreOptions = {}): Sc
   // `npm run clearance` decides it now.
 
   // ---- Comparability -----------------------------------------------------
+  const controlled = log.some((r) => r.kind === "control");
   const reasons = [
     ...(header?.loop === "closed" ? ["a closed-loop run (SCORING.md §12)"] : []),
     ...(header && header.timeMode !== "virtual" ? [`${header.timeMode} time (TIME-MODEL.md §2)`] : []),
+    ...(controlled ? ["a run paused, re-sped or stopped from outside (TIME-MODEL.md §3)"] : []),
   ];
 
   return {

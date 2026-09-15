@@ -3004,6 +3004,8 @@ Against 78 improvable journeys, none of them crossing a town, on `LADDER_VERSION
 
 **Found building P2M2**, where a closed-loop replan is queued mid-run and the order of a tie becomes something the loop relies on rather than something it happens to do.
 
+*Held by the queue since P2M8.* Adaptive tick cadence schedules each tick after the one before, so ticks can no longer all be queued before the plans; the event queue gained a rank that orders events at one instant before insertion order, ticks ranking first. The open-loop golden hashes did not move.
+
 **Measured before fixing: no traveller's outcome changed**, on the committed world, `R3a` and `R4a`. A tick at a plan's own instant tells the player what a plan thirty minutes ahead rarely needs, so the defect was real and inert. **Fixed by queueing the plans after the ticks**, which is the whole of the rule; anything queued later, a closed-loop replan included, lands behind the tick at its instant for the same reason. `walking-skeleton.test.ts` requires the tick first at every shared instant, and requires that such an instant exists, so the check cannot pass by never being exercised. The log's record order changed with it, so open-loop golden hashes taken before 2026-09-14 do not match.
 
 ---
@@ -3054,7 +3056,7 @@ Against 78 improvable journeys, none of them crossing a town, on `LADDER_VERSION
 
 ---
 
-## 72. What the player contract specifies and the simulator has never done — `open, owned by P2M8`
+## 72. What the player contract specifies and the simulator has never done — `fixed 2026-09-15 but for three, which change what is scored or wait for catalogue E`
 
 **Found planning P2M8**, by checking the contract against the code before designing a dashboard on top of it. None of these is referenced anywhere in `src/`:
 
@@ -3064,6 +3066,8 @@ Against 78 improvable journeys, none of them crossing a town, on `LADDER_VERSION
 * **The brief's `wall_budget_s`, `pause_queue_depth` and `preparation.wall_budget_s`** (§6.1). The brief carries none of them.
 
 **And five more, found at P2M7** while writing the schemas the portal publishes: capabilities do not gate plans or replans, only ticks; `preferences` on a plan request is never sent; a tick response's `next_interval_sim_s` is ignored; `run-start` carries no brief digest and `run-end` no reason but `completed`; and a notification's `itinerary` is accepted and discarded. **The list lives in one place now** — `NOT_YET_HONOURED` in `src/schema/src/contract/session.ts` — rendered into both contract documents and onto the portal's *Not yet honoured* page, so a player reading the contract is told what not to rely on, and an item leaves the list by being built.
+
+**Fixed at P2M8 (2026-09-15)**: the run token and `X-TNS-Contract`, the version check before `run-start`, manual pause with its queue and `503`, the brief's budgets, the preparation budget, capability gating, adaptive tick cadence, the brief digest and `run-end` reasons, the consecutive-failure abort, and a wall guard breached in `virtual` making a run `invalid` — each with a test in `src/server/test/contract-enforcement.test.ts` or `control.test.ts`, and none moving an open-loop golden hash. **Three remain on `NOT_YET_HONOURED`**: plan `preferences` and a notification's `itinerary`, which change what is scored and need their own measurement, and per-operator auth schemes, which are catalogue E's.
 
 **Why it did not bite.** Every run so far was a local script against a reference player, which neither checks versions nor needs guarding. **Why it must be closed before the playtest:** a stranger's player, a dashboard able to pause, and — at P2M9 — several solutions in one session each depend on at least one of them, and the last cannot attribute a call to a solution without the token.
 

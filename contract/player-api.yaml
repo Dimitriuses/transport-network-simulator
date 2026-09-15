@@ -14,15 +14,9 @@ info:
 
     **Specified and not yet honoured** (KNOWN-ISSUES.md #72):
 
-    * The run token: `Authorization: Bearer <run token>` between simulator, player and control API, and `TNS_TOKEN`. Nothing is authenticated. (PLAYER-CONTRACT.md §3)
-    * `X-TNS-Contract` on every request, and an abort before the run on a version mismatch. (PLAYER-CONTRACT.md §3)
-    * Capabilities gate plans and replans. Only `tick` is gated: a player that does not claim `plan` is still sent plans. (PLAYER-CONTRACT.md §5.2)
     * `preferences` on a plan request. (PLAYER-CONTRACT.md §5.4)
-    * `next_interval_sim_s` in a tick response: the cadence declared in `/v1/identity` is used for the whole run. (PLAYER-CONTRACT.md §5.6)
-    * The brief's digest on `run-start`, and any `run-end` reason other than `completed`. (PLAYER-CONTRACT.md §5.7)
-    * `wall_budget_s`, `pause_queue_depth` and `preparation.wall_budget_s` in the brief, and per-operator auth schemes other than `none`. (PLAYER-CONTRACT.md §6.1)
+    * Per-operator auth schemes other than `none`: every operator API is open, and only the control API and your service are guarded by the run token. (PLAYER-CONTRACT.md §6.1)
     * `itinerary` on a notification: it is accepted and ignored. (PLAYER-CONTRACT.md §6.3)
-    * Manual pause: `state` never becomes `paused`, and nothing queues. (PLAYER-CONTRACT.md §6.4)
   license:
     name: MIT
     identifier: MIT
@@ -909,6 +903,11 @@ components:
         status:
           type: string
           const: ok
+        next_interval_sim_s:
+          description: Ask for the next tick this many simulated seconds after this one. Never below the brief's `min_tick_interval_sim_s`; left out, the cadence stays as it was.
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
       required:
         - status
       additionalProperties: false
@@ -918,8 +917,13 @@ components:
       properties:
         run_id:
           type: string
+        brief_digest:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          description: SHA-256 of the brief's JSON as `/v1/brief` serves it, so a player can tell it read the brief this run is using.
       required:
         - run_id
+        - brief_digest
       additionalProperties: false
       description: The run has started. Responses are ignored and never scored.
     RunEndNotice:
@@ -971,6 +975,22 @@ components:
         run:
           type: object
           properties:
+            wall_budget_s:
+              anyOf:
+                - type: number
+                  exclusiveMinimum: 0
+                - type: "null"
+              description: The whole run's wall-clock budget in `virtual`; exhausting it makes the run `invalid`. Null in `realtime` and `scaled`, whose length is the day's.
+            pause_queue_depth:
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 9007199254740991
+              description: How many operator calls may wait out a manual pause; past it they are refused with `503`.
+            abort_after_consecutive_failures:
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 9007199254740991
+              description: After this many unanswered obligations in a row the run carries on without you, as `player_failure`.
             mode:
               type: string
               enum:
@@ -1000,11 +1020,24 @@ components:
                 - sim
                 - wall
           required:
+            - wall_budget_s
+            - pause_queue_depth
+            - abort_after_consecutive_failures
             - mode
             - cold_start
             - tier
             - time_mode
             - latency_mode
+          additionalProperties: false
+        preparation:
+          type: object
+          properties:
+            wall_budget_s:
+              type: number
+              exclusiveMinimum: 0
+              description: How long, in wall seconds, you may take to report `ready` on `/v1/health` before the run will not start.
+          required:
+            - wall_budget_s
           additionalProperties: false
         operators:
           type: array
@@ -1069,6 +1102,7 @@ components:
         - run_id
         - world
         - run
+        - preparation
         - operators
         - obligations
         - limits

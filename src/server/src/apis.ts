@@ -6,16 +6,21 @@
 // determinism rules bind src/core and src/router, not the servers. What the
 // servers must never do is let any of that reach the model.
 
-import { createServer, type Server, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createHash } from "node:crypto";
 import type { World } from "@tns/schema";
 import { renderSimTime, parseEpoch, CONTRACT_VERSION, NotifyRequest } from "@tns/schema";
 import { projectOperator, projectRealtime, operatorDocs, type Projection } from "@tns/projections";
 import type { Disruption } from "@tns/core";
 import { operatorSite } from "@tns/portal";
+import {
+  ABORT_AFTER_CONSECUTIVE_FAILURES,
+  MIN_TICK_INTERVAL_S,
+  PREPARATION_WALL_BUDGET_S,
+  RUN_WALL_BUDGET_S,
+} from "./limits.ts";
 
-/** The fastest a player may ask for ticks (PLAYER-CONTRACT.md §5.6). Published in the brief. */
-export const MIN_TICK_INTERVAL_S = 5;
+export { MIN_TICK_INTERVAL_S } from "./limits.ts";
 
 /**
  * Whether a request wants pages rather than JSON: a browser does, an HTTP
@@ -66,6 +71,12 @@ export function startOperatorApi(
   readTau: () => number,
   onCall: (call: OperatorCall) => void,
   port: number,
+  /**
+   * Whether a call may be served now. During a manual pause it waits and then
+   * says yes, or says no when too many are already waiting — a `503`
+   * (PLAYER-CONTRACT.md §6.4, `control.ts`). Absent, every call is served.
+   */
+  admit?: () => Promise<boolean>,
 ): Promise<Server> {
   const manifest = world.manifest.operators.find((o) => o.id === operatorId)!.manifest as {
     realtime: Parameters<typeof projectRealtime>[3];
@@ -107,6 +118,17 @@ export function startOperatorApi(
   const docsHash = createHash("sha256").update(docsBody).digest("hex").slice(0, 16);
 
   const server = createServer((req, res) => {
+    if (!admit) return serve(req, res);
+    void admit().then((ok) => {
+      if (ok) return serve(req, res);
+      const bytes = send(res, 503, { title: "service unavailable", status: 503 });
+      onCall({ tau: readTau(), endpoint: `${req.method} ${req.url ?? "/"}`, status: 503, bytes, bodyHash: "", body: "" });
+    });
+  });
+
+  // τ is read when a call is served, not when it arrived: a call that waited out
+  // a pause is answered with the world as it stands after it.
+  function serve(req: IncomingMessage, res: ServerResponse): void {
     const url = new URL(req.url ?? "/", "http://localhost");
     const tau = readTau();
 
@@ -191,7 +213,7 @@ export function startOperatorApi(
       bodyHash: "",
       body: JSON.stringify(notFound),
     });
-  });
+  }
 
   return new Promise((resolve, reject) => {
     server.on("error", reject);
@@ -206,6 +228,92 @@ export interface NotificationRecord {
   readonly message: string;
 }
 
+
+export interface BriefAccess {
+  /** How many operator calls may wait out a manual pause. */
+  readonly pauseQueueDepth: number;
+}
+
+type Pacing = { readonly mode: "virtual" | "realtime" | "scaled"; readonly speed: number };
+type Loop = { readonly mode: "open" | "closed"; readonly appUserFraction: number };
+
+/**
+ * The brief, as `/v1/brief` serves it (PLAYER-CONTRACT.md §6.1).
+ *
+ * A function rather than a literal inside the handler (P2M8), so `run-start`
+ * can carry a digest of exactly what a player reads.
+ */
+export function buildBrief(
+  world: World,
+  operatorBaseUrls: ReadonlyMap<string, string>,
+  pacing: Pacing,
+  loop: Loop,
+  access: BriefAccess,
+): Record<string, unknown> {
+  return {
+    contract_version: CONTRACT_VERSION,
+    run_id: "m1-demo",
+    world: {
+      seed: world.manifest.seed,
+      engine_version: world.manifest.engineVersion,
+      timezone: world.manifest.timezone,
+      // Stated here and nowhere else. An operator publishing local time
+      // with no offset is undecodable without it (catalogue §2.1 B).
+      utc_offset: (world.manifest.utcOffsetS < 0 ? "-" : "+") +
+        String(Math.floor(Math.abs(world.manifest.utcOffsetS) / 3600)).padStart(2, "0") +
+        ":" +
+        String(Math.floor((Math.abs(world.manifest.utcOffsetS) % 3600) / 60)).padStart(2, "0"),
+    },
+    run: {
+      // Budgets the simulator enforces (limits.ts). A wall budget means
+      // something only where wall time is the machine's, not the day's.
+      wall_budget_s: pacing.mode === "virtual" ? RUN_WALL_BUDGET_S : null,
+      pause_queue_depth: access.pauseQueueDepth,
+      abort_after_consecutive_failures: ABORT_AFTER_CONSECUTIVE_FAILURES,
+      mode: loop.mode === "closed" ? "closed_loop" : "open_loop",
+      ...(loop.mode === "closed" ? { app_user_fraction: loop.appUserFraction } : {}),
+      cold_start: true,
+      tier: world.manifest.tier,
+      time_mode: pacing.mode,
+      latency_mode: "none",
+    },
+    preparation: { wall_budget_s: PREPARATION_WALL_BUDGET_S },
+    // Where the operators are and how to reach them. Nothing about their
+    // schemas, their quality, or how their data relates — discovering that
+    // is the game (PLAYER-CONTRACT.md §6.1).
+    operators: world.manifest.operators.map((op) => ({
+      id: op.id,
+      name: op.name,
+      base_url: operatorBaseUrls.get(op.id) ?? "",
+      docs_url: `${operatorBaseUrls.get(op.id) ?? ""}/docs`,
+      auth: { scheme: "none" },
+    })),
+    obligations: ["plan", "replan", "tick", "notify"],
+    // Rules of the world, not facts about the operators. A traveller will
+    // not walk further than `max_walk_m` to reach their first stop or from
+    // their last, and walks at `walk_speed_mps` — and the simulator
+    // *enforces* both when it charges an itinerary.
+    //
+    // Published here because until P0M9 it did not publish them at all,
+    // and a rule the world enforces but never states is not a conflict to
+    // be discovered, it is an unfair world. The reference player searched
+    // 500 m for a boarding point while the simulator refused anything past
+    // 400 m, so it planned journeys that were rejected as
+    // `origin_unreachable` — 49 of 132 travellers once the city grew, at
+    // which point declining every obligation outscored trying.
+    limits: {
+      min_tick_interval_sim_s: MIN_TICK_INTERVAL_S,
+      max_walk_m: world.manifest.maxWalkM,
+      walk_speed_mps: world.manifest.walkSpeedMps,
+    },
+  };
+}
+
+/** SHA-256 of the brief's JSON, as served (PLAYER-CONTRACT.md §5.7). */
+export function briefDigest(brief: Record<string, unknown>): string {
+  return createHash("sha256").update(JSON.stringify(brief)).digest("hex");
+}
+
 /** The control API: the brief, the simulated clock, and dissemination. */
 export function startControlApi(
   world: World,
@@ -214,8 +322,14 @@ export function startControlApi(
   operatorBaseUrls: ReadonlyMap<string, string>,
   onNotify: (n: NotificationRecord) => void,
   port: number,
-  /** What the brief and `/v1/clock` report. The run's own, never assumed (TIME-MODEL.md §2). */
-  pacing: { readonly mode: "virtual" | "realtime" | "scaled"; readonly speed: number } = {
+  /**
+   * What the brief and `/v1/clock` report. The run's own, never assumed
+   * (TIME-MODEL.md §2) — and read on every request, because a run's mode and
+   * speed can change while it runs (P2M8).
+   */
+  pacingNow:
+    | { readonly mode: "virtual" | "realtime" | "scaled"; readonly speed: number }
+    | (() => { readonly mode: "virtual" | "realtime" | "scaled"; readonly speed: number }) = {
     mode: "virtual",
     speed: 1,
   },
@@ -228,64 +342,42 @@ export function startControlApi(
     mode: "open",
     appUserFraction: 1,
   },
+  /**
+   * The run token, when the run has one (PLAYER-CONTRACT.md §3): every request
+   * must then carry `Authorization: Bearer <token>` and `X-TNS-Contract`.
+   */
+  access: BriefAccess & { readonly token?: string } = { pauseQueueDepth: 256 },
 ): Promise<Server> {
   const anchor = parseEpoch(world.manifest.worldEpochIso);
 
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
+    const pacing = typeof pacingNow === "function" ? pacingNow() : pacingNow;
+
+    // The stray caller §3 names: without the run's token nobody reads the brief
+    // or warns a traveller in a scored run. The clock is guarded too: it is
+    // unmetered, not public.
+    if (access.token !== undefined) {
+      if (req.headers.authorization !== `Bearer ${access.token}`) {
+        res.setHeader("www-authenticate", 'Bearer realm="control"');
+        return void send(res, 401, {
+          title: "unauthorized",
+          status: 401,
+          detail: "this run requires `Authorization: Bearer <run token>` (PLAYER-CONTRACT.md §3)",
+        });
+      }
+      const version = req.headers["x-tns-contract"];
+      if (version !== CONTRACT_VERSION) {
+        return void send(res, 400, {
+          title: "contract version",
+          status: 400,
+          detail: `send \`X-TNS-Contract: ${CONTRACT_VERSION}\`; got ${version === undefined ? "none" : JSON.stringify(version)}`,
+        });
+      }
+    }
 
     if (req.method === "GET" && url.pathname === "/v1/brief") {
-      return void send(res, 200, {
-        contract_version: CONTRACT_VERSION,
-        run_id: "m1-demo",
-        world: {
-          seed: world.manifest.seed,
-          engine_version: world.manifest.engineVersion,
-          timezone: world.manifest.timezone,
-          // Stated here and nowhere else. An operator publishing local time
-          // with no offset is undecodable without it (catalogue §2.1 B).
-          utc_offset: (world.manifest.utcOffsetS < 0 ? "-" : "+") +
-            String(Math.floor(Math.abs(world.manifest.utcOffsetS) / 3600)).padStart(2, "0") +
-            ":" +
-            String(Math.floor((Math.abs(world.manifest.utcOffsetS) % 3600) / 60)).padStart(2, "0"),
-        },
-        run: {
-          mode: loop.mode === "closed" ? "closed_loop" : "open_loop",
-          ...(loop.mode === "closed" ? { app_user_fraction: loop.appUserFraction } : {}),
-          cold_start: true,
-          tier: world.manifest.tier,
-          time_mode: pacing.mode,
-          latency_mode: "none",
-        },
-        // Where the operators are and how to reach them. Nothing about their
-        // schemas, their quality, or how their data relates — discovering that
-        // is the game (PLAYER-CONTRACT.md §6.1).
-        operators: world.manifest.operators.map((op) => ({
-          id: op.id,
-          name: op.name,
-          base_url: operatorBaseUrls.get(op.id) ?? "",
-          docs_url: `${operatorBaseUrls.get(op.id) ?? ""}/docs`,
-          auth: { scheme: "none" },
-        })),
-        obligations: ["plan", "replan", "tick", "notify"],
-        // Rules of the world, not facts about the operators. A traveller will
-        // not walk further than `max_walk_m` to reach their first stop or from
-        // their last, and walks at `walk_speed_mps` — and the simulator
-        // *enforces* both when it charges an itinerary.
-        //
-        // Published here because until P0M9 it did not publish them at all,
-        // and a rule the world enforces but never states is not a conflict to
-        // be discovered, it is an unfair world. The reference player searched
-        // 500 m for a boarding point while the simulator refused anything past
-        // 400 m, so it planned journeys that were rejected as
-        // `origin_unreachable` — 49 of 132 travellers once the city grew, at
-        // which point declining every obligation outscored trying.
-        limits: {
-          min_tick_interval_sim_s: MIN_TICK_INTERVAL_S,
-          max_walk_m: world.manifest.maxWalkM,
-          walk_speed_mps: world.manifest.walkSpeedMps,
-        },
-      });
+      return void send(res, 200, buildBrief(world, operatorBaseUrls, pacing, loop, access));
     }
 
     if (req.method === "GET" && url.pathname === "/v1/clock") {

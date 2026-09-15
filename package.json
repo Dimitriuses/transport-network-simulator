@@ -47,6 +47,7 @@
     "headroom": "node --disable-warning=ExperimentalWarning src/scoring/scripts/headroom.ts",
     "view": "node --disable-warning=ExperimentalWarning src/viewer/scripts/view.ts",
     "portal": "node --disable-warning=ExperimentalWarning src/portal/scripts/portal.ts",
+    "sim": "node --disable-warning=ExperimentalWarning src/sim/scripts/sim.ts",
     "attribute": "node --disable-warning=ExperimentalWarning src/viewer/scripts/attribute.ts"
   },
   "devDependencies": {

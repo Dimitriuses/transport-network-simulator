@@ -35,14 +35,30 @@ export const TickRequest = z
   });
 
 export const TickResponse = z
-  .object({ status: z.literal("ok") })
+  .object({
+    status: z.literal("ok"),
+    next_interval_sim_s: z
+      .int()
+      .positive()
+      .optional()
+      .describe(
+        "Ask for the next tick this many simulated seconds after this one. Never below the " +
+          "brief's `min_tick_interval_sim_s`; left out, the cadence stays as it was.",
+      ),
+  })
   .meta({
     id: "TickResponse",
     description: "Any 2xx acknowledges the tick; any other status is recorded as `player_error`.",
   });
 
 export const RunStartNotice = z
-  .object({ run_id: z.string() })
+  .object({
+    run_id: z.string(),
+    brief_digest: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .describe("SHA-256 of the brief's JSON as `/v1/brief` serves it, so a player can tell it read the brief this run is using."),
+  })
   .meta({ id: "RunStartNotice", description: "The run has started. Responses are ignored and never scored." });
 
 export const RunEndReason = z.enum(["completed", "aborted", "player_failure", "invalid"]);
@@ -75,6 +91,22 @@ export const Brief = z
         .describe("The world's offset from UTC. Stated here and nowhere else."),
     }),
     run: z.object({
+      wall_budget_s: z
+        .number()
+        .positive()
+        .nullable()
+        .describe(
+          "The whole run's wall-clock budget in `virtual`; exhausting it makes the run `invalid`. " +
+            "Null in `realtime` and `scaled`, whose length is the day's.",
+        ),
+      pause_queue_depth: z
+        .int()
+        .positive()
+        .describe("How many operator calls may wait out a manual pause; past it they are refused with `503`."),
+      abort_after_consecutive_failures: z
+        .int()
+        .positive()
+        .describe("After this many unanswered obligations in a row the run carries on without you, as `player_failure`."),
       mode: z.enum(["open_loop", "closed_loop"]),
       app_user_fraction: z
         .number()
@@ -86,6 +118,12 @@ export const Brief = z
       tier: z.int(),
       time_mode: z.enum(["virtual", "realtime", "scaled"]),
       latency_mode: z.enum(["none", "sim", "wall"]),
+    }),
+    preparation: z.object({
+      wall_budget_s: z
+        .number()
+        .positive()
+        .describe("How long, in wall seconds, you may take to report `ready` on `/v1/health` before the run will not start."),
     }),
     operators: z.array(BriefOperator),
     obligations: z.array(z.enum(["plan", "replan", "tick", "notify"])),
@@ -144,42 +182,18 @@ export const NotifyAccepted = z
  */
 export const NOT_YET_HONOURED: readonly { readonly what: string; readonly spec: string }[] = [
   {
-    what: "The run token: `Authorization: Bearer <run token>` between simulator, player and control API, and `TNS_TOKEN`. Nothing is authenticated.",
-    spec: "PLAYER-CONTRACT.md §3",
-  },
-  {
-    what: "`X-TNS-Contract` on every request, and an abort before the run on a version mismatch.",
-    spec: "PLAYER-CONTRACT.md §3",
-  },
-  {
-    what: "Capabilities gate plans and replans. Only `tick` is gated: a player that does not claim `plan` is still sent plans.",
-    spec: "PLAYER-CONTRACT.md §5.2",
-  },
-  {
     what: "`preferences` on a plan request.",
     spec: "PLAYER-CONTRACT.md §5.4",
   },
   {
-    what: "`next_interval_sim_s` in a tick response: the cadence declared in `/v1/identity` is used for the whole run.",
-    spec: "PLAYER-CONTRACT.md §5.6",
-  },
-  {
-    what: "The brief's digest on `run-start`, and any `run-end` reason other than `completed`.",
-    spec: "PLAYER-CONTRACT.md §5.7",
-  },
-  {
-    what: "`wall_budget_s`, `pause_queue_depth` and `preparation.wall_budget_s` in the brief, and per-operator auth schemes other than `none`.",
+    what: "Per-operator auth schemes other than `none`: every operator API is open, and only the control API and your service are guarded by the run token.",
     spec: "PLAYER-CONTRACT.md §6.1",
   },
   {
     what: "`itinerary` on a notification: it is accepted and ignored.",
     spec: "PLAYER-CONTRACT.md §6.3",
   },
-  {
-    what: "Manual pause: `state` never becomes `paused`, and nothing queues.",
-    spec: "PLAYER-CONTRACT.md §6.4",
-  },
-];
+]
 
 export type TickRequest = z.infer<typeof TickRequest>;
 export type TickResponse = z.infer<typeof TickResponse>;

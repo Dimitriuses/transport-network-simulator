@@ -300,6 +300,8 @@ Implemented in `src/scoring` as `impossibleTravellers`. **Both checks should run
 
 **Q19 — replay for debugging: yes.** Record the event stream *and every player response*. Replaying the recorded responses against the same seed reproduces the run exactly, because the only non-deterministic input has been captured. **A closed-loop run is therefore not reproducible live, but is perfectly reproducible post hoc** — which is what debugging actually needs.
 
+**A run driven from outside is not comparable either** (P2M8). A pause, a change of mode or speed, or a stop is written into the run log as it lands, and the scorecard names it among its reasons. A run stopped from outside, or ended `invalid`, is kept and never scored; one that ended `player_failure` is scored, with the reason beside it.
+
 **Closed-loop scores** are computed with the same machinery and marked `non-comparable`. They are useful for tracking your own progress against yourself; they must never appear on a leaderboard beside open-loop results. The distinction is carried in the score identity via `run.mode`.
 
 ### DECIDED 2026-09-14 (P2M2) — what a closed-loop run is scored against

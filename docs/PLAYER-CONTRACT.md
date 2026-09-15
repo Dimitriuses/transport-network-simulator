@@ -99,6 +99,8 @@ Channels 1 and 3 make the player an HTTP **client**; channel 2 makes it an HTTP 
 
 **Version negotiation.** Every request in both directions carries `X-TNS-Contract: 0.3`. The player declares supported versions in `/v1/identity`. On mismatch the simulator aborts before the run starts. Negotiation never happens mid-run.
 
+**Honoured since P2M8 (2026-09-15)**, with the run token above (`KNOWN-ISSUES.md` #72). Every request the simulator sends carries both headers; the control API refuses a request without the run's token (`401`) or without this contract's version (`400`); a player that does not list `0.3` in `contract_versions` never receives `run-start`. `npm run demo` and `npm run sim` always run with a token. A harness driven in-process by a test or an instrument may run without one, and then nothing is authenticated.
+
 **Trace context.** The simulator sends a W3C `traceparent` header on every obligation. A player declaring the `tracing` capability echoes it on the operator API calls it makes while handling that obligation, which lets the run log attribute ingestion to the handler that caused it (`OBSERVABILITY.md` §3). Optional: in `virtual` mode the simulator can attribute calls temporally without it, since the clock is paused for the handler's duration and the simulator serves both sides. Declining `tracing` costs diagnostic precision, never correctness or score. *Sent since P2M3 (2026-09-14); until then the simulator sent none (`KNOWN-ISSUES.md` #69).* The trace id is derived from the run and the span id from the request id, so a replayed obligation carries the header it carried the first time.
 
 ---
@@ -130,6 +132,8 @@ Channels 1 and 3 make the player an HTTP **client**; channel 2 makes it an HTTP 
 **Preparation is free, and bounded rather than scored.** *Decided at P0M2.*
 
 Preparation cost is dominated by the size of the world, which the player does not choose. Scoring it would penalise a solution for facing a bigger city — measuring the world rather than the work. The `preparation.wall_budget_s` cap already prevents abuse: a player cannot buy an advantage with unlimited preparation, it simply must finish.
+
+**Built at P2M8, and how the lifecycle above is read.** Steps 4 and 7 describe one interval: the APIs are up, the clock is frozen, and the player prepares — reads the brief, ingests — and reports `ready` on `/v1/health` when it has. `preparation.wall_budget_s` (300 s) bounds that wait; a player not ready within it does not start. A simulation session (`npm run sim`) then holds, still frozen, until someone presses Start, and only then sends `run-start`. The reference players already worked this way: they report `starting` until they have read the brief.
 
 The genuinely interesting version of this question is not preparation at all. It is **recovery**: when an operator's schema drifts mid-run at Tier 5, how fast can a solution rebuild its model *while the world keeps moving*? That is worth measuring, it is a real operational property, and it is a Phase 3 concern. Revisit there — but as recovery, not as preparation.
 
@@ -169,7 +173,7 @@ Every obligation carries both budgets from `TIME-MODEL.md` §4:
 }
 ```
 
-`capabilities` lets a partial solution be honest about what it does not implement (**Q5**). The simulator will not issue obligations a player has not claimed, and the scorer records unclaimed capabilities as *forgone* rather than *failed* — so a Tier-0 player that only plans is a valid, scorable participant.
+`capabilities` lets a partial solution be honest about what it does not implement (**Q5**). The simulator will not issue obligations a player has not claimed, and the scorer records unclaimed capabilities as *forgone* rather than *failed* — so a Tier-0 player that only plans is a valid, scorable participant. *Honoured since P2M8:* an unclaimed plan or replan is never sent and is recorded as `unclaimed`, with the traveller acting without the player.
 
 `tick.interval_sim_s` must be ≥ `brief.limits.min_tick_interval_sim_s`. Omit the `tick` capability to receive no ticks at all — legal, and appropriate for a static-timetable Tier 0/1 world.
 
@@ -258,7 +262,7 @@ The player performs its operator polling **inside this handler**. The simulated 
 { "status": "ok", "next_interval_sim_s": 15 }
 ```
 
-`next_interval_sim_s` is optional and lets the player **adapt its cadence mid-run** — poll harder around a disruption, back off when quiet. This makes polling strategy a live decision rather than a static config value, and it is one of the more interesting trade-offs available to a player: poll often and pay in API cost, poll rarely and pay in staleness.
+`next_interval_sim_s` is optional and lets the player **adapt its cadence mid-run** — poll harder around a disruption, back off when quiet. This makes polling strategy a live decision rather than a static config value, and it is one of the more interesting trade-offs available to a player: poll often and pay in API cost, poll rarely and pay in staleness. *Honoured since P2M8:* ticks are scheduled one at a time, and a positive integer here sets the gap to the next, never below `limits.min_tick_interval_sim_s`. At an instant holding both, a tick still comes first — kept by the event queue's rank rather than by the order ticks were queued in.
 
 **No simulated deadline.** A tick consumes no simulated time, so only `guard_wall_s` applies.
 
@@ -268,7 +272,7 @@ The player performs its operator polling **inside this handler**. The simulated 
 
 ### 5.7 `POST /v1/run-start` and `POST /v1/run-end`
 
-Lifecycle signals. `run-start` carries the run id and the brief's digest; `run-end` carries the reason (`completed`, `aborted`, `player_failure`, `invalid`). Responses are ignored — these are notifications, and failing to respond is not scored.
+Lifecycle signals. `run-start` carries the run id and the brief's digest; `run-end` carries the reason (`completed`, `aborted`, `player_failure`, `invalid`). Responses are ignored — these are notifications, and failing to respond is not scored. *The digest is SHA-256 of the brief's JSON as `/v1/brief` serves it, since P2M8.*
 
 ---
 
@@ -357,7 +361,7 @@ These are guarantees about the world's physics, not hints about the answers. Pub
 
 **What is *not* published:** each operator's `sₖ`, its defect set, its true coverage. Those are exactly what the player is there to discover.
 
-**Manual pause.** An operator or monitoring UI may pause the world. While paused, operator API requests **queue** FIFO per connection and are served after resume against post-resume state; they do not return stale data and they do not fail. Queue depth is `run.pause_queue_depth`; **overflow returns `503`**, a legitimate operator behaviour the player should already handle. `/v1/clock` never queues, and reports `state: "paused"`.
+**Manual pause.** An operator or monitoring UI may pause the world. While paused, operator API requests **queue** FIFO per connection and are served after resume against post-resume state; they do not return stale data and they do not fail. Queue depth is `run.pause_queue_depth`; **overflow returns `503`**, a legitimate operator behaviour the player should already handle. `/v1/clock` never queues, and reports `state: "paused"`. *Built at P2M8: the pause lands between obligations, and the queue is one FIFO for the run, its depth counted across connections (`TIME-MODEL.md` §3).*
 
 ---
 
@@ -435,7 +439,7 @@ This is deliberately the *good* practice the operator APIs conspicuously fail to
 
 **No automatic retries.** A failure is a deterministic, scored outcome. Retrying would make attempt counts depend on player behaviour, reintroducing exactly the non-determinism open-loop mode exists to eliminate. Robustness is part of what is measured: a player that crashes on one edge case should lose points, not lose the run.
 
-**Abort threshold.** The run aborts after `run.abort_after_consecutive_failures` (default 50) consecutive failures, recorded as `player_failure`. This distinguishes "buggy" from "not running at all".
+**Abort threshold.** The run aborts after `run.abort_after_consecutive_failures` (default 50) consecutive failures, recorded as `player_failure`. This distinguishes "buggy" from "not running at all". *Built at P2M8: the day runs on without the player, and the run is scored (`TIME-MODEL.md` §9).*
 
 **Wall budget.** Exhausting `run.wall_budget_s`, or breaching `guard_wall_s` in a way the harness treats as a hang, yields an **`invalid`** run rather than a bad score (`TIME-MODEL.md` §9) — machine-dependent outcomes must never be scored as though they were properties of the solution.
 

@@ -16,10 +16,12 @@ import { MAX_REPLANS } from "@tns/router";
 import { NON_ARRIVAL_PENALTY_S, WAIT_WEIGHT } from "@tns/scoring";
 import { NOT_YET_HONOURED, controlApiDocument, playerApiDocument, type World } from "@tns/schema";
 import {
+  ABORT_AFTER_CONSECUTIVE_FAILURES,
   GUARD_WALL_S,
   MIN_TICK_INTERVAL_S,
   PLAN_DEADLINE_S,
   PLAN_LEAD_S,
+  PREPARATION_WALL_BUDGET_S,
   startOperatorApi,
 } from "@tns/server";
 import { OPERATOR_CHROME, buildSite, fieldRows, operatorPageBody, type JsonSchema } from "../src/index.ts";
@@ -37,6 +39,8 @@ const NUMBERS = {
   minTickIntervalS: MIN_TICK_INTERVAL_S,
   nonArrivalS: NON_ARRIVAL_PENALTY_S,
   waitWeight: WAIT_WEIGHT,
+  preparationS: PREPARATION_WALL_BUDGET_S,
+  abortAfterFailures: ABORT_AFTER_CONSECUTIVE_FAILURES,
 };
 
 const decode = (s: string) =>
@@ -129,6 +133,8 @@ test("the guide quotes the numbers the simulator enforces, and lists every gap",
   assert.ok(text("/guide/run").includes(`You have ${PLAN_DEADLINE_S} simulated seconds`));
   assert.ok(text("/guide/run").includes(`you have ${GUARD_WALL_S} seconds`));
   assert.ok(text("/guide/answering").includes(`remade ${MAX_REPLANS} times`));
+  assert.ok(text("/guide/run").includes(`You have ${PREPARATION_WALL_BUDGET_S / 60} minutes`));
+  assert.ok(text("/guide/run").includes(`After ${ABORT_AFTER_CONSECUTIVE_FAILURES} unanswered obligations in a row`));
   assert.ok(text("/guide/scoring").includes(`${NON_ARRIVAL_PENALTY_S / 60} minutes`));
   const gaps = decode(site.pages.get("/guide/gaps")!.html);
   for (const g of NOT_YET_HONOURED) {

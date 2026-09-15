@@ -10,6 +10,7 @@
 // only sends it HTTP (TECHNICAL-RESEARCH.md §10).
 
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -91,6 +92,17 @@ async function main(): Promise<number> {
   // is P2M8's; this is the smallest thing that lets a solution be run at all.
   const ownPlayer = process.env["TNS_PLAYER_URL"];
   const playerBaseUrl = ownPlayer ?? `http://127.0.0.1:${PLAYER_PORT}`;
+  // **Every run has a token** (PLAYER-CONTRACT.md §3). Your own player has to
+  // know it before the run starts, so you choose it; a reference player is
+  // handed one.
+  const token = process.env["TNS_TOKEN"] ?? (ownPlayer ? null : randomBytes(18).toString("base64url"));
+  if (token === null) {
+    console.error(
+      "TNS_PLAYER_URL needs TNS_TOKEN: choose a run token, start your player with it, and give the demo the same one.\n" +
+        "Your player sends it as `Authorization: Bearer <token>` to the control API and should refuse requests without it.",
+    );
+    return 2;
+  }
   if (ownPlayer) {
     console.log(`player: ${ownPlayer} (yours) · control API http://127.0.0.1:${CONTROL_PORT}`);
   }
@@ -106,6 +118,7 @@ async function main(): Promise<number> {
             ...process.env,
             TNS_PLAYER_PORT: String(PLAYER_PORT),
             TNS_CONTROL_URL: `http://127.0.0.1:${CONTROL_PORT}`,
+            TNS_TOKEN: token,
             ...(process.env["TNS_PLAYER_MODE"] ? { TNS_PLAYER_MODE: process.env["TNS_PLAYER_MODE"] } : {}),
           },
         },
@@ -126,6 +139,7 @@ async function main(): Promise<number> {
     const log = await runOpenLoop({
       world,
       playerBaseUrl,
+      token,
       operatorPort: OPERATOR_PORT,
       controlPort: CONTROL_PORT,
       ...timeOptions(),

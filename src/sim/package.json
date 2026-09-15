@@ -1,0 +1,18 @@
+{
+  "name": "@tns/sim",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The simulation server: one session at a time, driven from a live dashboard",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tns/schema": "*",
+    "@tns/core": "*",
+    "@tns/scoring": "*",
+    "@tns/server": "*",
+    "@tns/viewer": "*"
+  }
+}

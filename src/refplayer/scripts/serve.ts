@@ -37,7 +37,8 @@ const mode = (raw ?? "naive") as (typeof modes)[number];
 // fails on a port the first attempt is still holding. That is
 // `KNOWN-ISSUES.md` #46, and it turned a lost race into a permanent
 // `starting`.
-startPlayer({ port, controlUrl, mode }).catch((err: unknown) => {
+const token = process.env["TNS_TOKEN"];
+startPlayer({ port, controlUrl, mode, ...(token ? { token } : {}) }).catch((err: unknown) => {
   console.error(err);
   process.exit(1);
 });

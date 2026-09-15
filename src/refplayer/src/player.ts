@@ -471,14 +471,21 @@ export interface PlayerOptions {
    * that would have to tear the listener down to retry (`KNOWN-ISSUES.md` #46).
    */
   readonly ingestBudgetMs?: number;
+  /**
+   * The run token, `TNS_TOKEN` (PLAYER-CONTRACT.md §3). Sent on every control
+   * API call; and when set, a request from the simulator without it is
+   * refused, which is the only guard a player has against a stray caller.
+   */
+  readonly token?: string;
 }
 
 /**
  * The default wait for the control API, and it **must exceed the simulator's
- * own** `PLAYER_BOOT_BUDGET_MS` — otherwise the player gives up first and the
- * simulator reports `never became ready` for a player that stopped trying.
+ * own** wait for the player to become ready — the brief's
+ * `preparation.wall_budget_s`, 300 s — otherwise the player gives up first and
+ * the simulator reports `never became ready` for a player that stopped trying.
  */
-export const DEFAULT_INGEST_BUDGET_MS = 90_000;
+export const DEFAULT_INGEST_BUDGET_MS = 330_000;
 
 interface Held {
   travellerRef: string;
@@ -496,6 +503,11 @@ interface Held {
 }
 
 export function startPlayer(opts: PlayerOptions): Promise<Server> {
+  // What every call to the control API carries (PLAYER-CONTRACT.md §3).
+  const controlHeaders: Record<string, string> = {
+    "X-TNS-Contract": CONTRACT_VERSION,
+    ...(opts.token ? { authorization: `Bearer ${opts.token}` } : {}),
+  };
   let model: Model | null = null;
   let ready = false;
   let operators: { id: string; base_url: string }[] = [];
@@ -536,7 +548,9 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
   // The timetables are static here, so one pass is enough; that is why this
   // milestone has no ticks to re-poll on.
   const ingest = async (): Promise<void> => {
-    const brief = (await (await fetch(`${opts.controlUrl}/v1/brief`)).json()) as {
+    const briefRes = await fetch(`${opts.controlUrl}/v1/brief`, { headers: controlHeaders });
+    if (!briefRes.ok) throw new Error(`the brief answered ${briefRes.status}`);
+    const brief = (await briefRes.json()) as {
       limits?: { max_walk_m?: number; walk_speed_mps?: number };
       operators: { id: string; base_url: string }[];
     };
@@ -614,7 +628,7 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
       try {
         await fetch(`${opts.controlUrl}/v1/notify`, {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: { ...controlHeaders, "content-type": "application/json" },
           body: JSON.stringify({
             traveller_ref: h.travellerRef,
             kind: "disruption",
@@ -631,6 +645,11 @@ export function startPlayer(opts: PlayerOptions): Promise<Server> {
   const server = createServer((req, res) => {
     void (async () => {
       const url = new URL(req.url ?? "/", "http://localhost");
+
+      // A player SHOULD reject a caller without the run's token (§3).
+      if (opts.token && req.headers.authorization !== `Bearer ${opts.token}`) {
+        return json(res, 401, { title: "unauthorized", status: 401 });
+      }
 
       if (req.method === "GET" && url.pathname === "/v1/health") {
         return json(res, 200, { status: ready ? "ready" : "starting" });

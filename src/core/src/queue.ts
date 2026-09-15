@@ -1,6 +1,7 @@
 // The event queue.
 //
-// A binary heap over (τ, sequence). Ties are broken by insertion sequence, and
+// A binary heap over (τ, rank, sequence). Ties are broken by rank, then by
+// insertion sequence, and
 // that is not optional: without deterministic tie-breaking, event order at
 // equal timestamps is an implementation detail and reproducibility is gone.
 // The benchmark measured the cost at roughly a third of throughput and it is
@@ -18,6 +19,16 @@ export interface Event<T> {
 
 export class EventQueue<T> {
   #tau: number[] = [];
+  /**
+   * Which of two events at one instant goes first, before insertion order.
+   *
+   * Added at P2M8, when ticks began to be scheduled one at a time: until then
+   * "a tick at an obligation's instant comes first" (PLAYER-CONTRACT.md §5.6)
+   * was kept by queueing every tick of the day before any plan, which a tick
+   * rescheduled mid-run cannot do (`KNOWN-ISSUES.md` #67). A rule the order of
+   * `push` calls happened to keep is now a rule the queue keeps.
+   */
+  #rank: number[] = [];
   #seq: number[] = [];
   #payload: T[] = [];
   #next = 0;
@@ -29,17 +40,23 @@ export class EventQueue<T> {
   #less(i: number, j: number): boolean {
     const ti = this.#tau[i]!;
     const tj = this.#tau[j]!;
-    return ti < tj || (ti === tj && this.#seq[i]! < this.#seq[j]!);
+    if (ti !== tj) return ti < tj;
+    const ri = this.#rank[i]!;
+    const rj = this.#rank[j]!;
+    return ri < rj || (ri === rj && this.#seq[i]! < this.#seq[j]!);
   }
 
   #swap(i: number, j: number): void {
     [this.#tau[i], this.#tau[j]] = [this.#tau[j]!, this.#tau[i]!];
+    [this.#rank[i], this.#rank[j]] = [this.#rank[j]!, this.#rank[i]!];
     [this.#seq[i], this.#seq[j]] = [this.#seq[j]!, this.#seq[i]!];
     [this.#payload[i], this.#payload[j]] = [this.#payload[j]!, this.#payload[i]!];
   }
 
-  push(tau: number, payload: T): void {
+  /** `rank` orders events at one instant: lower first. Defaults to 0. */
+  push(tau: number, payload: T, rank = 0): void {
     this.#tau.push(tau);
+    this.#rank.push(rank);
     this.#seq.push(this.#next++);
     this.#payload.push(payload);
 
@@ -60,6 +77,7 @@ export class EventQueue<T> {
 
     this.#swap(0, n - 1);
     this.#tau.pop();
+    this.#rank.pop();
     this.#seq.pop();
     this.#payload.pop();
 

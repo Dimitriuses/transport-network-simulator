@@ -13,3 +13,5 @@ export * from "./apis.ts";
 export * from "./harness.ts";
 export * from "./pacing.ts";
 export * from "./runfile.ts";
+export * from "./control.ts";
+export * from "./limits.ts";

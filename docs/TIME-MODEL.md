@@ -134,6 +134,12 @@ Queue semantics: FIFO per connection, preserved across the resume boundary, serv
 
 `GET /v1/clock` is exempt from queuing for exactly this reason: it must answer during a pause, or the player cannot learn why its other calls have stalled.
 
+### Built at P2M8 (2026-09-15)
+
+**A manual pause lands at the next boundary** (decided 2026-09-15). An obligation already with the player finishes as it would have — its operator calls served from the frozen snapshot, as any handler's are — and then the world stops. Nothing is outstanding during a manual pause, so no guard timer runs through one and a pause cannot turn an answer into a timeout. Operator calls arriving while paused wait in one FIFO for the run, which keeps every connection's order, and are refused with `503` past `run.pause_queue_depth` waiting calls; the depth is counted across connections rather than per connection. In `realtime` and `scaled` the wall time spent paused is not counted, so τ resumes where it stood.
+
+**Mode and speed change mid-run, at a boundary, without τ jumping**: whatever τ reads when the change lands is where the new mode counts from, and a switch from a wall-driven mode back to `virtual` issues any event it has already passed at once, with its lag. Every pause, resume, change and stop is a `control` record in the run log, and a run carrying one is not comparable (`SCORING.md` §12). `src/server/src/control.ts`.
+
 ### The residual leak
 
 A player can still infer *that* it is being waited on by watching `w`. What this buys is nearly nothing: it already knows it is handling a request. Mitigations, in order of preference: all simulator-emitted timestamps are simulated; the documentation states that wall-clock reasoning is unsupported; and optional randomised wall jitter if anyone ever demonstrates an actual exploit. **Accepted as a known, tolerable imperfection.** Not worth engineering away.
@@ -264,6 +270,8 @@ Because a wall-guard breach depends on the machine, a run that hits one is **not
 An `invalid` run is reported to the player with the reason and is excluded from any comparison. Otherwise a slower laptop silently changes results, which is the exact failure this whole document exists to prevent.
 
 The brief gains `run.wall_budget_s` — a total budget across the run, alongside per-request `guard_wall_s`.
+
+**Built at P2M8 (2026-09-15).** A wall guard breached in `virtual` records the obligation as `player_timeout`, lets the day run on — the world does not stall — and ends the run `invalid`. `run.wall_budget_s` is 3600 in `virtual`, excludes wall time spent manually paused, and ends the run `invalid` when it runs out; it is `null` in `realtime` and `scaled`, whose length is the day's. After `run.abort_after_consecutive_failures` (50) unanswered obligations in a row the run carries on without the player — plans fall back, replans resume under the reference policy, ticks stop — and ends `player_failure`, **scored**, because in `virtual` the same player fails the same way. How a run ended is a `run_end` record, absent when it simply completed. **Measured first**: no reference player failed an obligation or came within 95 ms of the guard on the committed world or `R3a`, so no recorded result moved.
 
 ---
 

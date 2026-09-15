@@ -2540,3 +2540,37 @@ A run log records decisions, not where anyone walked. The router's reactive exec
 * **The contract was two endpoints of nine, and unresolvable since P0M0** (`#74`). `contract:check` compares files with a generator, never with validity. The first fix made every component a reference to itself, which a dangling-reference scan passes; the portal's empty tables showed it.
 * **Five more contract items the simulator has never done** — capability gating of plans, `preferences`, adaptive tick cadence, the brief digest and `run-end` reasons, notification itineraries — joined `#72`.
 * **A solution could not be run at all without editing the demo.** `TNS_PLAYER_URL` fixes that minimally; connecting solutions properly is P2M8.
+
+## P2M8 — A simulation that stays alive, and a dashboard to drive it
+
+**Delivered 2026-09-15.** `npm run sim`: a simulation server holding one session through the contract's lifecycle, a live dashboard for an administrator and a narrower one for the solution, run tokens, manual pause and live speed, and every unbuilt contract item but two.
+
+### Measured before deciding
+
+Four reference players on the committed world and two on `R3a` answered **no obligation with an error or a timeout**, and the slowest answer took **95 ms** against a 30-second guard — so building the consecutive-failure abort and *guard breach makes a run invalid* could move no recorded result. A whole `virtual` day takes 1–29 s of wall time, which is why a session you watch runs in `scaled`.
+
+### Four decisions
+
+* **One session at a time, with preparation.** Registering a solution brings the APIs up with the clock frozen; Start is enabled once the player reports ready and speaks the contract.
+* **A pause lands at the next boundary.** Nothing is outstanding during one, so no guard runs through it; operator calls queue, `503` past the depth; `/v1/clock` says `paused`.
+* **Solution tokens and an administrator's token.** The control API refuses a caller without the run's token; operator APIs stay open until catalogue E.
+* **All of `#72` but plan `preferences` and a warning's `itinerary`**, which change what is scored.
+
+### What the harness became
+
+* **A controllable run.** `RunControl` lands pause, resume, retime and stop between obligations and writes each as a `control` record; the pacer changes mode and speed without τ jumping and does not count paused wall time; operator calls wait out a pause in order. A stopped run ends with a `run_end` record, is never scored — and **replays by stopping where its recording stopped**, which the viewer needed the first time a stopped run was opened.
+* **A preparation gate.** The first version brought the APIs up only on Start, and its tests timed out: a correct player cannot report ready before it can read the brief. The harness now holds after readiness and before `run-start`.
+* **The contract, enforced in one place.** A wrapper round the player — live or replayed alike — skips what was not claimed, stops asking after 50 failures in a row, and marks a breached guard in `virtual`. Ticks are scheduled one at a time so a player can move its cadence, and the event queue gained a rank to keep ticks first at a shared instant (`#67`).
+
+### What it holds itself to
+
+* `control.test.ts`: a paused `virtual` run queues operator calls, reports `paused`, and decides every traveller exactly as an unpaused run does; a stopped run is `invalid` and replays; a run switches between `virtual` and `scaled` without τ going back.
+* `contract-enforcement.test.ts`, with a scripted player: the token and version refused when missing; a version mismatch never reaches `run-start`; an unclaimed plan is never sent and counts as forgone; 50 failures end in `player_failure` and the day still settles all 98 travellers; a one-second guard breach ends `invalid`; `next_interval_sim_s` moves the ticks; `run-start` carries the digest of the served brief.
+* `sim.test.ts`, through the server's API: auth for both audiences, a whole run whose live counts match its run file, and a scaled run paused with τ still, resumed, re-sped and stopped, with `pause, resume, retime, stop` in its log.
+* **The open-loop golden hashes of `naive`, `competent` and `null` were checked after every change to the harness, and never moved.**
+
+### Found while building it
+
+* **The preparation phase the contract specified was two steps nobody had joined.** Health polling and preparation are one interval, bounded by `preparation.wall_budget_s`; `PLAYER-CONTRACT.md` §4 now says so.
+* **The reference player's own wait for the control API had fallen below the simulator's.** It must exceed the preparation budget, or a player gives up while the simulator is still waiting for it; 90 s became 330 s.
+* **Two tests sharing ports back to back failed on the second** while each passed alone — reuse, not a defect, and they now use their own.

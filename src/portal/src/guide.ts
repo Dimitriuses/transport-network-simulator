@@ -24,6 +24,10 @@ export interface GuideNumbers {
   /** Generalised seconds a traveller who never arrives is charged. */
   readonly nonArrivalS: number;
   readonly waitWeight: number;
+  /** Wall seconds a player has to report \`ready\`. */
+  readonly preparationS: number;
+  /** Consecutive unanswered obligations before the run carries on without the player. */
+  readonly abortAfterFailures: number;
 }
 
 export interface GuidePage {
@@ -68,17 +72,21 @@ Mostly on **how quickly your travellers get where they are going**, compared wit
       markdown: `
 ## Before the run
 
-1. The simulator polls \`GET /v1/health\` until you answer \`{"status": "ready"}\`.
-2. It reads \`GET /v1/identity\` once: your name, the contract versions you speak, the **capabilities** you implement, and — if you claim \`tick\` — how often you want ticks.
-3. It sends \`POST /v1/run-start\`. Responses to lifecycle notices are ignored.
+Your service is given two things: where the control API is, and a **run token**. Every request the simulator sends you carries \`Authorization: Bearer <run token>\` and \`X-TNS-Contract: 0.3\`; send both on every call you make to the control API, which refuses a call without them. Refuse a request that does not carry the token: it is not from this run.
+
+1. **Preparation.** The operators and the control API are up and the simulated clock stands still. The simulator polls \`GET /v1/health\` until you answer \`{"status": "ready"}\` — read the brief and ingest what you need first. You have ${Math.round(n.preparationS / 60)} minutes.
+2. It reads \`GET /v1/identity\` once: your name, the contract versions you speak, the **capabilities** you implement, and — if you claim \`tick\` — how often you want ticks. **If you do not speak this contract's version, the run does not start.**
+3. It sends \`POST /v1/run-start\`, with a digest of the brief. Responses to lifecycle notices are ignored.
 
 Fetch \`GET /v1/brief\` from the control API whenever you like. It says where each operator is and the rules of the world: how far a traveller will walk, and how fast.
 
 ## During the run
 
-* **Ticks**, if you claim \`tick\`, at the interval you declared and never more often than every ${n.minTickIntervalS} simulated seconds. Read the operators inside the handler.
-* **Plans**, ${minutes(n.planLeadS)} before each traveller departs. You have ${n.deadlineS} simulated seconds.
-* **Replans**, when a plan you gave breaks in front of a traveller — the vehicle does not come, a connection is missed, or they cannot reach the next stop. Also ${n.deadlineS} simulated seconds.
+* **Ticks**, if you claim \`tick\`, at the interval you declared and never more often than every ${n.minTickIntervalS} simulated seconds. Read the operators inside the handler. Answer with \`next_interval_sim_s\` to move the next one.
+* **Plans**, ${minutes(n.planLeadS)} before each traveller departs, if you claim \`plan\`. You have ${n.deadlineS} simulated seconds.
+* **Replans**, if you claim \`replan\`, when a plan you gave breaks in front of a traveller — the vehicle does not come, a connection is missed, or they cannot reach the next stop. Also ${n.deadlineS} simulated seconds.
+
+**What you do not claim, you are not asked** — and the traveller acts without you, counted as forgone. **After ${n.abortAfterFailures} unanswered obligations in a row** — errors or timeouts — the simulator stops asking, and the rest of the day runs without you, scored as \`player_failure\`.
 
 **At an instant holding both, the tick comes first**, so you answer with the freshest data you could have had.
 
@@ -86,7 +94,7 @@ Fetch \`GET /v1/brief\` from the control API whenever you like. It says where ea
 
 The simulated clock is **not** the wall clock. In the default \`virtual\` mode it jumps from one event to the next, and **it stops while you are answering**: every operator call you make inside a handler is served as of that handler's instant. A whole day can pass in seconds of wall time, which is why the simulator sends ticks rather than expecting you to poll on a timer.
 
-An answer takes effect **at its deadline**, in simulated time, however fast it came. In wall time you have ${n.guardWallS} seconds before the request is abandoned and counted as unanswered. Faster answers are not scored better.
+An answer takes effect **at its deadline**, in simulated time, however fast it came. In wall time you have ${n.guardWallS} seconds before the request is abandoned and counted as unanswered — and in \`virtual\` a request that takes that long makes the whole run \`invalid\`, because the machine decided it, not your solution. Faster answers are not scored better.
 
 In \`realtime\` and \`scaled\` modes the clock keeps running while you think, and a late answer is a missed one. Scores from those modes are not comparable with \`virtual\`.
 
@@ -94,9 +102,13 @@ In \`realtime\` and \`scaled\` modes the clock keeps running while you think, an
 
 **Every operator response is a pure function of simulated time.** Two calls at the same instant return the same bytes, however many times you ask; polling faster than a feed changes costs you API calls and tells you nothing new. Each operator's feed runs some amount behind the world — how far is not published, and working it out is part of the job.
 
+## Pauses
+
+Someone driving the simulation can pause it. A pause lands between obligations, never while you are answering one. While paused, your calls to the operators wait and are answered after it — or refused with \`503\` if too many are waiting — and \`GET /v1/clock\` says \`paused\`.
+
 ## After the run
 
-\`POST /v1/run-end\`, and the run is scored.
+\`POST /v1/run-end\`, with why it ended — \`completed\`, \`aborted\`, \`player_failure\` or \`invalid\` — and the run is scored, unless it was aborted or invalid.
 `,
     },
     {
@@ -200,13 +212,25 @@ Only runs in \`virtual\` time and open loop compare with each other. A closed-lo
       slug: "running",
       title: "Running your solution",
       markdown: `
-Start your service first. It needs to know where the control API is: the reference players read it from \`TNS_CONTROL_URL\`, and yours may take it however you like.
+## From the dashboard
 
 \`\`\`
-TNS_PLAYER_URL=http://127.0.0.1:8080 TNS_CONTROL_PORT=7430 npm run demo
+npm run sim
 \`\`\`
 
-The demo starts the operators and the control API, calls your service at \`TNS_PLAYER_URL\` through a whole day on the committed world, prints the scorecard, and writes the run to \`runs/\`. Then:
+prints a link to a dashboard. Create a session — a world, open or closed loop, how fast time runs, what you may see afterwards — then register your service's base URL. The dashboard gives you its **run token** and the control API's address: start your service with both, the way the reference players read them, as \`TNS_CONTROL_URL\` and \`TNS_TOKEN\`. When it reports ready, press Start, and watch its obligations, its traffic and its warnings as the day runs. Pause it, change its speed, or stop it; each is written into the run.
+
+A solution's own token opens a view of just its session, without the controls: the dashboard links it.
+
+## From the command line
+
+Choose a token, start your service with it, then:
+
+\`\`\`
+TNS_PLAYER_URL=http://127.0.0.1:8080 TNS_TOKEN=<the same token> TNS_CONTROL_PORT=7430 npm run demo
+\`\`\`
+
+The demo starts the operators and the control API on port 7430, calls your service at \`TNS_PLAYER_URL\` through a whole day on the committed world, prints the scorecard, and writes the run to \`runs/\`. Then:
 
 \`\`\`
 npm run view -- runs/<the run>.ndjson worlds/m1.world.db

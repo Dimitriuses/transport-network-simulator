@@ -205,7 +205,7 @@ Map replay, vehicle and passenger flows, an API request view, and the traveller 
 
 ---
 
-### P2M8 — A simulation that stays alive, and a dashboard to drive it
+### P2M8 — A simulation that stays alive, and a dashboard to drive it — **delivered 2026-09-15**
 
 **A long-lived simulation server** holding a session through the contract's lifecycle — preparation, running, paused, ended — in place of a script that runs a day to completion. **A live dashboard** on it:
 
@@ -218,6 +218,12 @@ Map replay, vehicle and passenger flows, an API request view, and the traveller 
 **Built as the contract already says** (`KNOWN-ISSUES.md` #72): manual pause queues operator requests FIFO and returns `503` on overflow, and `/v1/clock` never queues (`PLAYER-CONTRACT.md` §6.4).
 
 **Exit:** a player can start a session against a world, connect a solution with a token, watch its obligations and traffic live, pause it, change its speed, and open the finished run in the viewer — and the run log says every control action that was taken.
+
+**Decided 2026-09-15, on measurements taken first:** one session at a time, with preparation; a pause lands at the next boundary, and speed and mode change live; per-solution run tokens plus an administrator's token, operator APIs still open; and every unbuilt contract item but plan `preferences` and a warning's `itinerary`. **Measured**: no reference player failed an obligation or came near the guard, so the abort and `invalid` rules could move no recorded result — and none did.
+
+**Delivered 2026-09-15 — the exit met, through the server's own API and in a browser.** `npm run sim` prints a link with the administrator's token. Create a session, register a solution — your service's URL, or a reference player the session starts — and its run token and the control API's address are shown; registering brings the APIs up in preparation, and Start is enabled once the player has reported ready and speaks the contract. The dashboard shows the clock, obligations with their latency, lag and outcomes, operator traffic against the budget, warnings, travellers as they settle, a provisional capture, and — at `full`, or to the administrator — the live map; pause, resume, speed and stop land between obligations and are written into the run; a stopped run opens in the viewer. A solution's own token opens a view of its session without the controls. `src/sim/test/sim.test.ts` drives both a whole run and a paused, re-sped, stopped one through the API, and every contract item has a test of its own. **211 tests pass, and the open-loop golden hashes of `naive`, `competent` and `null` are unchanged throughout.**
+
+**What it does not do:** a token is revoked by removing the solution before Start, not during a run; the pause queue's depth is counted across connections rather than per connection; and a live dashboard for several solutions at once is P2M9's.
 
 ---
 
@@ -302,7 +308,8 @@ Map replay, vehicle and passenger flows, an API request view, and the traveller 
 | `KNOWN-ISSUES.md` #68 — a non-arrival costs less than a long journey | `SCORING.md` §4 | **Needs a decision**: every recorded capture moves with it |
 | `verbatim` logging, and the three trace disclosure levels | `OBSERVABILITY.md` §7, §8 | **P2M3** — built 2026-09-14; the run log itself is not a disclosure boundary, and withholding it is Phase 4's assessment mode |
 | `KNOWN-ISSUES.md` #71 — the Information family's decision point, and events no warning could serve | `SCORING.md` §5 | **Needs a decision**: every Information score and headline moves with it |
-| Manual pause, run tokens, `X-TNS-Contract`, wall budgets — specified, never built | `PLAYER-CONTRACT.md` §3, §6.4; `KNOWN-ISSUES.md` #72 | **P2M8** |
+| Manual pause, run tokens, `X-TNS-Contract`, wall budgets — specified, never built | `PLAYER-CONTRACT.md` §3, §6.4; `KNOWN-ISSUES.md` #72 | **P2M8** — built 2026-09-15 |
+| Plan `preferences` and a warning's `itinerary` | `PLAYER-CONTRACT.md` §5.4, §6.3; `NOT_YET_HONOURED` | **Needs a decision**: both change what is scored |
 | Per-operator auth schemes — header key, query key, expiring tokens | `CORECONCEPT.md` §2.1 E | Phase 3, as a declared catalogue setting — decided 2026-09-15 not to make it a dashboard toggle |
 | Several solutions in one closed-loop session | `CORECONCEPT.md` MVP scope | **P2M9**, after P2M6 — decided 2026-09-15 |
 | SQLite compaction of run logs | `OBSERVABILITY.md` §7 | Deferred until something queries a run log; a whole day is 0.3–0.9 MB |

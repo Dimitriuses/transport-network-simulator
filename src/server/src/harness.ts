@@ -47,15 +47,27 @@ import {
 } from "@tns/router";
 import { projectOperator } from "@tns/projections";
 import {
+  ABORT_AFTER_CONSECUTIVE_FAILURES,
+  GUARD_WALL_S,
   MIN_TICK_INTERVAL_S,
+  PREPARATION_WALL_BUDGET_S,
+  RUN_WALL_BUDGET_S,
+} from "./limits.ts";
+import {
+  briefDigest,
+  buildBrief,
   startControlApi,
   startOperatorApi,
   type NotificationRecord,
   type OperatorCall,
 } from "./apis.ts";
 import { makePacer, systemTimer, type Pacer, type WallTimer } from "./pacing.ts";
+import { PAUSE_QUEUE_DEPTH, type ControlRequest, type RunControl } from "./control.ts";
 
 const RUN_ID = "m1-demo";
+/** At one instant a tick goes before a plan or replan (PLAYER-CONTRACT.md §5.6). */
+const RANK_TICK = 0;
+const RANK_OBLIGATION = 1;
 /**
  * How far ahead of departure a traveller asks for a plan.
  *
@@ -76,8 +88,12 @@ const RUN_ID = "m1-demo";
 export const PLAN_LEAD_S = 1800;
 /** Simulated seconds a traveller will wait for a plan before acting alone. */
 export const PLAN_DEADLINE_S = 20;
-/** Wall-clock anti-hang guard. Generous, and never scored (TIME-MODEL.md §4). */
-export const GUARD_WALL_S = 30;
+export {
+  ABORT_AFTER_CONSECUTIVE_FAILURES,
+  GUARD_WALL_S,
+  PREPARATION_WALL_BUDGET_S,
+  RUN_WALL_BUDGET_S,
+} from "./limits.ts";
 
 export interface HarnessOptions {
   readonly world: World;
@@ -141,6 +157,39 @@ export interface HarnessOptions {
   readonly disclosure?: "full" | "attributed" | "outcome";
   /** Recorded in the header at `verbatim`; the writer is what enforces it. */
   readonly logLevel?: "trace" | "verbatim";
+  /**
+   * Drive the run from outside: pause, resume, change speed or mode, stop
+   * (`control.ts`, P2M8). Every change lands between obligations and is written
+   * to the log, and a run that carries one does not compare with another.
+   */
+  readonly control?: RunControl;
+  /**
+   * The run token (PLAYER-CONTRACT.md §3). Sent to the player on every request
+   * and required by the control API. Absent, nothing is authenticated — which
+   * the tests and instruments that drive a reference player in-process rely
+   * on, and which `npm run demo` and `npm run sim` never do.
+   */
+  readonly token?: string;
+  /** Wall seconds a request may run before it is abandoned. The contract's is 30; tests shorten it. */
+  readonly guardWallS?: number;
+  /**
+   * Handed, once, a read-only view of the run's clock — for a dashboard that
+   * shows τ between records. Reading it changes nothing.
+   */
+  readonly expose?: (clock: { tau(): number; mode(): TimeMode; speed(): number }) => void;
+  /**
+   * Told the player's identity once it is ready and speaks this contract — the
+   * end of preparation's checks (PLAYER-CONTRACT.md §4).
+   */
+  readonly onReady?: (identity: { readonly capabilities: readonly string[]; readonly contractVersions: readonly string[] }) => void;
+  /**
+   * Held after preparation and before `run-start`, until it resolves: a
+   * session's Start button (P2M8). If it rejects, the run never starts, and
+   * `runOpenLoop` rejects with that reason once the APIs are down.
+   */
+  readonly awaitStart?: () => Promise<void>;
+  /** Told whenever run state changes, for a dashboard. Never read back. */
+  readonly onState?: (state: "preparation" | "running" | "paused" | "ended") => void;
 }
 
 export interface RunStream {
@@ -264,6 +313,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
   // (`pacing.ts`, TIME-MODEL.md §2.3).
   const timeMode: TimeMode = opts.timeMode ?? "virtual";
   const pacer = makePacer(timeMode, clock, opts.speed, opts.timer ?? systemTimer);
+  opts.expose?.({ tau: () => pacer.tau(), mode: () => pacer.mode, speed: () => pacer.speed });
   const queue = new EventQueue<Obligation>();
 
   const loop = opts.loop ?? "open";
@@ -279,9 +329,17 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
           world.manifest.seed,
         )
       : null;
-  const player = opts.replay ? replayPlayer(opts.replay) : httpPlayer(opts.playerBaseUrl);
+  const guardS = opts.guardWallS ?? GUARD_WALL_S;
+  const rawPlayer = opts.replay ? replayPlayer(opts.replay) : httpPlayer(opts.playerBaseUrl, opts.token, guardS);
 
   let state: "preparation" | "running" | "paused" | "ended" = "preparation";
+  // How the run ends, if it does not simply complete; the strongest reason wins.
+  let runEnd: RunEnd | null = null;
+  const setState = (next: typeof state): void => {
+    state = next;
+    opts.onState?.(next);
+  };
+  const control = opts.control;
   const ingestion: (Omit<OperatorCall, "body"> & { operator: string; cause: string | null })[] = [];
   // The obligation currently being handled, for temporal attribution.
   let attributeTo: string | null = null;
@@ -320,6 +378,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
           );
         },
         port,
+        control ? () => control.admit() : undefined,
       ),
     );
   }
@@ -335,8 +394,12 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         emit({ kind: "notification", tau: n.tau, travellerRef: n.travellerRef, notificationKind: n.kind, message: n.message });
       },
       opts.controlPort,
-      { mode: timeMode, speed: pacer.speed },
+      () => ({ mode: pacer.mode, speed: pacer.speed }),
       { mode: loop, appUserFraction },
+      {
+        ...(opts.token ? { token: opts.token } : {}),
+        pauseQueueDepth: control?.pauseQueueDepth ?? PAUSE_QUEUE_DEPTH,
+      },
     ),
   );
 
@@ -365,42 +428,69 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
     emit(log[0]!);
 
     // ---- lifecycle -------------------------------------------------------
-    const identity = await player.ready();
-    await player.notify("/v1/run-start", { run_id: RUN_ID });
-    state = "running";
+    // Preparation: the clock stands still while the player gets ready, within
+    // the brief's budget (PLAYER-CONTRACT.md §4).
+    const identity = await rawPlayer.ready(PREPARATION_WALL_BUDGET_S * 1000);
+    // **Versions are agreed before the run, never during it** (§3).
+    if (!opts.replay && !identity.contractVersions.includes(CONTRACT_VERSION)) {
+      throw new ContractMismatch(
+        `the player speaks contract ${identity.contractVersions.join(", ") || "(none declared)"} and this ` +
+          `simulator speaks ${CONTRACT_VERSION}: the run will not start (PLAYER-CONTRACT.md §3)`,
+      );
+    }
+    opts.onReady?.({ capabilities: identity.capabilities, contractVersions: identity.contractVersions });
+    // Still preparation: the clock stands where the day begins until told to go.
+    await opts.awaitStart?.();
+    const player = enforcing(rawPlayer, identity, pacer, (e) => {
+      if (!runEnd || runEndPrecedence(e.reason) > runEndPrecedence(runEnd.reason)) runEnd = e;
+    });
+    await player.notify("/v1/run-start", {
+      run_id: RUN_ID,
+      brief_digest: briefDigest(
+        buildBrief(world, operatorUrls, { mode: pacer.mode, speed: pacer.speed }, { mode: loop, appUserFraction }, {
+          pauseQueueDepth: control?.pauseQueueDepth ?? PAUSE_QUEUE_DEPTH,
+        }),
+      ),
+    });
+    setState("running");
+    const wallStartMs = performance.now();
+    let pausedWallMs = 0;
+    let pausedSinceMs: number | null = null;
     // Wall time starts counting here, not at preparation (PLAYER-CONTRACT.md §4).
     pacer.start();
 
     // Ingestion cadence is simulator-driven. In `virtual` mode the clock
     // outruns any player-side polling loop, so a player that slept between
     // fetches would poll once for the whole day (TIME-MODEL.md §6).
-    const tickInterval = identity.capabilities.includes("tick")
+    //
+    // **Ticks are scheduled one at a time** (P2M8), each after the one before
+    // is answered, so a tick's `next_interval_sim_s` can move the next one
+    // (PLAYER-CONTRACT.md §5.6). With a constant interval that is the same set
+    // of ticks the whole day was queued as until then.
+    const tickEnd = Math.max(...world.queries.map((q) => q.departAfterS)) + 3600;
+    let tickInterval = identity.capabilities.includes("tick")
       ? Math.max(MIN_TICK_INTERVAL_S, identity.tickIntervalS ?? 60)
       : 0;
-    if (tickInterval > 0) {
-      const lastTau = Math.max(...world.queries.map((q) => q.departAfterS)) + 3600;
-      let n = 0;
-      for (let t = firstTau; t <= lastTau; t += tickInterval) {
-        queue.push(t, { kind: "tick", requestId: `tick-${String(n++).padStart(4, "0")}` });
-      }
-    }
+    let tickCount = 0;
+    const scheduleTick = (at: number): void => {
+      if (tickInterval <= 0 || at > tickEnd) return;
+      queue.push(at, { kind: "tick", requestId: `tick-${String(tickCount++).padStart(4, "0")}` }, RANK_TICK);
+    };
+    scheduleTick(firstTau);
 
-    // **Plans are queued after the ticks, and that is the whole of the rule.**
-    // The queue breaks a tie at one instant by insertion order, and the contract
-    // says a tick at an obligation's instant is delivered first (§5.6, §9.3).
-    // Queued before them, as they were until P2M2, every plan sharing an instant
-    // with a tick was answered before it — 47 of the committed world's 98
-    // (`KNOWN-ISSUES.md` #67). Anything queued later, a closed-loop replan
-    // included, lands after the tick at its instant for the same reason.
+    // **A tick at an obligation's instant is delivered first** (§5.6, §9.3), and
+    // the queue's rank is what keeps that: ticks rank before plans and replans
+    // however they were queued. Until P2M2 plans were queued before ticks and
+    // answered before them at 47 of the committed world's 98 shared instants
+    // (`KNOWN-ISSUES.md` #67); until P2M8 the fix was the order of the loops.
     for (const q of world.queries) {
       // Outside the app-user fraction nobody asks the player anything.
       if (appUsers && !appUsers.has(q.id)) continue;
-      queue.push(q.departAfterS - PLAN_LEAD_S, {
-        kind: "plan",
-        queryId: q.id,
-        travellerRef: `trv-${q.id}`,
-        requestId: `req-${q.id}`,
-      });
+      queue.push(
+        q.departAfterS - PLAN_LEAD_S,
+        { kind: "plan", queryId: q.id, travellerRef: `trv-${q.id}`, requestId: `req-${q.id}` },
+        RANK_OBLIGATION,
+      );
     }
 
     // ---- the run ---------------------------------------------------------
@@ -425,6 +515,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
     };
 
     const contextFor = (queryId: string, travellerRef: string): ReplanContext => ({
+      guardS,
       world,
       resolution,
       table,
@@ -500,14 +591,11 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
           travellerRecord(query, travellerRef, gaveUp(step, "abandoned_after_replans"), false, true),
         );
       } else {
-        queue.push(step.progress.cursorS, {
-          kind: "replan",
-          queryId: query.id,
-          travellerRef,
-          baseRequestId,
-          attempt,
-          brk: step,
-        });
+        queue.push(
+          step.progress.cursorS,
+          { kind: "replan", queryId: query.id, travellerRef, baseRequestId, attempt, brk: step },
+          RANK_OBLIGATION,
+        );
       }
     };
 
@@ -530,7 +618,50 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       }
     }
 
+    // A change asked for from outside lands here, between obligations, and is
+    // written down where it landed (`control.ts`).
+    const applyControl = (r: ControlRequest): void => {
+      if (r.action === "pause") {
+        pacer.hold();
+        pausedSinceMs = performance.now();
+        setState("paused");
+      } else if (r.action === "resume") {
+        pacer.release();
+        if (pausedSinceMs !== null) pausedWallMs += performance.now() - pausedSinceMs;
+        pausedSinceMs = null;
+        setState("running");
+      } else if (r.action === "retime") {
+        pacer.retime(r.timeMode, r.speed);
+      }
+      const record: RunRecord = {
+        kind: "control",
+        tau: pacer.tau(),
+        action: r.action,
+        ...(r.action === "retime" ? { timeMode: pacer.mode, speed: pacer.speed } : {}),
+      };
+      log.push(record);
+      emit(record);
+    };
+    const atBoundary = async (): Promise<boolean> => {
+      if (!control) return true;
+      if ((await control.boundary(applyControl)) === "continue") return true;
+      runEnd = { reason: "aborted", detail: "stopped from outside the run" };
+      return false;
+    };
+    // TIME-MODEL.md §9: a `virtual` run's wall time is a property of the machine,
+    // so running out of it ends the run as `invalid`, never as a bad score. Wall
+    // time spent manually paused is not counted.
+    const overWallBudget = (): boolean => {
+      if (pacer.mode !== "virtual") return false;
+      const usedS = (performance.now() - wallStartMs - pausedWallMs) / 1000;
+      if (usedS <= RUN_WALL_BUDGET_S) return false;
+      runEnd = { reason: "invalid", detail: `the run's wall budget of ${RUN_WALL_BUDGET_S} s ran out` };
+      return true;
+    };
+
     for (;;) {
+      if (!(await atBoundary())) break;
+      if (overWallBudget()) break;
       const next = queue.pop();
       if (!next) break;
 
@@ -538,10 +669,26 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
       // the wall until τ reaches it — or, if a slow handler has already carried
       // τ past, issue it at once. Either way it is issued *as of* its scheduled
       // instant, so its deadline is where it always was; the lag is recorded as
-      // a wall diagnostic and kept out of the golden hash.
-      const lagS = await pacer.waitFor(next.tau);
+      // a wall diagnostic and kept out of the golden hash. A pause or a change
+      // of speed asked for while waiting interrupts the wait, lands, and the
+      // wait begins again.
+      let lagS: number | null = null;
+      while (lagS === null) {
+        lagS = await pacer.waitFor(next.tau, control ? () => control.pending : undefined);
+        if (lagS === null && !(await atBoundary())) break;
+      }
+      if (lagS === null) break;
+      // A recording that stopped early — from outside, or out of wall budget —
+      // holds no answer past the stop, so a replay stops where it did.
+      const recordedStop = opts.replay?.find((r) => r.kind === "run_end" && r.reason !== "player_failure");
+      if (recordedStop && recordedStop.kind === "run_end" && !rawPlayer.has?.(requestIdOf(next.payload))) {
+        runEnd = { reason: recordedStop.reason, detail: recordedStop.detail };
+        break;
+      }
       const issuedAt = next.tau;
-      const lag = timeMode === "virtual" ? {} : { lagS };
+      // Absent in `virtual`, so a `virtual` log is what it always was — unless a
+      // switch from a wall-driven mode left this event late.
+      const lag = pacer.mode === "virtual" && lagS === 0 ? {} : { lagS };
       // Bind once so the discriminant narrows across the early return below.
       const ob = next.payload;
 
@@ -555,14 +702,18 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         // (OBSERVABILITY.md §3.1).
         attributeTo = ob.requestId;
         const t0 = Date.now();
-        const ok = await player.tick(ob.requestId, {
+        const tick = await player.tick(ob.requestId, {
           contract_version: CONTRACT_VERSION,
           run_id: RUN_ID,
           sim_time: renderSimTime(anchor, issuedAt),
-          guard_wall_s: GUARD_WALL_S,
+          guard_wall_s: guardS,
         });
+        const ok = tick.ok;
         if (pacer.pausesForHandlers) clock.resume();
         attributeTo = null;
+        // The player may move its own cadence, never below the brief's floor.
+        if (tick.nextIntervalS !== null) tickInterval = Math.max(MIN_TICK_INTERVAL_S, tick.nextIntervalS);
+        scheduleTick(issuedAt + tickInterval);
         log.push({
           kind: "obligation",
           obligation: "tick",
@@ -574,6 +725,9 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
           latencyMs: Date.now() - t0,
           itinerary: null,
           ...lag,
+          // Only when the player asked, so a constant-cadence log is unchanged.
+          ...(tick.nextIntervalS !== null ? { nextIntervalS: tick.nextIntervalS } : {}),
+          ...(tick.unsent ? { unsent: true as const } : {}),
         });
         emit(log.at(-1)!);
         continue;
@@ -610,7 +764,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
           run_id: RUN_ID,
           issued_at: renderSimTime(anchor, issuedAt),
           deadline: renderSimTime(anchor, deadline),
-          guard_wall_s: GUARD_WALL_S,
+          guard_wall_s: guardS,
           requests: [
             {
               request_id: ob.requestId,
@@ -623,7 +777,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
           ],
         },
         "plan",
-        pacer.timeoutMs(deadline, GUARD_WALL_S * 1000),
+        pacer.timeoutMs(deadline, guardS * 1000),
       );
       const latencyMs = Date.now() - startedMs;
 
@@ -643,6 +797,7 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
         latencyMs,
         itinerary: answer.itinerary,
         ...lag,
+        ...(answer.unsent ? { unsent: true as const } : {}),
       };
 
       // What the traveller actually did.
@@ -815,8 +970,15 @@ export async function runOpenLoop(opts: HarnessOptions): Promise<RunRecord[]> {
     }
     log.push(...outcomes);
 
-    state = "ended";
-    await player.notify("/v1/run-end", { run_id: RUN_ID, reason: "completed" });
+    const ended = runEnd as RunEnd | null;
+    if (ended) {
+      const record: RunRecord = { kind: "run_end", tau: pacer.tau(), reason: ended.reason, detail: ended.detail };
+      log.push(record);
+      emit(record);
+    }
+
+    setState("ended");
+    await rawPlayer.notify("/v1/run-end", { run_id: RUN_ID, reason: ended?.reason ?? "completed" });
 
     return log;
   } finally {
@@ -862,27 +1024,23 @@ function mergeResolutions(world: World, tau: number): MergedResolution {
 }
 
 /**
- * How long to wait for a player to come up, in real milliseconds.
+ * Wait, up to the preparation budget, for a player to report `ready`.
  *
- * **Not part of the simulation**, and deliberately generous. A player is
- * usually a separate process that must start a runtime, parse its own source
- * and read the brief before it can answer — none of which the world knows or
- * cares about. This budget was 100 attempts at 50 ms, and five seconds is
- * ample on a warm developer machine and not ample on a cold CI runner: the
- * walking-skeleton test failed there intermittently with `never became ready`
- * while passing everywhere else.
- *
- * Waiting longer costs nothing when the player is quick, because the loop exits
- * on the first healthy response.
+ * **Not part of the simulation.** A player is usually a separate process that
+ * must start a runtime and read the brief before it can answer, none of which
+ * the world cares about. The wait was five seconds once, and a cold CI runner
+ * failed on it; then sixty; since P2M8 it is the brief's own
+ * `preparation.wall_budget_s`, because a player preparing is exactly what
+ * that budget bounds (PLAYER-CONTRACT.md §4). Waiting costs nothing when the
+ * player is quick: the loop exits on the first healthy response.
  */
-const PLAYER_BOOT_BUDGET_MS = 60_000;
 
-async function waitForHealth(baseUrl: string): Promise<void> {
+async function waitForHealth(baseUrl: string, headers: Record<string, string>, budgetMs: number): Promise<void> {
   const startedMs = Date.now();
   let lastError = "no response";
-  while (Date.now() - startedMs < PLAYER_BOOT_BUDGET_MS) {
+  while (Date.now() - startedMs < budgetMs) {
     try {
-      const res = await fetch(`${baseUrl}/v1/health`);
+      const res = await fetch(`${baseUrl}/v1/health`, { headers });
       if (res.ok) {
         const body = (await res.json()) as { status?: string };
         if (body.status === "ready") return;
@@ -897,7 +1055,7 @@ async function waitForHealth(baseUrl: string): Promise<void> {
   }
   throw new Error(
     `player at ${baseUrl} never became ready after ` +
-      `${(PLAYER_BOOT_BUDGET_MS / 1000).toFixed(0)}s. Last: ${lastError}. ` +
+      `${(budgetMs / 1000).toFixed(0)}s. Last: ${lastError}. ` +
       `If the player process exited, its stderr is where to look — a player ` +
       `started before the control API must retry until the API answers.`,
   );
@@ -906,22 +1064,99 @@ async function waitForHealth(baseUrl: string): Promise<void> {
 interface PlayerIdentity {
   readonly capabilities: readonly string[];
   readonly tickIntervalS: number | null;
+  readonly contractVersions: readonly string[];
 }
 
-async function readIdentity(baseUrl: string): Promise<PlayerIdentity> {
+async function readIdentity(baseUrl: string, headers: Record<string, string>): Promise<PlayerIdentity> {
   try {
-    const res = await fetch(`${baseUrl}/v1/identity`);
+    const res = await fetch(`${baseUrl}/v1/identity`, { headers });
     const body = (await res.json()) as {
       capabilities?: string[];
       tick?: { interval_sim_s?: number };
+      contract_versions?: string[];
     };
     return {
       capabilities: body.capabilities ?? [],
       tickIntervalS: body.tick?.interval_sim_s ?? null,
+      contractVersions: body.contract_versions ?? [],
     };
   } catch {
-    return { capabilities: [], tickIntervalS: null };
+    return { capabilities: [], tickIntervalS: null, contractVersions: [] };
   }
+}
+
+/** The run will not start: the player and the simulator do not share a contract version. */
+export class ContractMismatch extends Error {}
+
+/** Every request the simulator sends a player carries these (PLAYER-CONTRACT.md §3). */
+function playerHeaders(token: string | undefined): Record<string, string> {
+  return {
+    "X-TNS-Contract": CONTRACT_VERSION,
+    ...(token ? { authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+type RunEnd = { readonly reason: "aborted" | "player_failure" | "invalid"; readonly detail: string };
+
+/** When two things would end a run, which is recorded: a stop over an invalid run over a failed player. */
+function runEndPrecedence(reason: RunEnd["reason"]): number {
+  return reason === "aborted" ? 3 : reason === "invalid" ? 2 : 1;
+}
+
+/**
+ * The player as the rules see it (P2M8): what it did not claim is not asked
+ * (PLAYER-CONTRACT.md §5.2); after `ABORT_AFTER_CONSECUTIVE_FAILURES`
+ * unanswered obligations in a row the run carries on without it (§8); and a
+ * wall guard breached in `virtual` makes the run `invalid`, because the machine
+ * decided that answer (TIME-MODEL.md §9).
+ *
+ * Wrapped round a live player and a replay alike, so a replayed run makes the
+ * same decisions from its recorded answers.
+ */
+function enforcing(
+  inner: PlayerPort,
+  identity: PlayerIdentity,
+  pacer: Pacer,
+  end: (e: RunEnd) => void,
+): PlayerPort {
+  let streak = 0;
+  let gaveUp = false;
+  const counted = (outcome: ObligationOutcome, requestId: string): void => {
+    if (outcome === "player_timeout" && pacer.mode === "virtual") {
+      end({ reason: "invalid", detail: `the wall guard was breached answering ${requestId}` });
+    }
+    if (outcome === "player_error" || outcome === "player_timeout") {
+      streak++;
+      if (streak >= ABORT_AFTER_CONSECUTIVE_FAILURES && !gaveUp) {
+        gaveUp = true;
+        end({
+          reason: "player_failure",
+          detail: `${ABORT_AFTER_CONSECUTIVE_FAILURES} obligations in a row went unanswered, ending at ${requestId}`,
+        });
+      }
+    } else {
+      streak = 0;
+    }
+  };
+  return {
+    ready: (budgetMs) => inner.ready(budgetMs),
+    notify: (path, body) => inner.notify(path, body),
+    async tick(requestId, body) {
+      if (gaveUp) return { ok: false, nextIntervalS: null, timedOut: false, unsent: true };
+      const answer = await inner.tick(requestId, body);
+      counted(answer.ok ? "ok" : answer.timedOut ? "player_timeout" : "player_error", requestId);
+      return answer;
+    },
+    async ask(requestId, request, endpoint, timeoutMs) {
+      if (!identity.capabilities.includes(endpoint)) {
+        return { outcome: "unclaimed", itinerary: null, unsent: true };
+      }
+      if (gaveUp) return { outcome: "player_error", itinerary: null, unsent: true };
+      const answer = await inner.ask(requestId, request, endpoint, timeoutMs);
+      counted(answer.outcome, requestId);
+      return answer;
+    },
+  };
 }
 
 /**
@@ -937,29 +1172,62 @@ export function traceparentFor(runId: string, requestId: string): string {
   return `00-${hex(`trace:${runId}`, 32)}-${hex(`span:${runId}:${requestId}`, 16)}-01`;
 }
 
-async function sendTick(baseUrl: string, requestId: string, body: unknown): Promise<boolean> {
+/** The request id an event will be issued under. */
+function requestIdOf(ob: Obligation): string {
+  return ob.kind === "replan" ? `${ob.baseRequestId}-r${ob.attempt}` : ob.requestId;
+}
+
+/** A tick's acknowledgement, and the cadence the player asked for next, if it asked. */
+export interface TickAnswer {
+  readonly ok: boolean;
+  readonly nextIntervalS: number | null;
+  /** The guard ran out, rather than the player answering badly. */
+  readonly timedOut?: boolean;
+  /** Not sent: the run had given up on the player. */
+  readonly unsent?: boolean;
+}
+
+async function sendTick(
+  baseUrl: string,
+  headers: Record<string, string>,
+  guardMs: number,
+  requestId: string,
+  body: unknown,
+): Promise<TickAnswer> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), GUARD_WALL_S * 1000);
+  const timer = setTimeout(() => controller.abort(), guardMs);
   try {
     const res = await fetch(`${baseUrl}/v1/tick`, {
       method: "POST",
-      headers: { "content-type": "application/json", traceparent: traceparentFor(RUN_ID, requestId) },
+      headers: { ...headers, "content-type": "application/json", traceparent: traceparentFor(RUN_ID, requestId) },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
-    return res.ok;
-  } catch {
-    return false;
+    if (!res.ok) return { ok: false, nextIntervalS: null };
+    // Any 2xx acknowledges; a body that asks for another cadence is honoured if
+    // it says so plainly, and ignored if it does not (PLAYER-CONTRACT.md §5.6).
+    let next: number | null = null;
+    try {
+      const body = (await res.json()) as { next_interval_sim_s?: unknown };
+      if (Number.isInteger(body.next_interval_sim_s) && (body.next_interval_sim_s as number) > 0) {
+        next = body.next_interval_sim_s as number;
+      }
+    } catch {
+      // An empty or non-JSON acknowledgement is still an acknowledgement.
+    }
+    return { ok: true, nextIntervalS: next };
+  } catch (err) {
+    return { ok: false, nextIntervalS: null, timedOut: err instanceof Error && err.name === "AbortError" };
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function post(baseUrl: string, path: string, body: unknown): Promise<void> {
+async function post(baseUrl: string, headers: Record<string, string>, path: string, body: unknown): Promise<void> {
   try {
     await fetch(`${baseUrl}${path}`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { ...headers, "content-type": "application/json" },
       body: JSON.stringify(body),
     });
   } catch {
@@ -971,10 +1239,13 @@ async function post(baseUrl: string, path: string, body: unknown): Promise<void>
 interface PlayerAnswer {
   readonly outcome: ObligationOutcome;
   readonly itinerary: Itinerary | null;
+  /** Recorded without asking: an unclaimed capability, or a player the run gave up on. */
+  readonly unsent?: boolean;
 }
 
 async function askPlayer(
   baseUrl: string,
+  headers: Record<string, string>,
   requestId: string,
   request: unknown,
   endpoint: "plan" | "replan" = "plan",
@@ -986,7 +1257,7 @@ async function askPlayer(
   try {
     const res = await fetch(`${baseUrl}/v1/${endpoint}`, {
       method: "POST",
-      headers: { "content-type": "application/json", traceparent: traceparentFor(RUN_ID, requestId) },
+      headers: { ...headers, "content-type": "application/json", traceparent: traceparentFor(RUN_ID, requestId) },
       body: JSON.stringify(request),
       signal: controller.signal,
     });
@@ -1364,6 +1635,7 @@ interface ReplanContext {
   readonly log: RunRecord[];
   readonly observe: MovementObserver | undefined;
   readonly emit: (record: RunRecord) => void;
+  readonly guardS: number;
 }
 
 /** Where a traveller stands before setting out: at the origin, at its departure time. */
@@ -1419,7 +1691,7 @@ async function askReplan(
       run_id: RUN_ID,
       issued_at: renderSimTime(ctx.anchor, issuedAt),
       deadline: renderSimTime(ctx.anchor, deadline),
-      guard_wall_s: GUARD_WALL_S,
+      guard_wall_s: ctx.guardS,
       requests: [
         {
           request_id: requestId,
@@ -1433,7 +1705,7 @@ async function askReplan(
       ],
     },
     "replan",
-    ctx.pacer.timeoutMs(deadline, GUARD_WALL_S * 1000),
+    ctx.pacer.timeoutMs(deadline, ctx.guardS * 1000),
   );
   const latencyMs = Date.now() - startedMs;
   if (ctx.pacer.pausesForHandlers) ctx.clock.resume();
@@ -1451,6 +1723,7 @@ async function askReplan(
     trigger: brk.trigger,
     attempt,
     ...lag,
+    ...(answer.unsent ? { unsent: true as const } : {}),
   });
   ctx.emit(ctx.log.at(-1)!);
   return answer;
@@ -1589,9 +1862,11 @@ const APP_USER_SALT = 0x61707075;
  * recorded answers. The harness cannot tell which, and must not.
  */
 interface PlayerPort {
-  ready(): Promise<PlayerIdentity>;
+  ready(budgetMs: number): Promise<PlayerIdentity>;
   notify(path: "/v1/run-start" | "/v1/run-end", body: unknown): Promise<void>;
-  tick(requestId: string, body: unknown): Promise<boolean>;
+  tick(requestId: string, body: unknown): Promise<TickAnswer>;
+  /** Replay only: whether the recording holds an answer to this request. */
+  has?(requestId: string): boolean;
   ask(
     requestId: string,
     request: unknown,
@@ -1600,15 +1875,17 @@ interface PlayerPort {
   ): Promise<PlayerAnswer>;
 }
 
-function httpPlayer(baseUrl: string): PlayerPort {
+function httpPlayer(baseUrl: string, token: string | undefined, guardS: number): PlayerPort {
+  const headers = playerHeaders(token);
   return {
-    ready: async () => {
-      await waitForHealth(baseUrl);
-      return readIdentity(baseUrl);
+    ready: async (budgetMs) => {
+      await waitForHealth(baseUrl, headers, budgetMs);
+      return readIdentity(baseUrl, headers);
     },
-    notify: (path, body) => post(baseUrl, path, body),
-    tick: (requestId, body) => sendTick(baseUrl, requestId, body),
-    ask: (requestId, request, endpoint, timeoutMs) => askPlayer(baseUrl, requestId, request, endpoint, timeoutMs),
+    notify: (path, body) => post(baseUrl, headers, path, body),
+    tick: (requestId, body) => sendTick(baseUrl, headers, guardS * 1000, requestId, body),
+    ask: (requestId, request, endpoint, timeoutMs) =>
+      askPlayer(baseUrl, headers, requestId, request, endpoint, timeoutMs),
   };
 }
 
@@ -1636,14 +1913,30 @@ function replayPlayer(recorded: readonly RunRecord[]): PlayerPort {
     return r;
   };
 
+  // What the recorded player claimed, read back from what it was asked.
+  const asked = (kind: "plan" | "replan") =>
+    recorded.some((r) => r.kind === "obligation" && r.obligation === kind && r.outcome !== "unclaimed");
   return {
+    has: (requestId) => answers.has(requestId),
     ready: () =>
       Promise.resolve({
-        capabilities: ticks.length > 0 ? ["tick"] : [],
+        capabilities: [
+          ...(ticks.length > 0 ? ["tick"] : []),
+          ...(asked("plan") ? ["plan"] : []),
+          ...(asked("replan") ? ["replan"] : []),
+        ],
         tickIntervalS: ticks.length > 1 ? ticks[1]!.issuedAt - ticks[0]!.issuedAt : null,
+        contractVersions: [CONTRACT_VERSION],
       }),
     notify: () => Promise.resolve(),
-    tick: (requestId) => Promise.resolve(answerTo(requestId).outcome === "ok"),
+    tick: (requestId) => {
+      const r = answerTo(requestId);
+      return Promise.resolve({
+        ok: r.outcome === "ok",
+        nextIntervalS: r.nextIntervalS ?? null,
+        timedOut: r.outcome === "player_timeout",
+      });
+    },
     ask: (requestId) => {
       const r = answerTo(requestId);
       return Promise.resolve({ outcome: r.outcome, itinerary: r.itinerary });

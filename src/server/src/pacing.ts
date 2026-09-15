@@ -30,6 +30,7 @@ export const systemTimer: WallTimer = {
 };
 
 export interface Pacer {
+  /** The mode now. It may change during a run (P2M8); the header records the one it began in. */
   readonly mode: TimeMode;
   /** Simulated seconds per wall second. Reported as 1 in `virtual`, where it means nothing. */
   readonly speed: number;
@@ -45,11 +46,16 @@ export interface Pacer {
   tau(): number;
   /**
    * Bring τ to `target` and report how many simulated seconds late the event
-   * is being issued. In `virtual` this moves the clock and is never late. In
-   * the wall-driven modes it sleeps until τ reaches `target`, or returns at
-   * once with the lag if a slow handler has already carried τ past it.
+   * is being issued. In `virtual` this moves the clock, and is late only after
+   * a switch from a wall-driven mode left τ ahead of the queue. In the
+   * wall-driven modes it sleeps until τ reaches `target`, or returns at once
+   * with the lag if a slow handler has already carried τ past it.
+   *
+   * `interrupted`, polled while sleeping, lets a pause or a change of speed
+   * land without waiting out the sleep: the wait returns `null` and the caller
+   * waits again once the change is made.
    */
-  waitFor(target: number): Promise<number>;
+  waitFor(target: number, interrupted?: () => boolean): Promise<number | null>;
   /**
    * How long a request may run, in wall milliseconds. `virtual` allows the
    * guard, because response speed cannot touch the world there. The wall-driven
@@ -58,29 +64,22 @@ export interface Pacer {
    * is not an answer, and the traveller acts without it (TIME-MODEL.md §4).
    */
   timeoutMs(deadline: number, guardMs: number): number;
+  /**
+   * Change mode or speed mid-run (P2M8), without τ jumping: whatever τ reads at
+   * the moment of the change is where the new mode starts counting from.
+   */
+  retime(mode: TimeMode, speed: number | undefined): void;
+  /** A manual pause: τ stands still, and the wall time it lasts is not counted. */
+  hold(): void;
+  release(): void;
+  readonly held: boolean;
 }
 
-export function makePacer(
-  mode: TimeMode,
-  clock: Clock,
-  speed: number | undefined,
-  timer: WallTimer,
-): Pacer {
-  if (mode === "virtual") {
-    return {
-      mode,
-      speed: 1,
-      pausesForHandlers: true,
-      start() {},
-      tau: () => clock.now(),
-      waitFor(target) {
-        clock.advanceTo(target);
-        return Promise.resolve(0);
-      },
-      timeoutMs: (_deadline, guardMs) => guardMs,
-    };
-  }
+/** Wall milliseconds between `sleepMs` calls while waiting, so an interruption lands promptly. */
+const WAIT_SLICE_MS = 100;
 
+function factorFor(mode: TimeMode, speed: number | undefined): number {
+  if (mode === "virtual") return 1;
   if (mode === "realtime" && speed !== undefined && speed !== 1) {
     throw new Error(
       `\`realtime\` runs at 1× by definition, not ${speed}×; ask for \`scaled\` to run at another speed (TIME-MODEL.md §2)`,
@@ -90,39 +89,105 @@ export function makePacer(
   if (!Number.isFinite(factor) || factor <= 0) {
     throw new Error(`\`scaled\` needs a positive speed, got ${String(speed)} (TIME-MODEL.md §2)`);
   }
+  return factor;
+}
 
-  const startTau = clock.now();
+export function makePacer(
+  initialMode: TimeMode,
+  clock: Clock,
+  initialSpeed: number | undefined,
+  timer: WallTimer,
+): Pacer {
+  let mode = initialMode;
+  let factor = factorFor(mode, initialSpeed);
+  // Wall-driven state: τ = startTau + (wall since anchor) × factor.
+  let startTau = clock.now();
   let anchorMs: number | null = null;
+  let started = false;
+  let heldAt: { tau: number; ms: number } | null = null;
+
   const elapsedMs = (): number => (anchorMs === null ? 0 : timer.nowMs() - anchorMs);
-  const tau = (): number => startTau + Math.floor((elapsedMs() * factor) / 1000);
-  /** Wall milliseconds after the start at which τ first reads `t`. */
+  const wallTau = (): number => startTau + Math.floor((elapsedMs() * factor) / 1000);
+  const tau = (): number => {
+    if (heldAt) return heldAt.tau;
+    return mode === "virtual" ? clock.now() : wallTau();
+  };
+  /** Wall milliseconds after the anchor at which τ first reads `t`. */
   const wallMsAt = (t: number): number => ((t - startTau) * 1000) / factor;
 
   return {
-    mode,
-    speed: factor,
-    pausesForHandlers: false,
+    get mode() {
+      return mode;
+    },
+    get speed() {
+      return mode === "virtual" ? 1 : factor;
+    },
+    get pausesForHandlers() {
+      return mode === "virtual";
+    },
+    get held() {
+      return heldAt !== null;
+    },
     start() {
-      if (anchorMs === null) anchorMs = timer.nowMs();
+      if (started) return;
+      started = true;
+      if (mode !== "virtual") {
+        startTau = clock.now();
+        anchorMs = timer.nowMs();
+      }
     },
     tau,
-    async waitFor(target) {
-      if (anchorMs === null) {
-        throw new Error("the pacer has not started: call start() when the run begins");
+    async waitFor(target, interrupted) {
+      if (mode === "virtual") {
+        const now = clock.now();
+        if (target >= now) {
+          clock.advanceTo(target);
+          return 0;
+        }
+        return now - target;
       }
+      if (!started) throw new Error("the pacer has not started: call start() when the run begins");
       for (;;) {
-        const now = tau();
+        if (interrupted?.()) return null;
+        const now = wallTau();
         if (now >= target) {
           clock.advanceTo(target);
           return now - target;
         }
-        await timer.sleepMs(Math.max(1, Math.ceil(wallMsAt(target) - elapsedMs())));
+        const remaining = Math.max(1, Math.ceil(wallMsAt(target) - elapsedMs()));
+        await timer.sleepMs(interrupted ? Math.min(remaining, WAIT_SLICE_MS) : remaining);
       }
     },
     timeoutMs(deadline, guardMs) {
+      if (mode === "virtual") return guardMs;
       // `deadline` is the last simulated second an answer still counts in, so
       // the budget runs until τ would read the second after it.
       return Math.max(0, Math.min(guardMs, wallMsAt(deadline + 1) - elapsedMs()));
+    },
+    retime(nextMode, nextSpeed) {
+      const nextFactor = factorFor(nextMode, nextSpeed);
+      const now = tau();
+      mode = nextMode;
+      factor = nextFactor;
+      if (nextMode === "virtual") {
+        // The clock only moves at events; bring it to where wall time had got.
+        if (now > clock.now()) clock.advanceTo(now);
+        anchorMs = null;
+      } else {
+        startTau = Math.max(now, clock.now());
+        anchorMs = started ? timer.nowMs() : null;
+      }
+      if (heldAt) heldAt = { tau: tau(), ms: heldAt.ms };
+    },
+    hold() {
+      if (heldAt) return;
+      heldAt = { tau: tau(), ms: timer.nowMs() };
+    },
+    release() {
+      if (!heldAt) return;
+      const pausedMs = timer.nowMs() - heldAt.ms;
+      if (mode !== "virtual" && anchorMs !== null) anchorMs += pausedMs;
+      heldAt = null;
     },
   };
 }

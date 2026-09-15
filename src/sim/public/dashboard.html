@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulation dashboard</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body data-role="__ROLE__">
+  <header class="bar">
+    <div class="title">
+      <strong>Simulation</strong>
+      <span id="role" class="badge"></span>
+      <span id="state" class="badge"></span>
+    </div>
+    <div class="clock">
+      <span id="sim-time" class="big">—</span>
+      <span id="pace" class="muted"></span>
+    </div>
+  </header>
+
+  <main>
+    <div id="notice" class="notice" hidden></div>
+
+    <section class="columns">
+      <div class="panel admin-only" id="session-panel">
+        <h2>Session</h2>
+        <form id="session-form" class="form">
+          <label>World <select name="world" id="world-select"></select></label>
+          <label>Loop
+            <select name="loop"><option value="open">open</option><option value="closed">closed</option></select>
+          </label>
+          <label class="closed-only">App-user fraction <input name="appUserFraction" type="number" min="0" max="1" step="0.05" value="1"></label>
+          <label>Time
+            <select name="timeMode"><option value="virtual">virtual</option><option value="scaled" selected>scaled</option><option value="realtime">realtime</option></select>
+          </label>
+          <label class="scaled-only">Speed <input name="speed" type="number" min="1" step="1" value="60"></label>
+          <label>Disclosure
+            <select name="disclosure"><option value="full">full</option><option value="attributed" selected>attributed</option><option value="outcome">outcome</option></select>
+          </label>
+          <label>Log <select name="logLevel"><option value="trace">trace</option><option value="verbatim">verbatim</option></select></label>
+          <button type="submit">New session</button>
+        </form>
+        <div id="session-summary" class="small muted"></div>
+      </div>
+
+      <div class="panel" id="solution-panel">
+        <h2>Solution</h2>
+        <div id="solution"></div>
+        <div class="admin-only" id="solution-add">
+          <form id="external-form" class="form row">
+            <label>Base URL <input name="baseUrl" placeholder="http://127.0.0.1:8080" size="26"></label>
+            <button type="submit">Register</button>
+          </form>
+          <form id="reference-form" class="form row">
+            <label>or a reference player
+              <select name="reference"><option>naive</option><option>competent</option><option>blind</option><option>null</option></select>
+            </label>
+            <button type="submit">Start it</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="panel admin-only" id="control-panel">
+        <h2>Run</h2>
+        <div class="buttons">
+          <button id="start">Start</button>
+          <button id="pause">Pause</button>
+          <button id="resume">Resume</button>
+          <button id="stop" class="danger">Stop</button>
+        </div>
+        <form id="speed-form" class="form row">
+          <label>Time <select name="timeMode"><option value="scaled">scaled</option><option value="virtual">virtual</option><option value="realtime">realtime</option></select></label>
+          <label>Speed <input name="speed" type="number" min="1" step="1" value="60" size="6"></label>
+          <button type="submit">Change</button>
+        </form>
+        <p class="small muted">Changes land between obligations, are written to the run log, and make the run not comparable.</p>
+        <div id="run-end"></div>
+      </div>
+    </section>
+
+    <section id="tiles" class="tiles"></section>
+
+    <section class="columns">
+      <div class="panel">
+        <h2>Obligations <span id="obligation-counts" class="muted small"></span></h2>
+        <div class="scroll"><table id="obligations"></table></div>
+      </div>
+      <div class="panel">
+        <h2>Operator traffic</h2>
+        <div class="scroll"><table id="operators"></table></div>
+        <h2 style="margin-top:14px">Warnings sent</h2>
+        <div class="scroll short"><table id="warnings"></table></div>
+      </div>
+    </section>
+
+    <section class="columns">
+      <div class="panel">
+        <h2>Travellers settled</h2>
+        <div class="scroll short"><table id="travellers"></table></div>
+      </div>
+      <div class="panel" id="map-panel">
+        <h2>Map <span class="muted small" id="map-note"></span></h2>
+        <svg id="map" role="img" aria-label="Live map"></svg>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="dashboard.js"></script>
+</body>
+</html>
